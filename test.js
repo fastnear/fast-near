@@ -9,6 +9,9 @@ const registers = {};
 
 const inputArgs = JSON.stringify({
     // TODO
+    request: {
+
+    }
 });
 
 const MAX_U64 = 18446744073709551615n;
@@ -22,9 +25,13 @@ const imports = (ctx) => ({
             return BigInt(registers[register_id] ? registers[register_id].length : MAX_U64);
         },
         read_register: (register_id, ptr) => {
-            notImplemented('read');
+            const mem = new Uint8Array(ctx.memory.buffer)
+            mem.set(registers[register_id] || Buffer.from([]), Number(ptr));
         },
-        value_return: notImplemented('value_return'),
+        value_return: (value_len, value_ptr) => {
+            const mem = new Uint8Array(ctx.memory.buffer)
+            console.log('value_return', Buffer.from(mem.slice(Number(value_ptr), Number(value_ptr + value_len))).toString('utf8'));
+        },
         panic: notImplemented('panic'),
         abort: (msg_ptr, filename_ptr, line, col) => {
             function readUTF16Str(ptr) {
