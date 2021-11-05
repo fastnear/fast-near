@@ -1,18 +1,18 @@
-const notImplemented = (...args) => {
-    console.error('method not implemented');
-    console.debug('args', args);
-    console.trace();
+// NOTE: Needs --experimental-wasm-bigint 
+
+const notImplemented = (name) => (...args) => {
+    console.debug('notImplemented', name, 'args', args);
     throw new Error('method not implemented');
 };
 
 const imports = {
     env: {
-        input: notImplemented,
-        register_len: notImplemented,
-        read_register: notImplemented,
-        value_return: notImplemented,
-        panic: notImplemented,
-        abort: notImplemented,
+        input: notImplemented('input'),
+        register_len: notImplemented('register_len'),
+        read_register: notImplemented('read_register'),
+        value_return: notImplemented('value_return'),
+        panic: notImplemented('panic'),
+        abort: notImplemented('abort'),
     }
 }
 
@@ -26,9 +26,11 @@ const wasmData = new Uint8Array(fs.readFileSync('./web4.wasm'));
 
     console.time('module instantiate');
     const wasm2 = await WebAssembly.instantiate(wasmModule, imports);
+    wasm2.exports.web4_get();
     console.timeEnd('module instantiate');
 
     console.time('wasm instantiate');
     const wasm = await WebAssembly.instantiate(wasmData, imports);
+    wasm.exports.web4_get();
     console.timeEnd('wasm instantiate');
 })();
