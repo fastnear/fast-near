@@ -52,7 +52,7 @@ async function runContract(contractId, methodName, args) {
 
     debug('worker start');
     const result = await new Promise((resolve, reject) => {
-        const worker = new Worker('./worker', {
+        const worker = new Worker('./worker.js', {
             workerData: {
                 wasmModule,
                 contractId,
