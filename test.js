@@ -183,7 +183,8 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
     if (isMainThread) {
         console.time('everything')
         const result = await runContract('dev-1629863402519-20649210409803', 'getChunk', {x: 0, y: 0});
-        // const result = await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { path: '/chunk/0,0' } });
+        await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { path: '/chunk/0,0' } });
+        await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { path: '/parcel/0,0' } });
         // const result = await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { } });
         console.log('runContract result', Buffer.from(result).toString('utf8'));
         console.timeEnd('everything')
