@@ -14,6 +14,8 @@ const {
 
 const { createClient } = require('redis');
 
+const contractCache = {};
+
 async function runContract(contractId, methodName, args) {
     const debug = require('debug')(`host:${contractId}:${methodName}`);
 
@@ -30,13 +32,23 @@ async function runContract(contractId, methodName, args) {
     const [contractBlockHash] = await client.sendCommand(['ZREVRANGEBYSCORE',
         `code:${contractId}`, latestBlockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
 
-    const wasmData = await client.getBuffer(Buffer.concat([Buffer.from(`code:${contractId}:`), contractBlockHash]));
-    debug('wasmData.length', wasmData.length);
-    debug('load .wasm done')
+    // TODO: Have cache based on code hash instead?
+    const cacheKey = `${contractId}:${contractBlockHash.toString('hex')}}`;
+    let wasmModule = contractCache[cacheKey];
+    if (wasmModule) {
+        debug('contract cache hit', cacheKey);
+    } else {
+        debug('contract cache miss', cacheKey);
 
-    debug('wasm compile');
-    const wasmModule = await WebAssembly.compile(wasmData);
-    debug('wasm compile done');
+        const wasmData = await client.getBuffer(Buffer.concat([Buffer.from(`code:${contractId}:`), contractBlockHash]));
+        debug('wasmData.length', wasmData.length);
+        debug('load .wasm done')
+
+        debug('wasm compile');
+        wasmModule = await WebAssembly.compile(wasmData);
+        contractCache[cacheKey] = wasmModule;
+        debug('wasm compile done');
+    }
 
     debug('worker start');
     const result = await new Promise((resolve, reject) => {
@@ -60,6 +72,7 @@ async function runContract(contractId, methodName, args) {
             
             switch (message.methodName) {
                 case 'storage_read':
+                    // TODO: Should be possible to coalesce parallel reads to the same key? Or will caching on HTTP level be enough?
                     const { redisKey } = message;
                     (async () => {
                         const [blockHash] = await client.sendCommand(['ZREVRANGEBYSCORE',
