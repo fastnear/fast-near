@@ -130,12 +130,32 @@ function isJSON(buffer) {
     return true;
 }
 
-// TODO: .get variant as web4 does?
-router.post('/account/:accountId/view/:methodName', koaBody, async ctx => {
+const parseQueryArgs = async (ctx, next) => {
+    // TODO: Refactor/merge with web4?
+    const {
+        query
+    } = ctx;
+
+    ctx.methodArgs = Object.keys(query)
+        .map(key => key.endsWith('.json')
+            ? { [key.replace(/\.json$/, '')]: JSON.parse(query[key]) }
+            : { [key] : query[key] })
+        .reduce((a, b) => ({...a, ...b}), {});
+
+    await next();
+}
+
+const parseBodyArgs = async (ctx, next) => {
+    ctx.methodArgs = ctx.request.body;
+
+    await next();
+}
+
+const runViewMethod = async ctx => {
     const { accountId, methodName } = ctx.params;
 
     try {
-        const result = Buffer.from(await runContract(accountId, methodName, ctx.request.body));
+        const result = Buffer.from(await runContract(accountId, methodName, ctx.methodArgs));
         if (isJSON(result)) {
             ctx.type = 'json';
             ctx.body = result;
@@ -152,7 +172,10 @@ router.post('/account/:accountId/view/:methodName', koaBody, async ctx => {
 
         throw e;
     }
-});
+}
+
+router.get('/account/:accountId/view/:methodName', parseQueryArgs, runViewMethod);
+router.post('/account/:accountId/view/:methodName', koaBody, parseBodyArgs, runViewMethod);
 
 app
     .use(async (ctx, next) => {
