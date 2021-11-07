@@ -122,8 +122,12 @@ async function runContract(contractId, methodName, args) {
         });
         worker.on('online', () => console.timeEnd('worker start'));
         worker.on('message', message => {
-            if (!message.methodName) {
-                resolve(message.result);
+            if (message.error) {
+                return reject(error);
+            }
+
+            if (message.result) {
+                return resolve(message.result);
             }
             
             switch (message.methodName) {
@@ -161,9 +165,12 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
     const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx));
     console.timeEnd('module instantiate');
     ctx.memory = wasm2.exports.memory;
-    console.time(`run ${methodName}`);
-    wasm2.exports[methodName]();
-    console.timeEnd(`run ${methodName}`);
+    try {
+        console.time(`run ${methodName}`);
+        wasm2.exports[methodName]();
+    } finally {
+        console.timeEnd(`run ${methodName}`);
+    }
 
     return ctx.result;
 }
@@ -178,8 +185,12 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
         console.timeEnd('everything')
     } else {
         console.log('workerData', workerData);
-        parentPort.postMessage({
-            result: await runWASM(workerData)
-        });
+        try {
+            parentPort.postMessage({
+                result: await runWASM(workerData)
+            });
+        } catch (error) {
+            parentPort.postMessage({ error });
+        }
     }
 })();
