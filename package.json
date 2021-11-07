@@ -4,5 +4,12 @@
     "koa-body": "^4.2.0",
     "koa-router": "^10.1.1",
     "redis": "^4.0.0-rc.3"
+  },
+  "scripts": {
+    "dev": "nodemon app",
+    "start": "node app"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.14"
   }
 }
