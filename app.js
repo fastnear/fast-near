@@ -141,8 +141,13 @@ router.post('/account/:accountId/view/:methodName', koaBody, async ctx => {
             ctx.body = result;
         }
     } catch (e) {
-        if (/TypeError.* is not a function/.test(e.toString())) {
+        const message = e.message;
+        if (/TypeError.* is not a function/.test(message)) {
             ctx.throw(404, `method ${methodName} not found`);
+        }
+
+        if (/^abort:/.test(message)) {
+            ctx.throw(400, message);
         }
 
         throw e;

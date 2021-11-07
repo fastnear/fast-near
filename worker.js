@@ -80,8 +80,9 @@ const imports = (ctx) => {
             promise_batch_action_transfer: notImplemented('promise_batch_action_transfer'),
             panic: notImplemented('panic'),
             abort: (msg_ptr, filename_ptr, line, col) => {
-                debug('abort', readUTF16CStr(msg_ptr), readUTF16CStr(filename_ptr), line, col);
-                throw new Error('abort');
+                const message = `abort: ${readUTF16CStr(msg_ptr)} ${readUTF16CStr(filename_ptr)}:${line}:${col}`
+                debug(message);
+                throw new Error(message);
             }
         }
     }
