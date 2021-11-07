@@ -123,7 +123,7 @@ async function runContract(contractId, methodName, args) {
         worker.on('online', () => console.timeEnd('worker start'));
         worker.on('message', message => {
             if (message.error) {
-                return reject(error);
+                return reject(message.error);
             }
 
             if (message.result) {
