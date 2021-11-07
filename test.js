@@ -52,7 +52,7 @@ const imports = (ctx) => {
             storage_read: (key_len, key_ptr, register_id) => {
                 const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
                 const redisKey = Buffer.concat([Buffer.from(`data:${ctx.contractId}:`), storageKey]);
-                console.log('storage_read', ctx.contractId, storageKey);
+                console.log('storage_read', ctx.contractId, storageKey.toString('utf8'));
 
                 parentPort.postMessage({
                     methodName: 'storage_read',
@@ -70,6 +70,7 @@ const imports = (ctx) => {
                 }
 
                 registers[register_id] = result;
+                console.log('storage_read result', Buffer.from(result).toString('utf8'));
                 return 1n;
             },
             storage_write: notImplemented('storage_write'),
@@ -93,7 +94,7 @@ async function runContract(contractId, methodName, args) {
     await client.connect();
 
     const latestBlockHeight = await client.get('latest_block_height');
-    console.log('latestBlockHeight', latestBlockHeight, typeof latestBlockHeight)
+    console.log('latestBlockHeight', latestBlockHeight)
 
     const [contractBlockHash] = await client.sendCommand(['ZREVRANGEBYSCORE',
         `code:${contractId}`, latestBlockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
@@ -115,8 +116,6 @@ async function runContract(contractId, methodName, args) {
             }
         });
         worker.on('message', message => {
-            console.log('on message', message);
-
             if (!message.methodName) {
                 resolve(message.result);
             }
@@ -156,7 +155,6 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
     const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx));
     console.timeEnd('module instantiate');
     ctx.memory = wasm2.exports.memory;
-    console.log('exports', wasm2.exports.memory);
     console.time(`run ${methodName}`);
     wasm2.exports[methodName]();
     console.timeEnd(`run ${methodName}`);
@@ -165,16 +163,13 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
 }
 
 (async function() {
-    console.log('isMainThread', isMainThread)
     if (isMainThread) {
         const result = await runContract('dev-1629863402519-20649210409803', 'getChunk', {x: 0, y: 0});
-        console.log('runContract result', result);
+        console.log('runContract result', Buffer.from(result).toString('utf8'));
     } else {
         console.log('workerData', workerData);
         parentPort.postMessage({
             result: await runWASM(workerData)
         });
     }
-})().then(() => {
-    console.log('finished', 'isMainThread', isMainThread);
-});
+})();
