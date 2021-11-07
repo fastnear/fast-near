@@ -89,23 +89,28 @@ const imports = (ctx) => {
 const { createClient } = require('redis');
 
 async function runContract(contractId, methodName, args) {
+    console.time('connect')
     const client = createClient();
     client.on('error', (err) => console.log('Redis Client Error', err));
     await client.connect();
 
     const latestBlockHeight = await client.get('latest_block_height');
     console.log('latestBlockHeight', latestBlockHeight)
+    console.timeEnd('connect')
 
+    console.time('load .wasm')
     const [contractBlockHash] = await client.sendCommand(['ZREVRANGEBYSCORE',
         `code:${contractId}`, latestBlockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
 
     const wasmData = await client.getBuffer(Buffer.concat([Buffer.from(`code:${contractId}:`), contractBlockHash]));
     console.log('wasmData', wasmData.length);
+    console.timeEnd('load .wasm')
 
     console.time('wasm compile');
     const wasmModule = await WebAssembly.compile(wasmData);
     console.timeEnd('wasm compile');
 
+    console.time('worker start');
     const result = await new Promise((resolve, reject) => {
         const worker = new Worker(__filename, {
             workerData: {
@@ -115,6 +120,7 @@ async function runContract(contractId, methodName, args) {
                 args
             }
         });
+        worker.on('online', () => console.timeEnd('worker start'));
         worker.on('message', message => {
             if (!message.methodName) {
                 resolve(message.result);
@@ -164,8 +170,12 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
 
 (async function() {
     if (isMainThread) {
+        console.time('everything')
         const result = await runContract('dev-1629863402519-20649210409803', 'getChunk', {x: 0, y: 0});
+        // const result = await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { path: '/chunk/0,0' } });
+        // const result = await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { } });
         console.log('runContract result', Buffer.from(result).toString('utf8'));
+        console.timeEnd('everything')
     } else {
         console.log('workerData', workerData);
         parentPort.postMessage({
