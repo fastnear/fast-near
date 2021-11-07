@@ -193,4 +193,7 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
             parentPort.postMessage({ error });
         }
     }
-})();
+})().catch(error => {
+    console.error(error);
+    process.exit(1);
+});
