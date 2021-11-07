@@ -15,28 +15,30 @@ const {
 const { createClient } = require('redis');
 
 async function runContract(contractId, methodName, args) {
-    console.time('connect')
+    const debug = require('debug')(`host:${contractId}:${methodName}`);
+
+    debug('connect')
     const client = createClient();
-    client.on('error', (err) => console.log('Redis Client Error', err));
+    client.on('error', (err) => console.error('Redis Client Error', err));
     await client.connect();
 
     const latestBlockHeight = await client.get('latest_block_height');
-    console.log('latestBlockHeight', latestBlockHeight)
-    console.timeEnd('connect')
+    debug('latestBlockHeight', latestBlockHeight)
+    debug('connect done')
 
-    console.time('load .wasm')
+    debug('load .wasm')
     const [contractBlockHash] = await client.sendCommand(['ZREVRANGEBYSCORE',
         `code:${contractId}`, latestBlockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
 
     const wasmData = await client.getBuffer(Buffer.concat([Buffer.from(`code:${contractId}:`), contractBlockHash]));
-    console.log('wasmData', wasmData.length);
-    console.timeEnd('load .wasm')
+    debug('wasmData.length', wasmData.length);
+    debug('load .wasm done')
 
-    console.time('wasm compile');
+    debug('wasm compile');
     const wasmModule = await WebAssembly.compile(wasmData);
-    console.timeEnd('wasm compile');
+    debug('wasm compile done');
 
-    console.time('worker start');
+    debug('worker start');
     const result = await new Promise((resolve, reject) => {
         const worker = new Worker('./worker', {
             workerData: {
@@ -46,7 +48,7 @@ async function runContract(contractId, methodName, args) {
                 args
             }
         });
-        worker.on('online', () => console.timeEnd('worker start'));
+        worker.on('online', () => debug('worker start done'));
         worker.on('message', message => {
             if (message.error) {
                 return reject(message.error);

@@ -1,11 +1,13 @@
 const {
-    parentPort, workerData, receiveMessageOnPort
+    parentPort, workerData, receiveMessageOnPort, threadId
 } = require('worker_threads');
+
+const debug = require('debug')(`worker:${threadId}`);
 
 const MAX_U64 = 18446744073709551615n;
 
 const notImplemented = (name) => (...args) => {
-    console.debug('notImplemented', name, 'args', args);
+    console.error('notImplemented', name, 'args', args);
     throw new Error('method not implemented: ' + name);
 };
 
@@ -50,7 +52,7 @@ const imports = (ctx) => {
             storage_read: (key_len, key_ptr, register_id) => {
                 const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
                 const redisKey = Buffer.concat([Buffer.from(`data:${ctx.contractId}:`), storageKey]);
-                console.log('storage_read', ctx.contractId, storageKey.toString('utf8'));
+                debug('storage_read', ctx.contractId, storageKey.toString('utf8'));
 
                 parentPort.postMessage({
                     methodName: 'storage_read',
@@ -64,11 +66,12 @@ const imports = (ctx) => {
                 const result = resultMessage.message;
 
                 if (!result) {
+                    debug('storage_read result: none');
                     return 0n;
                 }
 
                 registers[register_id] = result;
-                console.log('storage_read result', Buffer.from(result).toString('utf8'));
+                debug('storage_read result', Buffer.from(result).toString('utf8'));
                 return 1n;
             },
             storage_write: notImplemented('storage_write'),
@@ -77,7 +80,7 @@ const imports = (ctx) => {
             promise_batch_action_transfer: notImplemented('promise_batch_action_transfer'),
             panic: notImplemented('panic'),
             abort: (msg_ptr, filename_ptr, line, col) => {
-                console.error('abort', readUTF16CStr(msg_ptr), readUTF16CStr(filename_ptr), line, col);
+                debug('abort', readUTF16CStr(msg_ptr), readUTF16CStr(filename_ptr), line, col);
                 throw new Error('abort');
             }
         }
@@ -89,22 +92,22 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
         contractId,
         args: JSON.stringify(args)
     };
-    console.time('module instantiate');
+    debug('module instantiate');
     const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx));
-    console.timeEnd('module instantiate');
+    debug('module instantiate done');
     ctx.memory = wasm2.exports.memory;
     try {
-        console.time(`run ${methodName}`);
+        debug(`run ${methodName}`);
         wasm2.exports[methodName]();
     } finally {
-        console.timeEnd(`run ${methodName}`);
+        debug(`run ${methodName} done`);
     }
 
     return ctx.result;
 }
 
 (async function() {
-    console.log('workerData', workerData);
+    debug('workerData', workerData);
     try {
         const result = await runWASM(workerData);
         parentPort.postMessage({ result });
