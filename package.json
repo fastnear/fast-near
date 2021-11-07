@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "redis": "^4.0.0-rc.3"
+  }
+}

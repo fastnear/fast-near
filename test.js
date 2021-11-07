@@ -1,4 +1,4 @@
-// NOTE: Needs --experimental-wasm-bigint 
+// NOTE: Needs --experimental-wasm-bigint
 
 const notImplemented = (name) => (...args) => {
     console.debug('notImplemented', name, 'args', args);
@@ -7,19 +7,12 @@ const notImplemented = (name) => (...args) => {
 
 const registers = {};
 
-const inputArgs = JSON.stringify({
-    // TODO
-    request: {
-
-    }
-});
-
 const MAX_U64 = 18446744073709551615n;
 
 const imports = (ctx) => ({
     env: {
         input: (register_id) => {
-            registers[register_id] = Buffer.from(inputArgs);
+            registers[register_id] = Buffer.from(ctx.args);
         },
         register_len: (register_id) => {
             return BigInt(registers[register_id] ? registers[register_id].length : MAX_U64);
@@ -32,6 +25,22 @@ const imports = (ctx) => ({
             const mem = new Uint8Array(ctx.memory.buffer)
             console.log('value_return', Buffer.from(mem.slice(Number(value_ptr), Number(value_ptr + value_len))).toString('utf8'));
         },
+        current_account_id: (register_id) => {
+            // TODO: What is proper account ID for view calls?
+            registers[register_id] = Buffer.from('');
+        },
+        predecessor_account_id: (register_id) => {
+            // TODO: What is proper account ID for view calls?
+            registers[register_id] = Buffer.from('');
+        },
+        storage_read: (key_len, key_ptr, register_id) => {
+            // TODO: Read from Redis??
+            notImplemented('storage_read')();
+        },
+        storage_write: notImplemented('storage_write'),
+        attached_deposit: notImplemented('attached_deposit'),
+        promise_batch_create: notImplemented('promise_batch_create'),
+        promise_batch_action_transfer: notImplemented('promise_batch_action_transfer'),
         panic: notImplemented('panic'),
         abort: (msg_ptr, filename_ptr, line, col) => {
             function readUTF16Str(ptr) {
@@ -51,27 +60,39 @@ const imports = (ctx) => ({
     }
 });
 
-const fs = require('fs');
-const wasmData = new Uint8Array(fs.readFileSync('./web4.wasm'));
+const { createClient } = require('redis');
 
-(async function() {
+async function runContract(contractId, methodName, args) {
+    const client = createClient();
+    client.on('error', (err) => console.log('Redis Client Error', err));
+    await client.connect();
+
+    const latestBlockHeight = await client.get('latest_block_height');
+    console.log('latestBlockHeight', latestBlockHeight, typeof latestBlockHeight)
+
+    const [contractBlockHash] = await client.sendCommand(['ZREVRANGEBYSCORE',
+        `code:${contractId}`, latestBlockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
+
+    const wasmData = await client.getBuffer(Buffer.concat([Buffer.from(`code:${contractId}:`), Buffer.from(contractBlockHash)]));
+    console.log('wasmData', wasmData.length);
+
     console.time('wasm compile');
     const wasmModule = await WebAssembly.compile(wasmData);
     console.timeEnd('wasm compile');
 
     console.time('module instantiate');
-    const ctx2 = {};
-    const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx2));
-    ctx2.memory = wasm2.exports.memory;
-    console.log('exports', wasm2.exports.memory);
-    wasm2.exports.memory
-    wasm2.exports.web4_get();
-    console.timeEnd('module instantiate');
-
-    console.time('wasm instantiate');
-    const ctx = {};
-    const wasm = await WebAssembly.instantiate(wasmData, imports(ctx));
+    const ctx = {
+        args: JSON.stringify(args)
+    };
+    const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx));
     ctx.memory = wasm2.exports.memory;
-    wasm.exports.web4_get();
-    console.timeEnd('wasm instantiate');
+    console.log('exports', wasm2.exports.memory);
+    console.time('web4_get');
+    wasm2.exports[methodName]();
+    console.timeEnd('web4_get');
+    console.timeEnd('module instantiate');
+}
+
+(async function() {
+    await runContract('dev-1629863402519-20649210409803', 'getChunk', {x: 0, y: 0});
 })();
