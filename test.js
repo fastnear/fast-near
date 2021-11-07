@@ -66,7 +66,7 @@ const imports = (ctx) => {
                 const result = resultMessage.message;
 
                 if (!result) {
-                    return 0;
+                    return 0n;
                 }
 
                 registers[register_id] = result;
@@ -137,8 +137,12 @@ async function runContract(contractId, methodName, args) {
                         const [blockHash] = await client.sendCommand(['ZREVRANGEBYSCORE',
                             redisKey, latestBlockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
 
-                        const data = await client.getBuffer(Buffer.concat([redisKey, Buffer.from(':'), blockHash]));
-                        worker.postMessage(data);
+                        if (blockHash) {
+                            const data = await client.getBuffer(Buffer.concat([redisKey, Buffer.from(':'), blockHash]));
+                            worker.postMessage(data);
+                        } else {
+                            worker.postMessage(null);
+                        }
                     })();
                     break;   
             }
