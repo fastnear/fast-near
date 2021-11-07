@@ -106,9 +106,8 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
 (async function() {
     console.log('workerData', workerData);
     try {
-        parentPort.postMessage({
-            result: await runWASM(workerData)
-        });
+        const result = await runWASM(workerData);
+        parentPort.postMessage({ result });
     } catch (error) {
         parentPort.postMessage({ error });
     }
