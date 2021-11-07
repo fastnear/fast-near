@@ -9,6 +9,10 @@ const registers = {};
 
 const MAX_U64 = 18446744073709551615n;
 
+const {
+    Worker, isMainThread, parentPort, workerData
+} = require('worker_threads');
+
 const imports = (ctx) => ({
     env: {
         input: (register_id) => {
@@ -80,19 +84,50 @@ async function runContract(contractId, methodName, args) {
     const wasmModule = await WebAssembly.compile(wasmData);
     console.timeEnd('wasm compile');
 
-    console.time('module instantiate');
+    await runWASMAsync(wasmModule, methodName, args);
+}
+
+function runWASMAsync(wasmModule, methodName, args) {   
+    return new Promise((resolve, reject) => {
+        const worker = new Worker(__filename, {
+            workerData: {
+                wasmModule,
+                methodName,
+                args
+            }
+        });
+        worker.on('message', resolve);
+        worker.on('error', reject);
+        worker.on('exit', (code) => {
+            if (code !== 0) {
+                reject(new Error(`Worker stopped with exit code ${code}`));
+            }
+        });
+
+        // TODO: Return value
+    });
+}
+
+async function runWASM({ wasmModule, methodName, args }) {
     const ctx = {
         args: JSON.stringify(args)
     };
+    console.time('module instantiate');
     const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx));
     ctx.memory = wasm2.exports.memory;
     console.log('exports', wasm2.exports.memory);
-    console.time('web4_get');
+    console.time(`run ${methodName}`);
     wasm2.exports[methodName]();
-    console.timeEnd('web4_get');
+    console.timeEnd(`run ${methodName}`);
     console.timeEnd('module instantiate');
 }
 
 (async function() {
-    await runContract('dev-1629863402519-20649210409803', 'getChunk', {x: 0, y: 0});
+    console.log('isMainThread', isMainThread)
+    if (isMainThread) {
+        await runContract('dev-1629863402519-20649210409803', 'getChunk', {x: 0, y: 0});
+    } else {
+        console.log('workerData', workerData);
+        parentPort.postMessage(await runWASM(workerData));
+    }
 })();
