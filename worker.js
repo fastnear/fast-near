@@ -1,3 +1,4 @@
+const { message } = require('statuses');
 const {
     parentPort, workerData, receiveMessageOnPort, threadId
 } = require('worker_threads');
@@ -28,7 +29,7 @@ const imports = (ctx) => {
     return {
         env: {
             input: (register_id) => {
-                registers[register_id] = Buffer.from(ctx.args);
+                registers[register_id] = Buffer.from(ctx.methodArgs);
             },
             register_len: (register_id) => {
                 return BigInt(registers[register_id] ? registers[register_id].length : MAX_U64);
@@ -88,10 +89,11 @@ const imports = (ctx) => {
     }
 };
 
-async function runWASM({ wasmModule, contractId, methodName, args }) {
+async function runWASM({ wasmModule, contractId, methodName, methodArgs }) {
+    debug('runWASM', contractId, methodName, Buffer.from(methodArgs).toString('utf8'));
     const ctx = {
         contractId,
-        args: JSON.stringify(args)
+        methodArgs
     };
     debug('module instantiate');
     const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx));
@@ -107,15 +109,12 @@ async function runWASM({ wasmModule, contractId, methodName, args }) {
     return ctx.result;
 }
 
-(async function() {
-    debug('workerData', workerData);
-    try {
-        const result = await runWASM(workerData);
-        parentPort.postMessage({ result });
-    } catch (error) {
-        parentPort.postMessage({ error });
+parentPort.on('message', message => {
+    if (message.wasmModule) {
+        runWASM(message).then(result => {
+            parentPort.postMessage({ result });
+        }).catch(error => {
+            parentPort.postMessage({ error });
+        });
     }
-})().catch(error => {
-    console.error(error);
-    process.exit(1);
 });

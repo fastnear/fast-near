@@ -13,23 +13,40 @@ const {
 } = require('worker_threads');
 
 const { createClient } = require('redis');
+const WorkerPool = require('./worker-pool');
 
 const contractCache = {};
 
-async function runContract(contractId, methodName, args) {
+let redisClient;
+let workerPool;
+
+async function runContract(contractId, methodName, methodArgs) {
     const debug = require('debug')(`host:${contractId}:${methodName}`);
+    debug('runContract', contractId, methodName, methodArgs);
 
-    debug('connect')
-    const client = createClient();
-    client.on('error', (err) => console.error('Redis Client Error', err));
-    await client.connect();
+    if (!Buffer.isBuffer(methodArgs)) {
+        methodArgs = Buffer.from(JSON.stringify(methodArgs));
+    }
 
-    const latestBlockHeight = await client.get('latest_block_height');
+    if (!redisClient) {
+        debug('connect')
+        redisClient = createClient();
+        redisClient.on('error', (err) => console.error('Redis Client Error', err));
+        await redisClient.connect();
+        debug('connect done')
+    }
+
+    if (!workerPool) {
+        debug('workerPool');
+        workerPool = new WorkerPool(10, redisClient);
+        debug('workerPool done');
+    }
+
+    const latestBlockHeight = await redisClient.get('latest_block_height');
     debug('latestBlockHeight', latestBlockHeight)
-    debug('connect done')
 
-    debug('load .wasm')
-    const [contractBlockHash] = await client.sendCommand(['ZREVRANGEBYSCORE',
+    debug('find contract code')
+    const [contractBlockHash] = await redisClient.sendCommand(['ZREVRANGEBYSCORE',
         `code:${contractId}`, latestBlockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
 
     // TODO: Have cache based on code hash instead?
@@ -40,9 +57,9 @@ async function runContract(contractId, methodName, args) {
     } else {
         debug('contract cache miss', cacheKey);
 
-        const wasmData = await client.getBuffer(Buffer.concat([Buffer.from(`code:${contractId}:`), contractBlockHash]));
+        debug('blockHash', contractBlockHash);
+        const wasmData = await redisClient.getBuffer(Buffer.concat([Buffer.from(`code:${contractId}:`), contractBlockHash]));
         debug('wasmData.length', wasmData.length);
-        debug('load .wasm done')
 
         debug('wasm compile');
         wasmModule = await WebAssembly.compile(wasmData);
@@ -51,53 +68,8 @@ async function runContract(contractId, methodName, args) {
     }
 
     debug('worker start');
-    const result = await new Promise((resolve, reject) => {
-        const worker = new Worker('./worker.js', {
-            workerData: {
-                wasmModule,
-                contractId,
-                methodName,
-                args
-            }
-        });
-        worker.on('online', () => debug('worker start done'));
-        worker.on('message', message => {
-            if (message.error) {
-                return reject(message.error);
-            }
-
-            if (message.result) {
-                return resolve(message.result);
-            }
-            
-            switch (message.methodName) {
-                case 'storage_read':
-                    // TODO: Should be possible to coalesce parallel reads to the same key? Or will caching on HTTP level be enough?
-                    const { redisKey } = message;
-                    (async () => {
-                        const [blockHash] = await client.sendCommand(['ZREVRANGEBYSCORE',
-                            redisKey, latestBlockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
-
-                        if (blockHash) {
-                            const data = await client.getBuffer(Buffer.concat([redisKey, Buffer.from(':'), blockHash]));
-                            worker.postMessage(data);
-                        } else {
-                            worker.postMessage(null);
-                        }
-                    })();
-                    break;   
-            }
-        });
-        worker.once('error', reject);
-        worker.once('exit', (code) => {
-            if (code !== 0) {
-                reject(new Error(`Worker stopped with exit code ${code}`));
-            }
-        });
-    });
-
-    await client.disconnect();
-
+    const result = await workerPool.runContract(latestBlockHeight, wasmModule, contractId, methodName, methodArgs);
+    debug('worker done');
     return result;
 }
 
