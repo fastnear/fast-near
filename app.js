@@ -93,9 +93,17 @@ const parseQueryArgs = async (ctx, next) => {
         query
     } = ctx;
 
+    const tryParse = key => {
+        try {
+            return JSON.parse(query[key]);
+        } catch (e) {
+            ctx.throw(400, `Problem parsing JSON for ${key} field: ${e}`);
+        }
+    }
+
     ctx.methodArgs = Object.keys(query)
         .map(key => key.endsWith('.json')
-            ? { [key.replace(/\.json$/, '')]: JSON.parse(query[key]) }
+            ? { [key.replace(/\.json$/, '')]: tryParse(key) }
             : { [key] : query[key] })
         .reduce((a, b) => ({...a, ...b}), {});
 
