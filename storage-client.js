@@ -3,6 +3,11 @@ const { promisify } = require("util");
 
 const debug = require('debug')('storage');
 
+const LRU = require("lru-cache");
+let redisCache = new LRU({
+    max: 1000
+});
+
 let redisClient;
 
 function getRedisClient() {
@@ -19,13 +24,39 @@ function getRedisClient() {
     };
 }
 
-const withRedis = (name, fn) => async (...args) => {
-    debug(name, ...args);
+const textDecoder = new TextDecoder('utf8', { fatal: true });
+const prettyBuffer = buffer => {
     try {
+        return textDecoder.decode(buffer);
+    } catch (e) {
+        return buffer.toString('hex');
+    }
+};
+
+const withRedis = ({ name, caching = true }, fn) => async (...args) => {
+    const prettyArgs = args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : arg.toString());
+    debug(name, ...prettyArgs);
+    try {
+        let cacheKey;
+        if (caching) {
+            cacheKey = prettyArgs.join('$$');
+            const cachedPromise = redisCache.get(cacheKey);
+            if (cachedPromise) {
+                debug(name, 'local cache hit', cacheKey);
+                return await cachedPromise;
+            }
+            debug(name, 'local cache miss', cacheKey);
+        }
+
         const redisClient = getRedisClient();   
-        return await fn(redisClient)(...args);
+        const resultPromise = fn(redisClient)(...args);
+        if (caching) {
+            // TODO: Protect from size-bombing cache?
+            redisCache.set(cacheKey, resultPromise);
+        }
+        return await resultPromise;
     } finally {
-        debug(`${name} done`, ...args);
+        debug(`${name} done`, ...prettyArgs);
     }
 }
 
@@ -63,6 +94,8 @@ const exportsList = {
     getData,
 };
 
+const noCacheList = [ getLatestBlockHeight ];
+
 module.exports = Object.keys(exportsList)
-    .map(key => ({ [key]: withRedis(key, exportsList[key]) }))
+    .map(name => ({ [name]: withRedis({ name, caching: !noCacheList.includes(exportsList[name]) }, exportsList[name]) }))
     .reduce((a, b) => Object.assign(a, b));
