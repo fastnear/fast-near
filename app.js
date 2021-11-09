@@ -131,11 +131,7 @@ const runViewMethod = async ctx => {
             ctx.throw(404, `method ${methodName} not found`);
         }
 
-        if (/^abort:/.test(message)) {
-            ctx.throw(400, message);
-        }
-
-        throw e;
+        ctx.throw(400, message);
     }
 }
 
