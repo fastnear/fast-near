@@ -1,5 +1,4 @@
 const { EventEmitter } = require('events');
-const { resolve } = require('path/posix');
 const { Worker } = require('worker_threads');
 
 const kTaskInfo = Symbol('kTaskInfo');
@@ -7,12 +6,12 @@ const kWorkerFreedEvent = Symbol('kWorkerFreedEvent');
 
 // NOTE: Mostly lifted from here https://amagiacademy.com/blog/posts/2021-04-09/node-worker-threads-pool
 class WorkerPool extends EventEmitter {
-    constructor(numThreads, redisClient) {
+    constructor(numThreads, storageClient) {
         super();
         this.numThreads = numThreads;
         this.workers = [];
         this.freeWorkers = [];
-        this.redisClient = redisClient;
+        this.storageClient = storageClient;
 
         for (let i = 0; i < numThreads; i++) {
             this.addNewWorker();
@@ -42,17 +41,16 @@ class WorkerPool extends EventEmitter {
                 case 'storage_read':
                     // TODO: Should be possible to coalesce parallel reads to the same key? Or will caching on HTTP level be enough?
                     (async () => {
-                        const [blockHash] = await this.redisClient.sendCommand(['ZREVRANGEBYSCORE',
-                            redisKey, blockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
+                        const blockHash = await this.storageClient.getLatestDataBlockHash(redisKey, blockHeight);
 
                         if (blockHash) {
-                            const data = await this.redisClient.getBuffer(Buffer.concat([redisKey, Buffer.from(':'), blockHash]));
+                            const data = await this.storageClient.getData(redisKey, blockHash);
                             worker.postMessage(data);
                         } else {
                             worker.postMessage(null);
                         }
                     })();
-                    break;   
+                    break;
             }
         });
         worker.once('exit', (code) => {
@@ -81,7 +79,7 @@ class WorkerPool extends EventEmitter {
                 // No free threads, wait until a worker thread becomes free.
                 // TODO: Throw (for rate limiting) if there are too many queued callbacks
                 this.once(kWorkerFreedEvent,
-                    () => this.runContract(wasmModule, contractId, methodName, methodArgs).then(resolve).catch(reject));
+                    () => this.runContract(blockHeight, wasmModule, contractId, methodName, methodArgs).then(resolve).catch(reject));
                 return;
             }
 

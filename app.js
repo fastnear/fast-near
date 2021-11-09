@@ -8,16 +8,11 @@ const router = new Router();
 
 const koaBody = require('koa-body')();
 
-const {
-    Worker
-} = require('worker_threads');
-
-const { createClient } = require('redis');
 const WorkerPool = require('./worker-pool');
 
 const contractCache = {};
 
-let redisClient;
+let storageClient = require('./storage-client');
 let workerPool;
 
 async function runContract(contractId, methodName, methodArgs) {
@@ -28,27 +23,17 @@ async function runContract(contractId, methodName, methodArgs) {
         methodArgs = Buffer.from(JSON.stringify(methodArgs));
     }
 
-    if (!redisClient) {
-        debug('connect')
-        redisClient = createClient();
-        redisClient.on('error', (err) => console.error('Redis Client Error', err));
-        await redisClient.connect();
-        debug('connect done')
-    }
-
     if (!workerPool) {
         debug('workerPool');
-        workerPool = new WorkerPool(10, redisClient);
+        workerPool = new WorkerPool(10, storageClient);
         debug('workerPool done');
     }
 
-    const latestBlockHeight = await redisClient.get('latest_block_height');
+    const latestBlockHeight = await storageClient.getLatestBlockHeight();
     debug('latestBlockHeight', latestBlockHeight)
 
     debug('find contract code')
-    const [contractBlockHash] = await redisClient.sendCommand(['ZREVRANGEBYSCORE',
-        `code:${contractId}`, latestBlockHeight, '-inf', 'LIMIT', '0', '1'], {}, true);
-
+    const contractBlockHash = await storageClient.getLatestContractBlockHash(contractId, latestBlockHeight);
     // TODO: Have cache based on code hash instead?
     const cacheKey = `${contractId}:${contractBlockHash.toString('hex')}}`;
     let wasmModule = contractCache[cacheKey];
@@ -58,7 +43,7 @@ async function runContract(contractId, methodName, methodArgs) {
         debug('contract cache miss', cacheKey);
 
         debug('blockHash', contractBlockHash);
-        const wasmData = await redisClient.getBuffer(Buffer.concat([Buffer.from(`code:${contractId}:`), contractBlockHash]));
+        const wasmData = await storageClient.getContractCode(contractId, contractBlockHash);
         debug('wasmData.length', wasmData.length);
 
         debug('wasm compile');
