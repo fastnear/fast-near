@@ -5,7 +5,7 @@ const debug = require('debug')('storage');
 
 let redisClient;
 
-async function getRedisClient() {
+function getRedisClient() {
     if (!redisClient) {
         redisClient = createClient({
             detect_buffers: true
@@ -19,60 +19,41 @@ async function getRedisClient() {
     };
 }
 
-async function getLatestBlockHeight() {
-    debug('getLatestBlockHeight');
+const withRedis = (name, fn) => async (...args) => {
+    debug(name, ...args);
     try {
-        const redisClient = await getRedisClient();
-        return await redisClient.get('latest_block_height');
+        const redisClient = getRedisClient();   
+        return await fn(redisClient)(...args);
     } finally {
-        debug('getLatestBlockHeight done');
+        debug(`${name} done`, ...args);
     }
 }
 
-async function getLatestContractBlockHash(contractId, blockHeight) {
-    debug('getLatestContractBlockHash', contractId, blockHeight);
-    try {
-        const redisClient = await getRedisClient();
-        const [contractBlockHash] = await redisClient.sendCommand('ZREVRANGEBYSCORE',
-            [Buffer.from(`code:${contractId}`), blockHeight, '-inf', 'LIMIT', '0', '1']);
-        return contractBlockHash;
-    } finally {
-        debug('getLatestContractBlockHash done', contractId, blockHeight);
-    }
-}
+const getLatestBlockHeight = withRedis('getLatestBlockHeight', redisClient => async () => {
+    return await redisClient.get('latest_block_height');
+});
 
-async function getContractCode(contractId, blockHash) {
-    debug('getContractCode', contractId);
-    try {
-        const redisClient = await getRedisClient();
-        return await redisClient.get(Buffer.concat([Buffer.from(`code:${contractId}:`), blockHash]));
-    } finally {
-        debug('getContractCode done', contractId);
-    }
-}
+const getLatestContractBlockHash = withRedis('getLatestContractBlockHash', redisClient => async (contractId, blockHeight) => {
+    const [contractBlockHash] = await redisClient.sendCommand('ZREVRANGEBYSCORE',
+        [Buffer.from(`code:${contractId}`), blockHeight, '-inf', 'LIMIT', '0', '1']);
+    return contractBlockHash;
+});
 
-async function getLatestDataBlockHash(redisKey, blockHeight) {
+const getContractCode = withRedis('getContractCode', redisClient => async (contractId, blockHash) => {
+    return await redisClient.get(Buffer.concat([Buffer.from(`code:${contractId}:`), blockHash]));
+});
+
+const getLatestDataBlockHash = withRedis('getLatestDataBlockHash', redisClient => async (redisKey, blockHeight) => {
     redisKey = Buffer.from(redisKey);
-    debug('getLatestDataBlockHash', redisKey.toString('utf8'), blockHeight);
-    try {
-        const redisClient = await getRedisClient();
-        const [blockHash] = await redisClient.sendCommand('ZREVRANGEBYSCORE', [redisKey, blockHeight, '-inf', 'LIMIT', '0', '1']);
-        return blockHash;
-    } finally {
-        debug('getLatestDataBlockHash done', redisKey.toString('utf8'), blockHeight);
-    }
-}
+    const [blockHash] = await redisClient.sendCommand('ZREVRANGEBYSCORE', [redisKey, blockHeight, '-inf', 'LIMIT', '0', '1']);
+    return blockHash;
+});
 
-async function getData(redisKey, blockHash) {
+const getData = withRedis('getData', redisClient => async (redisKey, blockHash) => {
     redisKey = Buffer.from(redisKey);
-    debug('getData', redisKey.toString('utf8'));
-    try {
-        const redisClient = await getRedisClient();
-        return await redisClient.get(Buffer.concat([redisKey, Buffer.from(':'), blockHash]));
-    } finally {
-        debug('getData done', redisKey.toString('utf8'));
-    }
-}
+    const redisClient = await getRedisClient();   
+    return await redisClient.get(Buffer.concat([redisKey, Buffer.from(':'), blockHash]));
+});
 
 module.exports = {
     getLatestBlockHeight,
