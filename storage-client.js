@@ -70,16 +70,16 @@ const getContractCode = redisClient => async (contractId, blockHash) => {
     return await redisClient.get(Buffer.concat([Buffer.from(`code:${contractId}:`), blockHash]));
 };
 
-const getLatestDataBlockHash = redisClient => async (redisKey, blockHeight) => {
-    redisKey = Buffer.from(redisKey);
+const getLatestDataBlockHash = redisClient => async (compKey, blockHeight) => {
+    compKey = Buffer.from(compKey);
     const [blockHash] = await redisClient.sendCommand('ZREVRANGEBYSCORE',
-        [redisKey, blockHeight, '-inf', 'LIMIT', '0', '1']);
+        [Buffer.concat([Buffer.from('data:'), compKey]), blockHeight, '-inf', 'LIMIT', '0', '1']);
     return blockHash;
 };
 
-const getData = redisClient => async (redisKey, blockHash) => {
-    redisKey = Buffer.from(redisKey);
-    return await redisClient.get(Buffer.concat([redisKey, Buffer.from(':'), blockHash]));
+const getData = redisClient => async (compKey, blockHash) => {
+    compKey = Buffer.from(compKey);
+    return await redisClient.get(Buffer.concat([Buffer.from('data-value:'), compKey, Buffer.from(':'), blockHash]));
 };
 
 const exportsMap = {

@@ -52,12 +52,12 @@ const imports = (ctx) => {
             },
             storage_read: (key_len, key_ptr, register_id) => {
                 const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
-                const redisKey = Buffer.concat([Buffer.from(`data:${ctx.contractId}:`), storageKey]);
+                const compKey = Buffer.concat([Buffer.from(`${ctx.contractId}:`), storageKey]);
                 debug('storage_read', ctx.contractId, storageKey.toString('utf8'));
 
                 parentPort.postMessage({
                     methodName: 'storage_read',
-                    redisKey
+                    compKey
                 });
 
                 let resultMessage
