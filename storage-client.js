@@ -8,8 +8,9 @@ let redisCache = new LRU({
     max: 1000
 });
 
-let redisClient;
+const BLOCK_INDEX_CACHE_TIME = 500;
 
+let redisClient;
 function getRedisClient() {
     if (!redisClient) {
         redisClient = createClient({
@@ -33,27 +34,22 @@ const prettyBuffer = buffer => {
     }
 };
 
-const withRedis = ({ name, caching = true }, fn) => async (...args) => {
+const withRedis = ({ name, cachedExpires }, fn) => async (...args) => {
     const prettyArgs = args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : arg.toString());
     debug(name, ...prettyArgs);
     try {
-        let cacheKey;
-        if (caching) {
-            cacheKey = prettyArgs.join('$$');
-            const cachedPromise = redisCache.get(cacheKey);
-            if (cachedPromise) {
-                debug(name, 'local cache hit', cacheKey);
-                return await cachedPromise;
-            }
-            debug(name, 'local cache miss', cacheKey);
+        let cacheKey = prettyArgs.join('$$');
+        const cachedPromise = redisCache.get(cacheKey);
+        if (cachedPromise) {
+            debug(name, 'local cache hit', cacheKey);
+            return await cachedPromise;
         }
+        debug(name, 'local cache miss', cacheKey);
 
         const redisClient = getRedisClient();   
         const resultPromise = fn(redisClient)(...args);
-        if (caching) {
-            // TODO: Protect from size-bombing cache?
-            redisCache.set(cacheKey, resultPromise);
-        }
+        // TODO: Protect from size-bombing cache?
+        redisCache.set(cacheKey, resultPromise, cachedExpires && BLOCK_INDEX_CACHE_TIME);
         return await resultPromise;
     } finally {
         debug(`${name} done`, ...prettyArgs);
@@ -86,7 +82,7 @@ const getData = redisClient => async (redisKey, blockHash) => {
     return await redisClient.get(Buffer.concat([redisKey, Buffer.from(':'), blockHash]));
 };
 
-const exportsList = {
+const exportsMap = {
     getLatestBlockHeight,
     getLatestContractBlockHash,
     getContractCode,
@@ -94,8 +90,8 @@ const exportsList = {
     getData,
 };
 
-const noCacheList = [ getLatestBlockHeight ];
+const cacheExpiresList = [ getLatestBlockHeight ];
 
-module.exports = Object.keys(exportsList)
-    .map(name => ({ [name]: withRedis({ name, caching: !noCacheList.includes(exportsList[name]) }, exportsList[name]) }))
+module.exports = Object.keys(exportsMap)
+    .map(name => ({ [name]: withRedis({ name, cachedExpires: cacheExpiresList.includes(exportsMap[name]) }, exportsMap[name]) }))
     .reduce((a, b) => Object.assign(a, b));
