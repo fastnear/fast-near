@@ -10,6 +10,8 @@ const koaBody = require('koa-body')();
 
 const WorkerPool = require('./worker-pool');
 
+const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || "10");
+
 const contractCache = {};
 
 let storageClient = require('./storage-client');
@@ -25,7 +27,7 @@ async function runContract(contractId, methodName, methodArgs) {
 
     if (!workerPool) {
         debug('workerPool');
-        workerPool = new WorkerPool(10, storageClient);
+        workerPool = new WorkerPool(WORKER_COUNT, storageClient);
         debug('workerPool done');
     }
 
