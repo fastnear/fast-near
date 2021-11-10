@@ -22,6 +22,7 @@ function getRedisClient() {
     return {
         get: promisify(redisClient.get).bind(redisClient),
         sendCommand: promisify(redisClient.sendCommand).bind(redisClient),
+        scan: promisify(redisClient.scan).bind(redisClient),
     };
 }
 
@@ -82,12 +83,30 @@ const getData = redisClient => async (compKey, blockHash) => {
     return await redisClient.get(Buffer.concat([Buffer.from('data-value:'), compKey, Buffer.from(':'), blockHash]));
 };
 
+const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, iterator, limit) => {
+    const [newIterator, keys] = await redisClient.scan(iterator, 'MATCH', Buffer.from(`data:${contractId}:${keyPattern}`), 'COUNT', limit); 
+    const data = await Promise.all(keys.map(async key => {
+        const compKey = Buffer.from(key).slice('data:'.length);
+        const storageKey = compKey.slice(contractId.length + 1);
+        const blockHash = await module.exports.getLatestDataBlockHash(compKey, blockHeight);
+        if (!blockHash) {
+            return [storageKey, null];
+        }
+        return [storageKey, await module.exports.getData(compKey, blockHash)];
+    }));
+    return {
+        iterator: Buffer.from(newIterator).toString('utf8'),
+        data
+    };
+};
+
 const exportsMap = {
     getLatestBlockHeight,
     getLatestContractBlockHash,
     getContractCode,
     getLatestDataBlockHash,
     getData,
+    scanDataKeys,
 };
 
 const cacheExpiresList = [ getLatestBlockHeight ];
