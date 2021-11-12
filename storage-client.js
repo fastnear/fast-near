@@ -9,11 +9,12 @@ let redisCache = new LRU({
 });
 
 const BLOCK_INDEX_CACHE_TIME = 500;
+const REDIS_URL = process.env.FAST_NEAR_REDIS_URL || 'redis://localhost:6379';
 
 let redisClient;
 function getRedisClient() {
     if (!redisClient) {
-        redisClient = createClient({
+        redisClient = createClient(REDIS_URL, {
             detect_buffers: true
         });
         redisClient.on('error', (err) => console.error('Redis Client Error', err));

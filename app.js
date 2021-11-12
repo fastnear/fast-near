@@ -189,7 +189,6 @@ router.post('/', koaBody, async ctx => {
     }
 
     ctx.type = 'json';
-    console.log('body', body);
     ctx.body = Buffer.from(await (await fetch(NODE_URL, {
         method: 'POST',
         headers: {
