@@ -10,7 +10,7 @@ const fetch = require('node-fetch');
 
 const WorkerPool = require('./worker-pool');
 
-const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || "10");
+const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
 
 const contractCache = {};
 
