@@ -4,6 +4,8 @@ const { Worker } = require('worker_threads');
 const kTaskInfo = Symbol('kTaskInfo');
 const kWorkerFreedEvent = Symbol('kWorkerFreedEvent');
 
+const CONTRACT_TIMEOUT_MS = parseInt(process.env.FAST_NEAR_CONTRACT_TIMEOUT_MS || '1000');
+
 // NOTE: Mostly lifted from here https://amagiacademy.com/blog/posts/2021-04-09/node-worker-threads-pool
 class WorkerPool extends EventEmitter {
     constructor(numThreads, storageClient) {
@@ -24,6 +26,7 @@ class WorkerPool extends EventEmitter {
             const { resolve, reject, blockHeight } = worker[kTaskInfo];
 
             if (!methodName) {
+                clearTimeout(worker[kTaskInfo].timeoutHandle);
                 worker[kTaskInfo] = null;
                 this.freeWorkers.push(worker);
                 this.emit(kWorkerFreedEvent);
@@ -54,14 +57,15 @@ class WorkerPool extends EventEmitter {
             }
         });
         worker.once('exit', (code) => {
-            if (code !== 0) {
-                console.error(`Worker stopped with exit code ${code}`);
-                process.exit(code);
-            }
+            worker.emit('error', new Error(`Worker stopped with exit code ${code}`));
         });
         worker.on('error', (err) => {
             if (worker[kTaskInfo]) {
-                worker[kTaskInfo].reject(err)
+                const { contractId, methodName, didTimeout, reject } = worker[kTaskInfo]
+                if (didTimeout) {
+                    err = new Error(`${contractId}.${methodName} execution timed out`);
+                }
+                reject(err)
             } else {
                 this.emit('error', err);
             }
@@ -84,8 +88,14 @@ class WorkerPool extends EventEmitter {
             }
 
             const worker = this.freeWorkers.pop();
-            worker[kTaskInfo] = { resolve, reject, blockHeight };
+            worker[kTaskInfo] = { resolve, reject, blockHeight, contractId, methodName };
             worker.postMessage({ wasmModule, contractId, methodName, methodArgs });
+            worker[kTaskInfo].timeoutHandle = setTimeout(() => {
+                if (worker[kTaskInfo]) {
+                    worker[kTaskInfo].didTimeout = true;
+                    worker.terminate();
+                }
+            }, CONTRACT_TIMEOUT_MS);
         });
     }
 
