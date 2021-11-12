@@ -43,10 +43,10 @@ const imports = (ctx) => {
                 ctx.result = Buffer.from(mem.slice(Number(value_ptr), Number(value_ptr + value_len)));
             },
             current_account_id: (register_id) => {
-                registers[register_id] = Buffer.from(ctx['contract_id']);
+                registers[register_id] = Buffer.from(ctx.contract_id);
             },
             predecessor_account_id: (register_id) => {
-                registers[register_id] = Buffer.from(ctx['contract_id']);
+                registers[register_id] = Buffer.from(ctx.contract_id);
             },
             storage_read: (key_len, key_ptr, register_id) => {
                 const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
