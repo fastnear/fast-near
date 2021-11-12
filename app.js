@@ -2,11 +2,11 @@
 
 const Koa = require('koa');
 const app = new Koa();
-
 const Router = require('koa-router');
 const router = new Router();
-
 const koaBody = require('koa-body')();
+
+const fetch = require('node-fetch');
 
 const WorkerPool = require('./worker-pool');
 
@@ -156,6 +156,47 @@ router.get('/account/:accountId/data/:keyPattern', async ctx => {
             .map(([key, value]) => [Buffer.from(key).toString(encoding), Buffer.from(value).toString(encoding)]),
         iterator: newIterator
     };
+});
+
+// NOTE: This is JSON-RPC proxy needed to pretend we are actual nearcore
+const NODE_URL = process.env.FAST_NEAR_NODE_URL || 'http://35.236.45.138:3030';
+router.post('/', koaBody, async ctx => {
+    const { body } = ctx.request;
+    if (body?.method == 'query' && body?.params?.request_type == 'call_function') {
+        const { finality, account_id, method_name, args_base64 } = body.params;
+        // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
+
+        try {
+            const result = Buffer.from(await runContract(account_id, method_name, Buffer.from(args_base64, 'base64')));
+            ctx.body = {
+                jsonrpc: '2.0',
+                result: {
+                    result: Array.from(result),
+                    logs: [], // TODO: Collect logs
+                    // TODO: block_height, block_hash
+                }
+            };
+            return;
+        } catch (e) {
+            // TODO: Proper error handling https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
+            const message = e.toString();
+            if (/TypeError.* is not a function/.test(message)) {
+                ctx.throw(404, `method ${methodName} not found`);
+            }
+
+            ctx.throw(400, message);
+        }
+    }
+
+    ctx.type = 'json';
+    console.log('body', body);
+    ctx.body = Buffer.from(await (await fetch(NODE_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+    })).arrayBuffer());
 });
 
 app
