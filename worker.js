@@ -8,8 +8,13 @@ const debug = require('debug')(`worker:${threadId}`);
 const MAX_U64 = 18446744073709551615n;
 
 const notImplemented = (name) => (...args) => {
-    console.error('notImplemented', name, 'args', args);
+    debug('notImplemented', name, 'args', args);
     throw new Error('method not implemented: ' + name);
+};
+
+const prohibitedInView = (name) => (...args) => {
+    debug('prohibitedInView', name, 'args', args);
+    throw new Error('method not available for view calls: ' + name);
 };
 
 const imports = (ctx) => {
@@ -39,11 +44,9 @@ const imports = (ctx) => {
             current_account_id: (register_id) => {
                 registers[register_id] = Buffer.from(ctx.contract_id);
             },
-            signer_account_id: notImplemented('signer_account_id'),
-            signer_account_pk: notImplemented('signer_account_pk'),
-            predecessor_account_id: (register_id) => {
-                registers[register_id] = Buffer.from(ctx.contract_id);
-            },
+            signer_account_id: prohibitedInView('signer_account_id'),
+            signer_account_pk: prohibitedInView('signer_account_pk'),
+            predecessor_account_id: prohibitedInView('predecessor_account_id'),
             input: (register_id) => {
                 registers[register_id] = Buffer.from(ctx.methodArgs);
             },
@@ -54,9 +57,9 @@ const imports = (ctx) => {
 
             account_balance: notImplemented('account_balance'), // TODO: Implement as needed for IDO usage
             account_locked_balance: notImplemented('account_locked_balance'),
-            attached_deposit: notImplemented('attached_deposit'),
-            prepaid_gas: notImplemented('prepaid_gas'),
-            used_gas: notImplemented('used_gas'),
+            attached_deposit: prohibitedInView('attached_deposit'),
+            prepaid_gas: prohibitedInView('prepaid_gas'),
+            used_gas: prohibitedInView('used_gas'),
 
             random_seed: notImplemented('random_seed'),
             sha256: notImplemented('sha256'),
@@ -78,25 +81,25 @@ const imports = (ctx) => {
             log_utf8: notImplemented('log_utf8'),
             log_utf16: notImplemented('log_utf16'),
 
-            promise_create: notImplemented('promise_create'),
-            promise_then: notImplemented('promise_then'),
-            promise_and: notImplemented('promise_and'),
-            promise_batch_create: notImplemented('promise_batch_create'),
-            promise_batch_then: notImplemented('promise_batch_then'),
-            promise_batch_action_create_account: notImplemented('promise_batch_action_create_account'),
-            promise_batch_action_deploy_contract: notImplemented('promise_batch_action_deploy_contract'),
-            promise_batch_action_function_call: notImplemented('promise_batch_action_function_call'),
-            promise_batch_action_transfer: notImplemented('promise_batch_action_transfer'),
-            promise_batch_action_stake: notImplemented('promise_batch_action_stake'),
-            promise_batch_action_add_key_with_full_access: notImplemented('promise_batch_action_add_key_with_full_access'),
-            promise_batch_action_add_key_with_function_call: notImplemented('promise_batch_action_add_key_with_function_call'),
-            promise_batch_action_delete_key: notImplemented('promise_batch_action_delete_key'),
-            promise_batch_action_delete_account: notImplemented('promise_batch_action_delete_account'),
-            promise_results_count: notImplemented('promise_results_count'),
-            promise_result: notImplemented('promise_result'),
-            promise_return: notImplemented('promise_return'),
+            promise_create: prohibitedInView('promise_create'),
+            promise_then: prohibitedInView('promise_then'),
+            promise_and: prohibitedInView('promise_and'),
+            promise_batch_create: prohibitedInView('promise_batch_create'),
+            promise_batch_then: prohibitedInView('promise_batch_then'),
+            promise_batch_action_create_account: prohibitedInView('promise_batch_action_create_account'),
+            promise_batch_action_deploy_contract: prohibitedInView('promise_batch_action_deploy_contract'),
+            promise_batch_action_function_call: prohibitedInView('promise_batch_action_function_call'),
+            promise_batch_action_transfer: prohibitedInView('promise_batch_action_transfer'),
+            promise_batch_action_stake: prohibitedInView('promise_batch_action_stake'),
+            promise_batch_action_add_key_with_full_access: prohibitedInView('promise_batch_action_add_key_with_full_access'),
+            promise_batch_action_add_key_with_function_call: prohibitedInView('promise_batch_action_add_key_with_function_call'),
+            promise_batch_action_delete_key: prohibitedInView('promise_batch_action_delete_key'),
+            promise_batch_action_delete_account: prohibitedInView('promise_batch_action_delete_account'),
+            promise_results_count: prohibitedInView('promise_results_count'),
+            promise_result: prohibitedInView('promise_result'),
+            promise_return: prohibitedInView('promise_return'),
 
-            storage_write: notImplemented('storage_write'),
+            storage_write: prohibitedInView('storage_write'),
             storage_read: (key_len, key_ptr, register_id) => {
                 const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
                 const compKey = Buffer.concat([Buffer.from(`${ctx.contractId}:`), storageKey]);
@@ -122,7 +125,7 @@ const imports = (ctx) => {
                 debug('storage_read result', Buffer.from(result).toString('utf8'));
                 return 1n;
             },
-            storage_remove: notImplemented('storage_remove'),
+            storage_remove: prohibitedInView('storage_remove'),
             storage_has_key: notImplemented('storage_has_key'), // TODO: But is it used in a wild?
 
             validator_stake: notImplemented('validator_stake'),
