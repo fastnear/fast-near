@@ -273,6 +273,7 @@ app
     .use(router.routes())
     .use(router.allowedMethods());
 
+const HOST = process.env.HOST|| '0.0.0.0';
 const PORT = process.env.PORT || 3000;
-app.listen(PORT);
-console.log('Listening on http://localhost:%d/', PORT);
+app.listen(PORT, HOST);
+console.log('Listening on http://%s:%d/', HOST, PORT);
