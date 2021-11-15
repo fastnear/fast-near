@@ -50,7 +50,9 @@ const imports = (ctx) => {
             input: (register_id) => {
                 registers[register_id] = Buffer.from(ctx.methodArgs);
             },
-            block_index: notImplemented('block_index'),
+            block_index: () => {
+                return BigInt(ctx.blockHeight);
+            },
             block_timestamp: notImplemented('block_timestamp'),
             epoch_height: notImplemented('epoch_height'),
             storage_usage: notImplemented('storage_usage'),
@@ -70,16 +72,33 @@ const imports = (ctx) => {
                 const mem = new Uint8Array(ctx.memory.buffer)
                 ctx.result = Buffer.from(mem.slice(Number(value_ptr), Number(value_ptr + value_len)));
             },
-            panic: notImplemented('panic'), // TODO: panic and panic_utf8 for Rust?
-            panic_utf8: notImplemented('panic_utf8'),
+            panic: () => {
+                const message = `panic: explicit guest panic`
+                debug(message);
+                throw new Error(message);
+            },
+            panic_utf8: (len, ptr) => {
+                const message = `panic: ${Buffer.from(new Uint8Array(ctx.memory.buffer, Number(ptr), Number(len))).toString('utf8')}`;
+                debug(message);
+                throw new Error(message);
+            },
             abort: (msg_ptr, filename_ptr, line, col) => {
                 const message = `abort: ${readUTF16CStr(msg_ptr)} ${readUTF16CStr(filename_ptr)}:${line}:${col}`
                 debug(message);
                 throw new Error(message);
             },
-            // TODO: Collect logs
-            log_utf8: notImplemented('log_utf8'),
-            log_utf16: notImplemented('log_utf16'),
+            log_utf8: (len, ptr) => {
+                // TODO: Support null terminated?
+                const message = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(ptr), Number(len))).toString('utf8');
+                debug(`log: ${message}`);
+                ctx.logs.push(message);
+            },
+            log_utf16: (len, ptr) => {
+                // TODO: Support null terminated?
+                const message = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(ptr), Number(len))).toString('utf16');
+                debug(`log: ${message}`);
+                ctx.logs.push(message);
+            },
 
             promise_create: prohibitedInView('promise_create'),
             promise_then: prohibitedInView('promise_then'),
@@ -134,11 +153,13 @@ const imports = (ctx) => {
     }
 };
 
-async function runWASM({ wasmModule, contractId, methodName, methodArgs }) {
+async function runWASM({ blockHeight, wasmModule, contractId, methodName, methodArgs }) {
     debug('runWASM', contractId, methodName, Buffer.from(methodArgs).toString('utf8'));
     const ctx = {
+        blockHeight,
         contractId,
-        methodArgs
+        methodArgs,
+        logs: []
     };
     debug('module instantiate');
     const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx));
@@ -151,13 +172,13 @@ async function runWASM({ wasmModule, contractId, methodName, methodArgs }) {
         debug(`run ${methodName} done`);
     }
 
-    return ctx.result;
+    return ctx;
 }
 
 parentPort.on('message', message => {
     if (message.wasmModule) {
-        runWASM(message).then(result => {
-            parentPort.postMessage({ result });
+        runWASM(message).then(({ result, logs }) => {
+            parentPort.postMessage({ result, logs });
         }).catch(error => {
             parentPort.postMessage({ error });
         });

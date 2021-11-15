@@ -22,7 +22,7 @@ class WorkerPool extends EventEmitter {
 
     addNewWorker() {
         const worker = new Worker('./worker.js');
-        worker.on('message', ({ result, error, methodName, compKey }) => {
+        worker.on('message', ({ result, logs, error, methodName, compKey }) => {
             const { resolve, reject, blockHeight } = worker[kTaskInfo];
 
             if (!methodName) {
@@ -37,7 +37,7 @@ class WorkerPool extends EventEmitter {
             }
 
             if (result) {
-                return resolve(result);
+                return resolve({ result, logs });
             }
 
             switch (methodName) {
@@ -89,7 +89,7 @@ class WorkerPool extends EventEmitter {
 
             const worker = this.freeWorkers.pop();
             worker[kTaskInfo] = { resolve, reject, blockHeight, contractId, methodName };
-            worker.postMessage({ wasmModule, contractId, methodName, methodArgs });
+            worker.postMessage({ wasmModule, blockHeight, contractId, methodName, methodArgs });
             worker[kTaskInfo].timeoutHandle = setTimeout(() => {
                 if (worker[kTaskInfo]) {
                     worker[kTaskInfo].didTimeout = true;

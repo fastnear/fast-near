@@ -55,9 +55,9 @@ async function runContract(contractId, methodName, methodArgs) {
     }
 
     debug('worker start');
-    const result = await workerPool.runContract(latestBlockHeight, wasmModule, contractId, methodName, methodArgs);
+    const { result, logs } = await workerPool.runContract(latestBlockHeight, wasmModule, contractId, methodName, methodArgs);
     debug('worker done');
-    return result;
+    return { result, logs };
 }
 
 // TODO: Extract tests
@@ -122,10 +122,12 @@ const runViewMethod = async ctx => {
     const { accountId, methodName } = ctx.params;
 
     try {
-        const result = Buffer.from(await runContract(accountId, methodName, ctx.methodArgs));
-        if (isJSON(result)) {
+        const { result, logs } = await runContract(accountId, methodName, ctx.methodArgs);
+        // TODO: return logs somehow (in headers? if requested?)
+        const resultBuffer = Buffer.from(result);
+        if (isJSON(resultBuffer)) {
             ctx.type = 'json';
-            ctx.body = result;
+            ctx.body = resultBuffer;
         }
     } catch (e) {
         const message = e.toString();
@@ -167,12 +169,15 @@ router.post('/', koaBody, async ctx => {
         // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
         try {
-            const result = Buffer.from(await runContract(account_id, method_name, Buffer.from(args_base64, 'base64')));
+            console.log('params', body.params)
+            const { result, logs } = await runContract(account_id, method_name, Buffer.from(args_base64, 'base64'));
+            console.log('result', result);
+            const resultBuffer = Buffer.from(result);
             ctx.body = {
                 jsonrpc: '2.0',
                 result: {
-                    result: Array.from(result),
-                    logs: [], // TODO: Collect logs
+                    result: Array.from(resultBuffer),
+                    logs
                     // TODO: block_height, block_hash
                 }
             };
