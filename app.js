@@ -57,7 +57,7 @@ async function runContract(contractId, methodName, methodArgs) {
     debug('worker start');
     const { result, logs } = await workerPool.runContract(latestBlockHeight, wasmModule, contractId, methodName, methodArgs);
     debug('worker done');
-    return { result, logs };
+    return { result, logs, blockHeight: latestBlockHeight };
 }
 
 // TODO: Extract tests
@@ -198,14 +198,15 @@ router.post('/', koaBody, async ctx => {
         // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
         try {
-            const { result, logs } = await runContract(account_id, method_name, Buffer.from(args_base64, 'base64'));
+            const { result, logs, blockHeight } = await runContract(account_id, method_name, Buffer.from(args_base64, 'base64'));
             const resultBuffer = Buffer.from(result);
             ctx.body = {
                 jsonrpc: '2.0',
                 result: {
                     result: Array.from(resultBuffer),
-                    logs
-                    // TODO: block_height, block_hash
+                    logs,
+                    block_height: parseInt(blockHeight)
+                    // TODO: block_hash
                 },
                 id: body.id
             };
