@@ -1,4 +1,3 @@
-const { message } = require('statuses');
 const {
     parentPort, workerData, receiveMessageOnPort, threadId
 } = require('worker_threads');
