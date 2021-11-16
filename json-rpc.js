@@ -112,6 +112,7 @@ const handleJsonRpc = async ctx => {
             },
             id: body.id
         };
+        return;
     }
 
     await proxyJson(ctx);
