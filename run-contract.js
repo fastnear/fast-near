@@ -26,6 +26,9 @@ async function runContract(contractId, methodName, methodArgs) {
 
     debug('find contract code')
     const contractBlockHash = await storageClient.getLatestContractBlockHash(contractId, latestBlockHeight);
+    if (!contractBlockHash) {
+        throw new Error(`Cannot find contract code: ${contractId} ${latestBlockHeight}`)
+    }
     // TODO: Have cache based on code hash instead?
     const cacheKey = `${contractId}:${contractBlockHash.toString('hex')}}`;
     let wasmModule = contractCache[cacheKey];
