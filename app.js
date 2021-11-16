@@ -189,6 +189,18 @@ const bs58 = require('bs58');
 
 // NOTE: This is JSON-RPC proxy needed to pretend we are actual nearcore
 const NODE_URL = process.env.FAST_NEAR_NODE_URL || 'http://35.236.45.138:3030';
+
+const proxyJson = async ctx => {
+    ctx.type = 'json';
+    ctx.body = Buffer.from(await (await fetch(`${NODE_URL}${ctx.request.path}`, {
+        method: ctx.request.method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: ctx.request.body && JSON.stringify(ctx.request.body)
+    })).arrayBuffer());
+}
+
 router.post('/', koaBody, async ctx => {
     const debug = require('debug')('json-rpc');
 
@@ -259,15 +271,10 @@ router.post('/', koaBody, async ctx => {
         };
     }
 
-    ctx.type = 'json';
-    ctx.body = Buffer.from(await (await fetch(NODE_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-    })).arrayBuffer());
+    await proxyJson(ctx);
 });
+
+router.get('/(status|metrics|health)', proxyJson);
 
 app
     .use(async (ctx, next) => {
