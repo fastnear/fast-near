@@ -232,27 +232,31 @@ router.post('/', koaBody, async ctx => {
         debug('find account data', account_id);
         const blockHash = await storageClient.getLatestAccountBlockHash(account_id, latestBlockHeight);
         debug('blockHash', blockHash);
+        if (!blockHash) {
+            // TODO: JSON-RPC error handling
+            ctx.throw(404, `account ${account_id} not found`);
+        }
+
         const accountData = await storageClient.getAccountData(account_id, blockHash);
         debug('account data loaded', account_id);
-
-        if (accountData) {
-            const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
-            ctx.body = {
-                jsonrpc: '2.0',
-                result: {
-                    amount: amount.toString(),
-                    locked: locked.toString(),
-                    code_hash: bs58.encode(code_hash),
-                    storage_usage: parseInt(storage_usage.toString()),
-                    block_height: parseInt(latestBlockHeight)
-                    // TODO: block_hash
-                },
-                id: body.id
-            };
-            return;
+        if (!accountData) {
+            // TODO: JSON-RPC error handling
+            ctx.throw(404, `account ${account_id} not found`);
         }
-        // TODO: Proper error handling
-        ctx.throw(404);
+
+        const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
+        ctx.body = {
+            jsonrpc: '2.0',
+            result: {
+                amount: amount.toString(),
+                locked: locked.toString(),
+                code_hash: bs58.encode(code_hash),
+                storage_usage: parseInt(storage_usage.toString()),
+                block_height: parseInt(latestBlockHeight)
+                // TODO: block_hash
+            },
+            id: body.id
+        };
     }
 
     ctx.type = 'json';
