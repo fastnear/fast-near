@@ -1,10 +1,10 @@
 const WorkerPool = require('./worker-pool');
+const storageClient = require('./storage-client');
 
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
 
 const contractCache = {};
 
-let storageClient = require('./storage-client');
 let workerPool;
 
 async function runContract(contractId, methodName, methodArgs) {
