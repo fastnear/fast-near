@@ -37,7 +37,7 @@ const prettyBuffer = buffer => {
 };
 
 const withRedis = ({ name, cachedExpires }, fn) => async (...args) => {
-    const prettyArgs = args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : arg.toString());
+    const prettyArgs = args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
     debug(name, ...prettyArgs);
     try {
         let cacheKey = prettyArgs.join('$$');
