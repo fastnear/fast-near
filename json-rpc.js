@@ -22,7 +22,8 @@ const BORSH_SCHEMA = new Map([
             ['locked', 'u128'],
             ['code_hash', ['u8', 32]],
             ['storage_usage', 'u64'],
-            ['storage_paid_at_deprecated', 'u64']
+            // TODO: Make sure format is consistent for state dump and indexer
+            // ['storage_paid_at_deprecated', 'u64']
         ]
     }]
 ]);
