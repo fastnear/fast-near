@@ -29,11 +29,13 @@ const BORSH_SCHEMA = new Map([
 
 const { deserialize } = require('borsh');
 const bs58 = require('bs58');
+const debug = require('debug')('json-rpc');
 
 // NOTE: This is JSON-RPC proxy needed to pretend we are actual nearcore
 const NODE_URL = process.env.FAST_NEAR_NODE_URL || 'http://35.236.45.138:3030';
 
 const proxyJson = async ctx => {
+    debug('proxyJson', ctx.request.method, ctx.request.path, ctx.request.body);
     ctx.type = 'json';
     ctx.body = Buffer.from(await (await fetch(`${NODE_URL}${ctx.request.path}`, {
         method: ctx.request.method,
@@ -45,8 +47,6 @@ const proxyJson = async ctx => {
 }
 
 const handleJsonRpc = async ctx => {
-    const debug = require('debug')('json-rpc');
-
     const { body } = ctx.request;
     if (body?.method == 'query' && body?.params?.request_type == 'call_function') {
         const { finality, account_id, method_name, args_base64 } = body.params;
