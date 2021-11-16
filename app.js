@@ -5,6 +5,7 @@ const app = new Koa();
 const Router = require('koa-router');
 const router = new Router();
 const koaBody = require('koa-body')();
+const cors = require('@koa/cors');
 
 const runContract = require('./run-contract');
 const storageClient = require('./storage-client');
@@ -104,6 +105,7 @@ app
         console.log(ctx.method, ctx.path);
         await next();
     })
+    .use(cors({ credentials: true }))
     .use(router.routes())
     .use(router.allowedMethods());
 
