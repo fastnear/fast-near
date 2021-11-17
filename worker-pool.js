@@ -1,6 +1,8 @@
 const { EventEmitter } = require('events');
 const { Worker } = require('worker_threads');
 
+const { FastNEARError } = require('./error');
+
 const kTaskInfo = Symbol('kTaskInfo');
 const kWorkerFreedEvent = Symbol('kWorkerFreedEvent');
 
@@ -22,7 +24,7 @@ class WorkerPool extends EventEmitter {
 
     addNewWorker() {
         const worker = new Worker('./worker.js');
-        worker.on('message', ({ result, logs, error, methodName, compKey }) => {
+        worker.on('message', ({ result, logs, error, errorCode, methodName, compKey }) => {
             const { resolve, reject, blockHeight } = worker[kTaskInfo];
 
             if (!methodName) {
@@ -33,6 +35,10 @@ class WorkerPool extends EventEmitter {
             }
 
             if (error) {
+                if (errorCode) {
+                    // TODO: Should we preserve call stack when possible?
+                    return reject(new FastNEARError(errorCode, error.message));
+                }
                 return reject(error);
             }
 

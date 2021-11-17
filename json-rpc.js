@@ -22,8 +22,6 @@ const BORSH_SCHEMA = new Map([
             ['locked', 'u128'],
             ['code_hash', ['u8', 32]],
             ['storage_usage', 'u64'],
-            // TODO: Make sure format is consistent for state dump and indexer
-            // ['storage_paid_at_deprecated', 'u64']
         ]
     }]
 ]);
@@ -45,6 +43,17 @@ const proxyJson = async ctx => {
         },
         body: ctx.request.body && JSON.stringify(ctx.request.body)
     })).arrayBuffer());
+}
+
+const viewCallError = ({ id, message }) => {
+    return {
+        jsonrpc: '2.0',
+        result: {
+            error: message,
+            // TODO: block_height and block_hash
+        },
+        id
+    };
 }
 
 const handleJsonRpc = async ctx => {
@@ -71,7 +80,16 @@ const handleJsonRpc = async ctx => {
             // TODO: Proper error handling https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
             const message = e.toString();
             if (/TypeError.* is not a function/.test(message)) {
-                ctx.throw(404, `method ${methodName} not found`);
+                ctx.throw(404, `method ${method_name} not found`);
+            }
+
+            if (['panic', 'abort'].includes(e.code)) {
+                ctx.body = viewCallError({
+                    id: body.id,
+                    message: 
+                    `wasm execution failed with error: FunctionCallError(HostError(GuestPanic { panic_msg: ${JSON.stringify(e.message)}}))`
+                });
+                return;
             }
 
             ctx.throw(400, message);

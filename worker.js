@@ -4,16 +4,18 @@ const {
 
 const debug = require('debug')(`worker:${threadId}`);
 
+const { FastNEARError } = require('./error');
+
 const MAX_U64 = 18446744073709551615n;
 
 const notImplemented = (name) => (...args) => {
     debug('notImplemented', name, 'args', args);
-    throw new Error('method not implemented: ' + name);
+    throw new FastNEARError('notImplemented', 'method not implemented: ' + name);
 };
 
 const prohibitedInView = (name) => (...args) => {
     debug('prohibitedInView', name, 'args', args);
-    throw new Error('method not available for view calls: ' + name);
+    throw new FastNEARError('notImplemented', 'method not available for view calls: ' + name);
 };
 
 const imports = (ctx) => {
@@ -72,19 +74,19 @@ const imports = (ctx) => {
                 ctx.result = Buffer.from(mem.slice(Number(value_ptr), Number(value_ptr + value_len)));
             },
             panic: () => {
-                const message = `panic: explicit guest panic`
+                const message = `explicit guest panic`
                 debug(message);
-                throw new Error(message);
+                throw new FastNEARError('panic', message);
             },
             panic_utf8: (len, ptr) => {
-                const message = `panic: ${Buffer.from(new Uint8Array(ctx.memory.buffer, Number(ptr), Number(len))).toString('utf8')}`;
+                const message = `${Buffer.from(new Uint8Array(ctx.memory.buffer, Number(ptr), Number(len))).toString('utf8')}`;
                 debug(message);
-                throw new Error(message);
+                throw new FastNEARError('panic', message);
             },
             abort: (msg_ptr, filename_ptr, line, col) => {
-                const message = `abort: ${readUTF16CStr(msg_ptr)} ${readUTF16CStr(filename_ptr)}:${line}:${col}`
+                const message = `${readUTF16CStr(msg_ptr)} ${readUTF16CStr(filename_ptr)}:${line}:${col}`
                 debug(message);
-                throw new Error(message);
+                throw new FastNEARError('abort', message);
             },
             log_utf8: (len, ptr) => {
                 // TODO: Support null terminated?
@@ -179,7 +181,7 @@ parentPort.on('message', message => {
         runWASM(message).then(({ result, logs }) => {
             parentPort.postMessage({ result, logs });
         }).catch(error => {
-            parentPort.postMessage({ error });
+            parentPort.postMessage({ error, errorCode: error.code });
         });
     }
 });
