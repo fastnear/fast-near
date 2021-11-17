@@ -72,7 +72,7 @@ const legacyError = ({ id, message }) => {
 
 const ALWAYS_PROXY = ['yes', 'true'].includes((process.env.FAST_NEAR_ALWAYS_PROXY || 'no').trim().toLowerCase());
 
-const handleError = ({ ctx, accountId, error }) => {
+const handleError = async ({ ctx, accountId, error }) => {
     const { body } = ctx.request;
 
     // TODO: Match error handling? Structured errors? https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
@@ -86,6 +86,9 @@ const handleError = ({ ctx, accountId, error }) => {
     }
 
     switch (error.code) {
+    case 'notImplemented':
+        await proxyJson(ctx);
+        return;
     case 'panic':
     case 'abort':
         ctx.body = viewCallError({
@@ -167,7 +170,7 @@ const callViewFunction = async (ctx,  { accountId, methodName, args }) => {
         };
         return;
     } catch (error) {
-        handleError({ ctx, accountId, error });
+        await handleError({ ctx, accountId, error });
     }
 }
 
@@ -203,7 +206,7 @@ const viewAccount = async (ctx, { accountId }) => {
             id: ctx.request.body.id
         };
     } catch (error) {
-        handleError({ ctx, accountId: accountId, error });
+        await handleError({ ctx, accountId: accountId, error });
     }
 }
 
