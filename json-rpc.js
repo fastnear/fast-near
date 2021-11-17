@@ -155,7 +155,6 @@ const handleJsonRpc = async ctx => {
 };
 
 const callViewFunction = async (ctx,  { accountId, methodName, args }) => {
-    console.log('callViewFunction', accountId, methodName, args);
     try {
         const { result, logs, blockHeight } = await runContract(accountId, methodName, args);
         const resultBuffer = Buffer.from(result);
