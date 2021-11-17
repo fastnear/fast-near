@@ -143,43 +143,56 @@ const handleJsonRpc = async ctx => {
         // TODO: Handle finality and block_id
         const { finality, block_id, account_id: accountId } = body.params;
 
-        try {
-            const latestBlockHeight = await storageClient.getLatestBlockHeight();
-            debug('latestBlockHeight', latestBlockHeight);
+        await viewAccount(ctx, { accountId });
+        return;
+    }
 
-            debug('find account data', accountId);
-            const blockHash = await storageClient.getLatestAccountBlockHash(accountId, latestBlockHeight);
-            debug('blockHash', blockHash);
-            if (!blockHash) {
-                throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${latestBlockHeight} block height`);
-            }
-
-            const accountData = await storageClient.getAccountData(accountId, blockHash);
-            debug('account data loaded', accountId);
-            if (!accountData) {
-                throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${latestBlockHeight} block height`);
-            }
-
-            const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
-            ctx.body = {
-                jsonrpc: '2.0',
-                result: {
-                    amount: amount.toString(),
-                    locked: locked.toString(),
-                    code_hash: bs58.encode(code_hash),
-                    storage_usage: parseInt(storage_usage.toString()),
-                    block_height: parseInt(latestBlockHeight)
-                    // TODO: block_hash
-                },
-                id: body.id
-            };
+    if (body?.method == 'query' && body?.params?.length) {
+        const query = body.params[0];
+        if (query?.startsWith('account/')) {
+            const [, accountId] = query.split('/');
+            await viewAccount(ctx, { accountId });
             return;
-        } catch (error) {
-            handleError({ ctx, accountId: accountId, error });
         }
     }
 
     await proxyJson(ctx);
 };
+
+const viewAccount = async (ctx, { accountId }) => {
+    try {
+        const latestBlockHeight = await storageClient.getLatestBlockHeight();
+        debug('latestBlockHeight', latestBlockHeight);
+
+        debug('find account data', accountId);
+        const blockHash = await storageClient.getLatestAccountBlockHash(accountId, latestBlockHeight);
+        debug('blockHash', blockHash);
+        if (!blockHash) {
+            throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${latestBlockHeight} block height`);
+        }
+
+        const accountData = await storageClient.getAccountData(accountId, blockHash);
+        debug('account data loaded', accountId);
+        if (!accountData) {
+            throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${latestBlockHeight} block height`);
+        }
+
+        const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
+        ctx.body = {
+            jsonrpc: '2.0',
+            result: {
+                amount: amount.toString(),
+                locked: locked.toString(),
+                code_hash: bs58.encode(code_hash),
+                storage_usage: parseInt(storage_usage.toString()),
+                block_height: parseInt(latestBlockHeight)
+                // TODO: block_hash
+            },
+            id: ctx.request.body.id
+        };
+    } catch (error) {
+        handleError({ ctx, accountId: accountId, error });
+    }
+}
 
 module.exports = { handleJsonRpc, proxyJson };
