@@ -80,14 +80,17 @@ const handleJsonRpc = async ctx => {
             // TODO: Proper error handling https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
             const message = e.toString();
             if (/TypeError.* is not a function/.test(message)) {
-                ctx.throw(404, `method ${method_name} not found`);
+                ctx.body = viewCallError({
+                    id: body.id,
+                    message: "wasm execution failed with error: FunctionCallError(MethodResolveError(MethodNotFound))"
+                });
+                return;
             }
 
             if (['panic', 'abort'].includes(e.code)) {
                 ctx.body = viewCallError({
                     id: body.id,
-                    message: 
-                    `wasm execution failed with error: FunctionCallError(HostError(GuestPanic { panic_msg: ${JSON.stringify(e.message)}}))`
+                    message: `wasm execution failed with error: FunctionCallError(HostError(GuestPanic { panic_msg: ${JSON.stringify(e.message)}}))`
                 });
                 return;
             }
