@@ -56,6 +56,19 @@ const viewCallError = ({ id, message }) => {
     };
 }
 
+const legacyError = ({ id, message }) => {
+    return {
+        jsonrpc: '2.0',
+        // TODO: Structured error in addition to legacy?
+        result: {
+            code: -32000,
+            data: message,
+            message: "Server error",
+        },
+        id
+    };
+}
+
 const handleJsonRpc = async ctx => {
     const { body } = ctx.request;
     if (body?.method == 'query' && body?.params?.request_type == 'call_function') {
@@ -87,10 +100,24 @@ const handleJsonRpc = async ctx => {
                 return;
             }
 
-            if (['panic', 'abort'].includes(e.code)) {
+            switch (e.code) {
+            case 'panic':
+            case 'abort':
                 ctx.body = viewCallError({
                     id: body.id,
                     message: `wasm execution failed with error: FunctionCallError(HostError(GuestPanic { panic_msg: ${JSON.stringify(e.message)}}))`
+                });
+                return;
+            case 'codeNotFound':
+                ctx.body = viewCallError({
+                    id: body.id,
+                    message: `wasm execution failed with error: FunctionCallError(CompilationError(CodeDoesNotExist { account_id: AccountId("${account_id}") }))`
+                });
+                return;
+            case 'accountNotFound':
+                ctx.body = legacyError({
+                    id: body.id,
+                    message: `account ${account_id} does not exist while viewing`
                 });
                 return;
             }
