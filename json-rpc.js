@@ -2,6 +2,7 @@ const fetch = require('node-fetch');
 
 const runContract  = require('./run-contract');
 const storageClient = require('./storage-client');
+const { FastNEARError } = require('./error');
 
 class Account {
     amount;
@@ -71,6 +72,44 @@ const legacyError = ({ id, message }) => {
 
 const ALWAYS_PROXY = ['yes', 'true'].includes((process.env.FAST_NEAR_ALWAYS_PROXY || 'no').trim().toLowerCase());
 
+const handleError = ({ ctx, accountId, error }) => {
+    const { body } = ctx.request;
+
+    // TODO: Match error handling? Structured errors? https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
+    const message = error.toString();
+    if (/TypeError.* is not a function/.test(message)) {
+        ctx.body = viewCallError({
+            id: body.id,
+            message: "wasm execution failed with error: FunctionCallError(MethodResolveError(MethodNotFound))"
+        });
+        return;
+    }
+
+    switch (error.code) {
+    case 'panic':
+    case 'abort':
+        ctx.body = viewCallError({
+            id: body.id,
+            message: `wasm execution failed with error: FunctionCallError(HostError(GuestPanic { panic_msg: ${JSON.stringify(error.message)}}))`
+        });
+        return;
+    case 'codeNotFound':
+        ctx.body = viewCallError({
+            id: body.id,
+            message: `wasm execution failed with error: FunctionCallError(CompilationError(CodeDoesNotExist { account_id: AccountId("${accountId}") }))`
+        });
+        return;
+    case 'accountNotFound':
+        ctx.body = legacyError({
+            id: body.id,
+            message: `account ${accountId} does not exist while viewing`
+        });
+        return;
+    }
+
+    ctx.throw(400, message);
+}
+
 const handleJsonRpc = async ctx => {
     if (ALWAYS_PROXY) {
         return await proxyJson(ctx);
@@ -95,40 +134,8 @@ const handleJsonRpc = async ctx => {
                 id: body.id
             };
             return;
-        } catch (e) {
-            // TODO: Proper error handling https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
-            const message = e.toString();
-            if (/TypeError.* is not a function/.test(message)) {
-                ctx.body = viewCallError({
-                    id: body.id,
-                    message: "wasm execution failed with error: FunctionCallError(MethodResolveError(MethodNotFound))"
-                });
-                return;
-            }
-
-            switch (e.code) {
-            case 'panic':
-            case 'abort':
-                ctx.body = viewCallError({
-                    id: body.id,
-                    message: `wasm execution failed with error: FunctionCallError(HostError(GuestPanic { panic_msg: ${JSON.stringify(e.message)}}))`
-                });
-                return;
-            case 'codeNotFound':
-                ctx.body = viewCallError({
-                    id: body.id,
-                    message: `wasm execution failed with error: FunctionCallError(CompilationError(CodeDoesNotExist { account_id: AccountId("${account_id}") }))`
-                });
-                return;
-            case 'accountNotFound':
-                ctx.body = legacyError({
-                    id: body.id,
-                    message: `account ${account_id} does not exist while viewing`
-                });
-                return;
-            }
-
-            ctx.throw(400, message);
+        } catch (error) {
+            handleError({ ctx, accountId: account_id, error });
         }
     }
 
@@ -136,38 +143,40 @@ const handleJsonRpc = async ctx => {
         // TODO: Handle finality and block_id
         const { finality, block_id, account_id } = body.params;
 
-        const latestBlockHeight = await storageClient.getLatestBlockHeight();
-        debug('latestBlockHeight', latestBlockHeight);
+        try {
+            const latestBlockHeight = await storageClient.getLatestBlockHeight();
+            debug('latestBlockHeight', latestBlockHeight);
 
-        debug('find account data', account_id);
-        const blockHash = await storageClient.getLatestAccountBlockHash(account_id, latestBlockHeight);
-        debug('blockHash', blockHash);
-        if (!blockHash) {
-            // TODO: JSON-RPC error handling
-            ctx.throw(404, `account ${account_id} not found`);
+            debug('find account data', account_id);
+            const blockHash = await storageClient.getLatestAccountBlockHash(account_id, latestBlockHeight);
+            debug('blockHash', blockHash);
+            if (!blockHash) {
+                throw new FastNEARError('accountNotFound', `Account not found: ${account_id} at ${latestBlockHeight} block height`);
+            }
+
+            const accountData = await storageClient.getAccountData(account_id, blockHash);
+            debug('account data loaded', account_id);
+            if (!accountData) {
+                throw new FastNEARError('accountNotFound', `Account not found: ${account_id} at ${latestBlockHeight} block height`);
+            }
+
+            const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
+            ctx.body = {
+                jsonrpc: '2.0',
+                result: {
+                    amount: amount.toString(),
+                    locked: locked.toString(),
+                    code_hash: bs58.encode(code_hash),
+                    storage_usage: parseInt(storage_usage.toString()),
+                    block_height: parseInt(latestBlockHeight)
+                    // TODO: block_hash
+                },
+                id: body.id
+            };
+            return;
+        } catch (error) {
+            handleError({ ctx, accountId: account_id, error });
         }
-
-        const accountData = await storageClient.getAccountData(account_id, blockHash);
-        debug('account data loaded', account_id);
-        if (!accountData) {
-            // TODO: JSON-RPC error handling
-            ctx.throw(404, `account ${account_id} not found`);
-        }
-
-        const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
-        ctx.body = {
-            jsonrpc: '2.0',
-            result: {
-                amount: amount.toString(),
-                locked: locked.toString(),
-                code_hash: bs58.encode(code_hash),
-                storage_usage: parseInt(storage_usage.toString()),
-                block_height: parseInt(latestBlockHeight)
-                // TODO: block_hash
-            },
-            id: body.id
-        };
-        return;
     }
 
     await proxyJson(ctx);
