@@ -2,6 +2,8 @@ const {
     parentPort, workerData, receiveMessageOnPort, threadId
 } = require('worker_threads');
 
+const { createHash } = require('crypto');
+
 const debug = require('debug')(`worker:${threadId}`);
 
 const { FastNEARError } = require('./error');
@@ -66,13 +68,17 @@ const imports = (ctx) => {
             used_gas: prohibitedInView('used_gas'),
 
             random_seed: notImplemented('random_seed'),
-            sha256: notImplemented('sha256'),
+            sha256: (value_len, value_ptr, register_id) => {
+                const value = new Uint8Array(ctx.memory.buffer, Number(value_ptr), Number(value_len));
+                const hash = createHash('sha256');
+                hash.update(value);
+                registers[register_id] = hash.digest();
+            },
             keccak256: notImplemented('keccak256'),
             keccak512: notImplemented('keccak512'),
 
             value_return: (value_len, value_ptr) => {
-                const mem = new Uint8Array(ctx.memory.buffer)
-                ctx.result = Buffer.from(mem.slice(Number(value_ptr), Number(value_ptr + value_len)));
+                ctx.result = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(value_ptr), Number(value_len)));
             },
             panic: () => {
                 const message = `explicit guest panic`
