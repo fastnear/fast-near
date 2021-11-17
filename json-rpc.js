@@ -117,26 +117,10 @@ const handleJsonRpc = async ctx => {
 
     const { body } = ctx.request;
     if (body?.method == 'query' && body?.params?.request_type == 'call_function') {
-        const { finality, account_id: accountId, method_name, args_base64 } = body.params;
+        const { finality, account_id: accountId, method_name: methodName, args_base64 } = body.params;
         // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
-        try {
-            const { result, logs, blockHeight } = await runContract(accountId, method_name, Buffer.from(args_base64, 'base64'));
-            const resultBuffer = Buffer.from(result);
-            ctx.body = {
-                jsonrpc: '2.0',
-                result: {
-                    result: Array.from(resultBuffer),
-                    logs,
-                    block_height: parseInt(blockHeight)
-                    // TODO: block_hash
-                },
-                id: body.id
-            };
-            return;
-        } catch (error) {
-            handleError({ ctx, accountId, error });
-        }
+        await callViewFunction(ctx, { accountId, methodName, args: Buffer.from(args_base64, 'base64') });
     }
 
     if (body?.method == 'query' && body?.params?.request_type == 'view_account') {
@@ -154,10 +138,38 @@ const handleJsonRpc = async ctx => {
             await viewAccount(ctx, { accountId });
             return;
         }
+
+        if (query?.startsWith('call/')) {
+            const [, accountId, methodName] = query.split('/');
+            const args = bs58.decode(body.params[1], 'base64');
+            await callViewFunction(ctx, { accountId, methodName, args });
+            return;
+        }
     }
 
     await proxyJson(ctx);
 };
+
+const callViewFunction = async (ctx,  { accountId, methodName, args }) => {
+    console.log('callViewFunction', accountId, methodName, args);
+    try {
+        const { result, logs, blockHeight } = await runContract(accountId, methodName, args);
+        const resultBuffer = Buffer.from(result);
+        ctx.body = {
+            jsonrpc: '2.0',
+            result: {
+                result: Array.from(resultBuffer),
+                logs,
+                block_height: parseInt(blockHeight)
+                // TODO: block_hash
+            },
+            id: ctx.request.body.id
+        };
+        return;
+    } catch (error) {
+        handleError({ ctx, accountId, error });
+    }
+}
 
 const viewAccount = async (ctx, { accountId }) => {
     try {
