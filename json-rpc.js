@@ -69,7 +69,13 @@ const legacyError = ({ id, message }) => {
     };
 }
 
+const ALWAYS_PROXY = ['yes', 'true'].includes((process.env.FAST_NEAR_ALWAYS_PROXY || 'no').trim().toLowerCase());
+
 const handleJsonRpc = async ctx => {
+    if (ALWAYS_PROXY) {
+        return await proxyJson(ctx);
+    }
+
     const { body } = ctx.request;
     if (body?.method == 'query' && body?.params?.request_type == 'call_function') {
         const { finality, account_id, method_name, args_base64 } = body.params;
