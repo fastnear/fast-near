@@ -1,5 +1,6 @@
 const WorkerPool = require('./worker-pool');
 const storageClient = require('./storage-client');
+const { FastNEARError } = require('./error');
 
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
 
@@ -27,7 +28,12 @@ async function runContract(contractId, methodName, methodArgs) {
     debug('find contract code')
     const contractBlockHash = await storageClient.getLatestContractBlockHash(contractId, latestBlockHeight);
     if (!contractBlockHash) {
-        throw new Error(`Cannot find contract code: ${contractId} ${latestBlockHeight}`)
+        const accountBlockHash = await storageClient.getLatestAccountBlockHash(contractId, latestBlockHeight);
+        console.log('accountBlockHash', accountBlockHash);
+        if (!accountBlockHash) {
+            throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${latestBlockHeight} block height`);
+        }
+        throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${latestBlockHeight}`);
     }
     // TODO: Have cache based on code hash instead?
     const cacheKey = `${contractId}:${contractBlockHash.toString('hex')}}`;
