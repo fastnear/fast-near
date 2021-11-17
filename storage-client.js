@@ -40,7 +40,7 @@ const withRedis = ({ name, cachedExpires }, fn) => async (...args) => {
     const prettyArgs = args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
     debug(name, ...prettyArgs);
     try {
-        let cacheKey = prettyArgs.join('$$');
+        let cacheKey = [name, ...prettyArgs].join('$$');
         const cachedPromise = redisCache.get(cacheKey);
         if (cachedPromise) {
             debug(name, 'local cache hit', cacheKey);
