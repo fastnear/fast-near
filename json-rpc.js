@@ -124,6 +124,7 @@ const handleJsonRpc = async ctx => {
         // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
         await callViewFunction(ctx, { accountId, methodName, args: Buffer.from(args_base64, 'base64') });
+        return;
     }
 
     if (body?.method == 'query' && body?.params?.request_type == 'view_account') {
