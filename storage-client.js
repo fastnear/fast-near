@@ -27,14 +27,7 @@ function getRedisClient() {
     };
 }
 
-const textDecoder = new TextDecoder('utf8', { fatal: true });
-const prettyBuffer = buffer => {
-    try {
-        return textDecoder.decode(buffer);
-    } catch (e) {
-        return buffer.toString('hex');
-    }
-};
+const prettyBuffer = require('./pretty-buffer');
 
 const withRedis = ({ name, cachedExpires }, fn) => async (...args) => {
     const prettyArgs = args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
