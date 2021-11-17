@@ -4,7 +4,10 @@ const { FastNEARError } = require('./error');
 
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
 
-const contractCache = {};
+const LRU = require("lru-cache");
+let contractCache = new LRU({
+    max: 25
+});
 
 let workerPool;
 
@@ -37,7 +40,7 @@ async function runContract(contractId, methodName, methodArgs) {
     }
     // TODO: Have cache based on code hash instead?
     const cacheKey = `${contractId}:${contractBlockHash.toString('hex')}}`;
-    let wasmModule = contractCache[cacheKey];
+    let wasmModule = contractCache.get(cacheKey);
     if (wasmModule) {
         debug('contract cache hit', cacheKey);
     } else {
@@ -49,7 +52,7 @@ async function runContract(contractId, methodName, methodArgs) {
 
         debug('wasm compile');
         wasmModule = await WebAssembly.compile(wasmData);
-        contractCache[cacheKey] = wasmModule;
+        contractCache.set(cacheKey, wasmModule);
         debug('wasm compile done');
     }
 
