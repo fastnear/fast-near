@@ -117,11 +117,11 @@ const handleJsonRpc = async ctx => {
 
     const { body } = ctx.request;
     if (body?.method == 'query' && body?.params?.request_type == 'call_function') {
-        const { finality, account_id, method_name, args_base64 } = body.params;
+        const { finality, account_id: accountId, method_name, args_base64 } = body.params;
         // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
         try {
-            const { result, logs, blockHeight } = await runContract(account_id, method_name, Buffer.from(args_base64, 'base64'));
+            const { result, logs, blockHeight } = await runContract(accountId, method_name, Buffer.from(args_base64, 'base64'));
             const resultBuffer = Buffer.from(result);
             ctx.body = {
                 jsonrpc: '2.0',
@@ -135,29 +135,29 @@ const handleJsonRpc = async ctx => {
             };
             return;
         } catch (error) {
-            handleError({ ctx, accountId: account_id, error });
+            handleError({ ctx, accountId, error });
         }
     }
 
     if (body?.method == 'query' && body?.params?.request_type == 'view_account') {
         // TODO: Handle finality and block_id
-        const { finality, block_id, account_id } = body.params;
+        const { finality, block_id, account_id: accountId } = body.params;
 
         try {
             const latestBlockHeight = await storageClient.getLatestBlockHeight();
             debug('latestBlockHeight', latestBlockHeight);
 
-            debug('find account data', account_id);
-            const blockHash = await storageClient.getLatestAccountBlockHash(account_id, latestBlockHeight);
+            debug('find account data', accountId);
+            const blockHash = await storageClient.getLatestAccountBlockHash(accountId, latestBlockHeight);
             debug('blockHash', blockHash);
             if (!blockHash) {
-                throw new FastNEARError('accountNotFound', `Account not found: ${account_id} at ${latestBlockHeight} block height`);
+                throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${latestBlockHeight} block height`);
             }
 
-            const accountData = await storageClient.getAccountData(account_id, blockHash);
-            debug('account data loaded', account_id);
+            const accountData = await storageClient.getAccountData(accountId, blockHash);
+            debug('account data loaded', accountId);
             if (!accountData) {
-                throw new FastNEARError('accountNotFound', `Account not found: ${account_id} at ${latestBlockHeight} block height`);
+                throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${latestBlockHeight} block height`);
             }
 
             const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
@@ -175,7 +175,7 @@ const handleJsonRpc = async ctx => {
             };
             return;
         } catch (error) {
-            handleError({ ctx, accountId: account_id, error });
+            handleError({ ctx, accountId: accountId, error });
         }
     }
 
