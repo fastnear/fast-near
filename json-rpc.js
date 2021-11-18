@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const getRawBody = require('raw-body');
 
 const runContract  = require('./run-contract');
 const storageClient = require('./storage-client');
@@ -35,14 +36,15 @@ const debug = require('debug')('json-rpc');
 const NODE_URL = process.env.FAST_NEAR_NODE_URL || 'http://35.236.45.138:3030';
 
 const proxyJson = async ctx => {
-    debug('proxyJson', ctx.request.method, ctx.request.path, ctx.request.body);
+    const rawBody = await getRawBody(ctx.req);
+    debug('proxyJson', ctx.request.method, ctx.request.path, rawBody.toString('utf8'));
     ctx.type = 'json';
     ctx.body = Buffer.from(await (await fetch(`${NODE_URL}${ctx.request.path}`, {
         method: ctx.request.method,
         headers: {
             'Content-Type': 'application/json'
         },
-        body: ctx.request.body && JSON.stringify(ctx.request.body)
+        body: rawBody
     })).arrayBuffer());
 }
 
@@ -117,6 +119,8 @@ const handleJsonRpc = async ctx => {
     if (ALWAYS_PROXY) {
         return await proxyJson(ctx);
     }
+
+    ctx.request.body = JSON.stringify((await getRawBody(ctx.req)).toString('utf8'));
 
     const { body } = ctx.request;
     if (body?.method == 'query' && body?.params?.request_type == 'call_function') {

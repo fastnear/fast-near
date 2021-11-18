@@ -4,7 +4,7 @@ const Koa = require('koa');
 const app = new Koa();
 const Router = require('koa-router');
 const router = new Router();
-const koaBody = require('koa-body')();
+const getRawBody = require('raw-body');
 const cors = require('@koa/cors');
 
 const runContract = require('./run-contract');
@@ -49,7 +49,7 @@ const parseQueryArgs = async (ctx, next) => {
 }
 
 const parseBodyArgs = async (ctx, next) => {
-    ctx.methodArgs = ctx.request.body;
+    ctx.methodArgs = await getRawBody(ctx.req);
 
     await next();
 }
@@ -76,7 +76,7 @@ const runViewMethod = async ctx => {
 }
 
 router.get('/account/:accountId/view/:methodName', parseQueryArgs, runViewMethod);
-router.post('/account/:accountId/view/:methodName', koaBody, parseBodyArgs, runViewMethod);
+router.post('/account/:accountId/view/:methodName', parseBodyArgs, runViewMethod);
 
 const MAX_LIMIT = 100;
 router.get('/account/:accountId/data/:keyPattern', async ctx => {
@@ -97,7 +97,7 @@ router.get('/account/:accountId/data/:keyPattern', async ctx => {
 });
 
 const { proxyJson, handleJsonRpc } = require('./json-rpc');
-router.post('/', koaBody, handleJsonRpc);
+router.post('/', handleJsonRpc);
 router.get('/(status|metrics|health)', proxyJson);
 
 app
