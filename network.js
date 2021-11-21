@@ -72,6 +72,19 @@ class RoutedMessage extends BaseMessage {}
 class Disconnect extends BaseMessage {}
 class Challenge extends BaseMessage {}
 class PeerMessage extends Enum {}
+class PeerIdOrHash extends Enum {}
+class RoutedMessageBody extends Enum {}
+class RoutedMessageToSign extends BaseMessage {}
+class Approval extends BaseMessage {}
+class SignedTransaction extends BaseMessage {}
+class StateResponseInfoV1 extends BaseMessage {}
+class PartialEncodedChunkRequestMsg extends BaseMessage {}
+class PartialEncodedChunkResponseMsg extends BaseMessage {}
+class PartialEncodedChunkV1 extends BaseMessage {}
+class PingPong extends BaseMessage {}
+class PartialEncodedChunk extends BaseMessage {}
+class StateResponseInfo extends BaseMessage {}
+class PartialEncodedChunkForwardMsg extends BaseMessage {}
 
 const BORSH_SCHEMA = new Map([
     [Handshake, { kind: 'struct', fields: [
@@ -383,6 +396,47 @@ const BORSH_SCHEMA = new Map([
     [BlockRequest, { kind: 'struct', fields: [
         ['block_hash', [32]],
     ]}],
+    [RoutedMessage, { kind: 'struct', fields: [
+        ['target', PeerIdOrHash],
+        ['author', PublicKey],
+        ['signature', Signature],
+        ['ttl', 'u8'],
+        ['body', RoutedMessageBody],
+    ]}],
+    [RoutedMessageToSign, { kind: 'struct', fields: [
+        ['target', PeerIdOrHash],
+        ['author', PublicKey],
+        ['body', RoutedMessageBody],
+    ]}],
+    [PeerIdOrHash, { kind: 'enum', field: 'enum', values: [
+        ['peer_id', PublicKey],
+        ['hash', [32]],
+    ]}],
+    [RoutedMessageBody, { kind: 'enum', field: 'enum', values: [
+        ['block_approval', Approval],
+        ['forward_tx', SignedTransaction],
+        ['tx_status_request', ['string', [32]]],
+        ['tx_status_response', false],  // TODO
+        ['query_request', null],  // TODO
+        ['query_response', false],  // TODO
+        ['receipt_outcome_request', [32]],
+        ['receipt_outcome_response', false],  // TODO
+        ['state_request_header', ['u64', [32]]],
+        ['state_request_part', ['u64', [32], 'u64']],
+        ['state_response_info', StateResponseInfoV1],
+        ['partial_encoded_chunk_request', PartialEncodedChunkRequestMsg],
+        ['partial_encoded_chunk_response', PartialEncodedChunkResponseMsg],
+        ['partial_encoded_chunk', PartialEncodedChunkV1],
+        ['ping', PingPong],
+        ['pong', PingPong],
+        ['versioned_partial_encoded_chunk', PartialEncodedChunk],
+        ['versioned_state_response', StateResponseInfo],
+        ['partial_encoded_chunk_forward', PartialEncodedChunkForwardMsg]
+    ]}],
+    [PingPong, { kind: 'struct', fields: [
+        ['nonce', 'u64'],
+        ['source', PublicKey]
+    ]}],
 ]);
 
 const ed = require('@noble/ed25519');
@@ -390,13 +444,17 @@ const { sha256 } = require('@noble/hashes/lib/sha256');
 
 const privateKey = ed.utils.randomPrivateKey(); // 32-byte Uint8Array or string.
 
+const signObject = async (obj) => {
+    const data = serialize(BORSH_SCHEMA, obj);
+    const signature = await ed.sign(sha256(data), privateKey);
+    return new Signature({ keyType: 0, data: Buffer.from(signature) });
+}
+
 const signEdgeInfo = async (nonce, peer0, peer1) => {
     if (Buffer.compare(peer0.data, peer1.data) > 0) {
         [peer1, peer0] = [peer0, peer1];
     }
-    const data = serialize(BORSH_SCHEMA, new EdgeInfoToSign({ peer0, peer1, nonce }));
-    const signature = await ed.sign(sha256(data), privateKey);
-    return new Signature({ keyType: 0, data: Buffer.from(signature) });
+    return signObject(new EdgeInfoToSign({ peer0, peer1, nonce }));
 }
 
 const bs58 = require('bs58');
@@ -411,13 +469,15 @@ const sendMessage = (socket, message) => {
     socket.write(Buffer.concat([length, messageData]));
 }
 
+const target_peer_id = new PublicKey({ keyType: 0, data: bs58.decode('2gYpfHjqJa5Ji3btBnScQrxgwx2Ya5NXnJoTDqJWY36c') });
+let peer_id;
+
 const socket = net.connect(24567, '127.0.0.1', async () => {
     console.log('connected');
 
     const publicKey = Buffer.from(await ed.getPublicKey(privateKey));
     const nonce = 1;
-    const peer_id = new PublicKey({ keyType: 0, data: publicKey });
-    const target_peer_id = new PublicKey({ keyType: 0, data: bs58.decode('2gYpfHjqJa5Ji3btBnScQrxgwx2Ya5NXnJoTDqJWY36c') });
+    peer_id = new PublicKey({ keyType: 0, data: publicKey });
 
     const handshake = new PeerMessage({
         handshake: new Handshake({
@@ -473,15 +533,33 @@ eventEmitter.on('message', message => {
     if (message.handshake) {
         console.log('received handshake', message.handshake);
 
-        sendMessage(socket, new PeerMessage({ peers_request: new PeersRequest()}));
+        sendMessage(socket, new PeerMessage({ peers_request: new PeersRequest() }));
         sendMessage(socket, new PeerMessage({
-	    // NOTE: prev_hash is CTX4tj3kbbXiDdtveCW9nyuGgBoRcH6PHwxD2rwBcgWT
+            // NOTE: prev_hash is CTX4tj3kbbXiDdtveCW9nyuGgBoRcH6PHwxD2rwBcgWT
             block_request: new BlockRequest({ block_hash: bs58.decode('2yG1Wy335qYQysqXLeXfA2htsNfRVgzwmUtw4swVbn4z') })
+        }));
+
+        const messageToSign = new RoutedMessageToSign({
+            target: new PeerIdOrHash({ peer_id: target_peer_id }),
+            author: peer_id,
+            body: new RoutedMessageBody({
+                ping: new PingPong({})
+            })
+        });
+
+        sendMessage(socket, new PeerMessage({
+            routed: new RoutedMessage({
+                target: messageToSign.target,
+                author: messageToSign.author,
+                signature: signObject(messageToSign),
+                ttl: 100,
+                body: messageToSign.body
+            })
         }));
     }
 
     if (message.block) {
-	const header = message.block.v2.header.v2;
+        const header = message.block.v2.header.v2;
         console.log('block', bs58.encode(header.prev_hash), header.inner_lite.height.toString());
     }
 });
