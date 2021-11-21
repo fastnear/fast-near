@@ -450,7 +450,7 @@ socket.on('data', (data) => {
         }
 
         const message = deserialize(BORSH_SCHEMA, PeerMessage, data.slice(4, 4 + length));
-        unprocessedData = data.slice(4 + length);
+        unprocessedData = data = data.slice(4 + length);
 
         eventEmitter.emit('message', message);
     };
