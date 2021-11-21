@@ -461,5 +461,8 @@ socket.on('error', error => {
 });
 
 eventEmitter.on('message', message => {
-    console.log('message', message);
+    console.log('message', message.enum);
+    if (message.handshake) {
+        console.log('received handshake', handshake);
+    }
 });
