@@ -272,13 +272,13 @@ const signEdgeInfo = async (nonce, peer0, peer1) => {
 const bs58 = require('bs58');
 const net = require('net');
 
-const socket = net.connect(24567, '34.73.25.182', async () => {
+const socket = net.connect(24567, '127.0.0.1', async () => {
     console.log('connected');
 
     const publicKey = Buffer.from(await ed.getPublicKey(privateKey));
     const nonce = 1;
     const peer_id = new PublicKey({ keyType: 0, data: publicKey });
-    const target_peer_id = new PublicKey({ keyType: 0, data: bs58.decode('4k9csx6zMiXy4waUvRMPTkEtAS2RFKLVScocR5HwN53P') });
+    const target_peer_id = new PublicKey({ keyType: 0, data: bs58.decode('2gYpfHjqJa5Ji3btBnScQrxgwx2Ya5NXnJoTDqJWY36c') });
 
     const handshake = new PeerMessage({
         handshake: new Handshake({
@@ -286,11 +286,11 @@ const socket = net.connect(24567, '34.73.25.182', async () => {
             oldest_supported_version: 34,
             peer_id,
             target_peer_id,
-            listen_port: null,
+            listen_port: 24567,
             chain_info: new PeerChainInfoV2({
                 genesis_id: new GenesisId({
-                    chain_id: 'testnet',
-                    hash: Buffer.from('d784da5a9e5e66668516c19a8095448fc54a22a28971dc330f0099df94379410', 'hex')
+                    chain_id: 'localnet',
+                    hash: Buffer.from('b2adf5f9273460d714aa622a92cd9445bcfa110cf6315bc20241552b4c61f0a1', 'hex')
                 }),
                 height: 71969465,
                 tracked_shards: [0],
@@ -320,7 +320,7 @@ socket.on('data', (data) => {
     const message = deserialize(BORSH_SCHEMA, PeerMessage, data.slice(4));
     console.log('message', message?.handshake_failure?.failure_reason || message);
 
-    // console.log('hash', Buffer.from(message?.handshake_failure?.failure_reason?.genesis_mismatch?.genesis_id?.hash).toString('hex'))
+    //console.log('hash', Buffer.from(message?.handshake_failure?.failure_reason?.genesis_mismatch?.genesis_id?.hash).toString('hex'))
 });
 
 socket.on('error', error => {
