@@ -37,6 +37,7 @@ class InvalidTarget extends BaseMessage {}
 class LastEdge extends BaseMessage {}
 class SyncData extends BaseMessage {}
 class Edge extends BaseMessage {}
+class RemovalInfo extends BaseMessage {}
 class AnnounceAccount extends BaseMessage {}
 class RequestUpdateNonce extends BaseMessage {}
 class ResponseUpdateNonce extends BaseMessage {}
@@ -360,16 +361,20 @@ const BORSH_SCHEMA = new Map([
         ['nonce', 'u64'],
         ['signature0', Signature],
         ['signature1', Signature],
-        ['removal_info', {
-            'kind': 'option',
-            'type': ('u8', Signature)
-        }],
+        ['removal_info', { kind: 'option', type: RemovalInfo }],
+    ]}],
+    [RemovalInfo, { kind: 'struct', fields: [
+        ['type', 'u8'], // TODO: check what is proper name
+        ['signature', Signature]
     ]}],
     [AnnounceAccount, { kind: 'struct', fields: [
         ['account_id', 'string'],
         ['peer_id', PublicKey],
         ['epoch_id', [32]],
         ['signature', Signature],
+    ]}],
+    [BlockHeadersRequest, { kind: 'struct', fields: [
+        ['hashes', [[32]]] // TODO: Check if name makes sense
     ]}],
 ]);
 
