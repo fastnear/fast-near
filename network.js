@@ -36,6 +36,8 @@ class GenesisMismatch extends BaseMessage {}
 class InvalidTarget extends BaseMessage {}
 class LastEdge extends BaseMessage {}
 class SyncData extends BaseMessage {}
+class Edge extends BaseMessage {}
+class AnnounceAccount extends BaseMessage {}
 class RequestUpdateNonce extends BaseMessage {}
 class ResponseUpdateNonce extends BaseMessage {}
 class PeersRequest extends BaseMessage {}
@@ -347,6 +349,27 @@ const BORSH_SCHEMA = new Map([
         ['public_key', PublicKey],
         ['stake', 'u128'],
         ['is_chunk_only', 'u8']
+    ]}],
+    [SyncData, { kind: 'struct', fields: [
+        ['edges', [Edge]],
+        ['accounts', [AnnounceAccount]],
+    ]}],
+    [Edge, { kind: 'struct', fields: [
+        ['peer0', PublicKey],
+        ['peer1', PublicKey],
+        ['nonce', 'u64'],
+        ['signature0', Signature],
+        ['signature1', Signature],
+        ['removal_info', {
+            'kind': 'option',
+            'type': ('u8', Signature)
+        }],
+    ]}],
+    [AnnounceAccount, { kind: 'struct', fields: [
+        ['account_id', 'string'],
+        ['peer_id', PublicKey],
+        ['epoch_id', [32]],
+        ['signature', Signature],
     ]}],
 ]);
 
