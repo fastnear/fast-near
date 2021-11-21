@@ -475,7 +475,13 @@ eventEmitter.on('message', message => {
 
         sendMessage(socket, new PeerMessage({ peers_request: new PeersRequest()}));
         sendMessage(socket, new PeerMessage({
-            block_request: new BlockRequest({ block_hash: bs58.decode('3A8fVMwPhppXXcXscdDixV2PkE7DDHxYrVNSSh8DX4px') })
+	    // NOTE: prev_hash is CTX4tj3kbbXiDdtveCW9nyuGgBoRcH6PHwxD2rwBcgWT
+            block_request: new BlockRequest({ block_hash: bs58.decode('2yG1Wy335qYQysqXLeXfA2htsNfRVgzwmUtw4swVbn4z') })
         }));
+    }
+
+    if (message.block) {
+	const header = message.block.v2.header.v2;
+        console.log('block', bs58.encode(header.prev_hash), header.inner_lite.height.toString());
     }
 });
