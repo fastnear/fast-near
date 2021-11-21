@@ -377,6 +377,9 @@ const BORSH_SCHEMA = new Map([
         ['hashes', [[32]]] // TODO: Check if name makes sense
     ]}],
     [PeersRequest, { kind: 'struct', fields: [] }],
+    [PeersResponse, { kind: 'struct', fields: [
+        ['peers', [PeerInfo]],
+    ]}],
 ]);
 
 const ed = require('@noble/ed25519');
