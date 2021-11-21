@@ -439,8 +439,6 @@ const socket = net.connect(24567, '127.0.0.1', async () => {
 let eventEmitter = new EventEmitter();
 let unprocessedData = Buffer.alloc(0);
 socket.on('data', (data) => {
-    console.log('data', data.toString('hex'));
-
     data = Buffer.concat([unprocessedData, data]);
     while (data.length > 4) {
         const length = data.readInt32LE(0);
@@ -463,6 +461,6 @@ socket.on('error', error => {
 eventEmitter.on('message', message => {
     console.log('message', message.enum);
     if (message.handshake) {
-        console.log('received handshake', handshake);
+        console.log('received handshake', message.handshake);
     }
 });
