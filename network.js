@@ -1,99 +1,13 @@
 const assert = require('assert');
 const { serialize, deserialize } = require('borsh');
 
-class Handshake {
-    version;
-    oldest_supported_version;
-    peer_id;
-    target_peer_id;
-    listen_port;
-    chain_info;
-    edge_info;
-
+class BaseMessage {
     constructor(args) {
         Object.assign(this, args);
     }
 }
 
-class PublicKey {
-    keyType;
-    data;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class EdgeInfo {
-    nonce;
-    signature;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class EdgeInfoToSign {
-    peer0;
-    peer1;
-    nonce;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class Signature {
-    keyType;
-    data;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class PeerChainInfoV2 {
-    genesis_id;
-    height;
-    tracked_shards;
-    archival;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class GenesisId {
-    chain_id;
-    hash;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class SocketAddrV4 {
-    ip;
-    port;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class SocketAddrV6 {
-    ip;
-    port;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class SocketAddr {
-    v4;
-    v6;
-
+class Enum {
     constructor(args) {
         assert(Object.keys(args).length == 1, 'enum can only have one key');
         Object.assign(this, args);
@@ -104,74 +18,57 @@ class SocketAddr {
     }
 }
 
-class PeerInfo {
-    id;
-    addr;
-    account_id;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class HandshakeFailure {
-    peer_info;
-    failure_reason;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class HandshakeFailureReason {
-    protocol_version_mismatch;
-    genesis_mismatch;
-    invalid_target;
-
-    constructor(args) {
-        assert(Object.keys(args).length == 1, 'enum can only have one key');
-        Object.assign(this, args);
-    }
-
-    get enum() {
-        return Object.keys(this)[0];
-    }
-}
-
-class ProtocolVersionMismatch {
-    version;
-    oldest_supported_version;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class GenesisMismatch {
-    genesis_id;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class InvalidTarget {
-
-}
-
-class PeerMessage {
-    handshake;
-    handshake_failure;
-
-    constructor(args) {
-        assert(Object.keys(args).length == 1, 'enum can only have one key');
-        Object.assign(this, args);
-    }
-
-    get enum() {
-        return Object.keys(this)[0];
-    }
-}
+class Handshake extends BaseMessage {}
+class PublicKey extends BaseMessage {}
+class EdgeInfo extends BaseMessage {}
+class EdgeInfoToSign extends BaseMessage {}
+class Signature extends BaseMessage {}
+class PeerChainInfoV2 extends BaseMessage {}
+class GenesisId extends BaseMessage {}
+class SocketAddrV4 extends BaseMessage {}
+class SocketAddrV6 extends BaseMessage {}
+class SocketAddr extends Enum {}
+class PeerInfo extends BaseMessage {}
+class HandshakeFailure extends BaseMessage {}
+class HandshakeFailureReason extends Enum {}
+class ProtocolVersionMismatch extends BaseMessage {}
+class GenesisMismatch extends BaseMessage {}
+class InvalidTarget extends BaseMessage {}
+class LastEdge extends BaseMessage {}
+class SyncData extends BaseMessage {}
+class RequestUpdateNonce extends BaseMessage {}
+class ResponseUpdateNonce extends BaseMessage {}
+class PeersRequest extends BaseMessage {}
+class PeersResponse extends BaseMessage {}
+class BlockHeadersRequest extends BaseMessage {}
+class BlockHeaders extends BaseMessage {}
+class BlockRequest extends BaseMessage {}
+class Block extends Enum {}
+class BlockV1 extends BaseMessage {}
+class BlockV2 extends BaseMessage {}
+class BlockHeader extends Enum {}
+class BlockHeaderV1 extends BaseMessage {}
+class BlockHeaderV2 extends BaseMessage {}
+class BlockHeaderV3 extends BaseMessage {}
+class BlockHeaderInnerLite extends BaseMessage {}
+class BlockHeaderInnerRest extends BaseMessage {}
+class BlockHeaderInnerRestV2 extends BaseMessage {}
+class BlockHeaderInnerRestV3 extends BaseMessage {}
+class ShardChunkHeader extends Enum {}
+class ShardChunkHeaderV1 extends BaseMessage {}
+class ShardChunkHeaderV2 extends BaseMessage {}
+class ShardChunkHeaderV3 extends BaseMessage {}
+class ShardChunkHeaderInner extends Enum {}
+class ShardChunkHeaderInnerV1 extends BaseMessage {}
+class ShardChunkHeaderInnerV2 extends BaseMessage {}
+class ValidatorStake extends Enum {}
+class ValidatorStakeV1 extends BaseMessage {}
+class ValidatorStakeV2 extends BaseMessage {}
+class Transaction extends BaseMessage {}
+class RoutedMessage extends BaseMessage {}
+class Disconnect extends BaseMessage {}
+class Challenge extends BaseMessage {}
+class PeerMessage extends Enum {}
 
 const BORSH_SCHEMA = new Map([
     [Handshake, { kind: 'struct', fields: [
@@ -213,8 +110,22 @@ const BORSH_SCHEMA = new Map([
     [PeerMessage, { kind: 'enum', field: 'enum', values: [
         ['handshake', Handshake],
         ['handshake_failure', HandshakeFailure],
+        ['last_edge', LastEdge],
+        ['sync', SyncData],
+        ['request_update_nonce', RequestUpdateNonce],
+        ['response_update_nonce', ResponseUpdateNonce],
+        ['peers_request', PeersRequest],
+        ['peers_response', PeersResponse],
+        ['block_headers_request', BlockHeadersRequest],
+        ['block_headers', BlockHeaders],
+        ['block_request', BlockRequest],
+        ['block', Block],
+        ['transaction', Transaction],
+        ['routed', RoutedMessage],
+        ['disconnect', Disconnect],
+        ['challenge', Challenge],
     ]}],
-    [HandshakeFailure,  { kind: 'struct', fields: [
+    [HandshakeFailure, { kind: 'struct', fields: [
         ['peer_info', PeerInfo],
         ['failure_reason', HandshakeFailureReason]
     ]}],
@@ -223,16 +134,16 @@ const BORSH_SCHEMA = new Map([
         ['genesis_mismatch', GenesisMismatch],
         ['invalid_target', InvalidTarget],
     ]}],
-    [ProtocolVersionMismatch,  { kind: 'struct', fields: [
+    [ProtocolVersionMismatch, { kind: 'struct', fields: [
         ['version', 'u32'],
         ['oldest_supported_version', 'u32'],
     ]}],
-    [GenesisMismatch,  { kind: 'struct', fields: [
+    [GenesisMismatch, { kind: 'struct', fields: [
         ['genesis_id', GenesisId],
     ]}],
-    [InvalidTarget,  { kind: 'struct', fields: [
+    [InvalidTarget, { kind: 'struct', fields: [
     ]}],
-    [SocketAddrV6,  { kind: 'struct', fields: [
+    [SocketAddrV6, { kind: 'struct', fields: [
         ['ip', ['u8', 16]],
         ['port', 'u16'],
     ]}],
@@ -241,7 +152,7 @@ const BORSH_SCHEMA = new Map([
         ['addr', { kind: 'option', type: SocketAddr } ],
         ['account_id', { kind: 'option', type: 'string' } ],
     ]}],
-    [SocketAddr,  { kind: 'enum', values: [
+    [SocketAddr, { kind: 'enum', values: [
         ['v4', SocketAddrV4],
         ['v6', SocketAddrV6],
     ]}],
@@ -249,9 +160,193 @@ const BORSH_SCHEMA = new Map([
         ['ip', ['u8', 4]],
         ['port', 'u16'],
     ]}],
-    [SocketAddrV6,  { kind: 'struct', fields: [
+    [SocketAddrV6, { kind: 'struct', fields: [
         ['ip', ['u8', 16]],
         ['port', 'u16'],
+    ]}],
+    [Block, { kind: 'enum', field: 'enum', values: [
+        ['v1', BlockV1],
+        ['v2', BlockV2],
+    ]}],
+    [BlockV1, { kind: 'struct', fields: [
+        ['header', BlockHeader],
+        ['chunks', [ShardChunkHeaderV1]],
+        ['challenges', []], // TODO
+        ['vrf_value', [32]],
+        ['vrf_proof', [64]],
+    ]}],
+    [BlockV2, { kind: 'struct', fields: [
+        ['header', BlockHeader],
+        ['chunks', [ShardChunkHeader]],
+        ['challenges', []], // TODO
+        ['vrf_value', [32]],
+        ['vrf_proof', [64]],
+    ]}],
+    [BlockHeader, { kind: 'enum', field: 'enum', values: [
+        ['v1', BlockHeaderV1],
+        ['v2', BlockHeaderV2],
+        ['v3', BlockHeaderV3]
+    ]}],
+    [BlockHeaderV1, { kind: 'struct', fields: [
+        ['prev_hash', [32]],
+        ['inner_lite', BlockHeaderInnerLite],
+        ['inner_rest', BlockHeaderInnerRest],
+        ['signature', Signature],
+    ]}],
+    [BlockHeaderV2, { kind: 'struct', fields: [
+        ['prev_hash', [32]],
+        ['inner_lite', BlockHeaderInnerLite],
+        ['inner_rest', BlockHeaderInnerRestV2],
+        ['signature', Signature],
+    ]}],
+    [BlockHeaderV3, { kind: 'struct', fields: [
+        ['prev_hash', [32]],
+        ['inner_lite', BlockHeaderInnerLite],
+        ['inner_rest', BlockHeaderInnerRestV3],
+        ['signature', Signature],
+    ]}],
+    [BlockHeaderInnerLite, { kind: 'struct', fields: [
+        ['height', 'u64'],
+        ['epoch_id', [32]],
+        ['next_epoch_id', [32]],
+        ['prev_state_root', [32]],
+        ['outcome_root', [32]],
+        ['timestamp', 'u64'],
+        ['next_bp_hash', [32]],
+        ['block_merkle_root', [32]],
+    ]}],
+    [BlockHeaderInnerRest, { kind: 'struct', fields: [
+        ['chunk_receipts_root', [32]],
+        ['chunk_headers_root', [32]],
+        ['chunk_tx_root', [32]],
+        ['chunks_included', 'u64'],
+        ['challenges_root', [32]],
+        ['random_value', [32]],
+        ['validator_proposals', [ValidatorStakeV1]],
+        ['chunk_mask', ['u8']],
+        ['gas_price', 'u128'],
+        ['total_supply', 'u128'],
+        ['challenges_result', []], // TODO
+        ['last_final_block', [32]],
+        ['last_ds_final_block', [32]],
+        ['approvals', [{
+            'kind': 'option',
+            'type': Signature
+        }]],
+        ['latest_protocol_verstion', 'u32'],
+    ]}],
+    [BlockHeaderInnerRestV2, { kind: 'struct', fields: [
+        ['chunk_receipts_root', [32]],
+        ['chunk_headers_root', [32]],
+        ['chunk_tx_root', [32]],
+        ['challenges_root', [32]],
+        ['random_value', [32]],
+        ['validator_proposals', [ValidatorStakeV1]],
+        ['chunk_mask', ['u8']],
+        ['gas_price', 'u128'],
+        ['total_supply', 'u128'],
+        ['challenges_result', []], // TODO
+        ['last_final_block', [32]],
+        ['last_ds_final_block', [32]],
+        ['approvals', [{
+            'kind': 'option',
+            'type': Signature
+        }]],
+        ['latest_protocol_verstion', 'u32'],
+    ]}],
+    [BlockHeaderInnerRestV3, { kind: 'struct', fields: [
+        ['chunk_receipts_root', [32]],
+        ['chunk_headers_root', [32]],
+        ['chunk_tx_root', [32]],
+        ['challenges_root', [32]],
+        ['random_value', [32]],
+        ['validator_proposals', [ValidatorStake]],
+        ['chunk_mask', ['u8']],
+        ['gas_price', 'u128'],
+        ['total_supply', 'u128'],
+        ['challenges_result', []], // TODO
+        ['last_final_block', [32]],
+        ['last_ds_final_block', [32]],
+        ['block_ordinal', 'u64'],
+        ['prev_height', 'u64'],
+        ['epoch_sync_data_hash', {
+            'kind': 'option',
+            'type': [32]
+        }],
+        ['approvals', [{
+            'kind': 'option',
+            'type': Signature
+        }]],
+        ['latest_protocol_verstion', 'u32'],
+    ]}],
+    [ShardChunkHeader, { kind: 'enum', field: 'enum', values: [
+        ['v1', ShardChunkHeaderV1],
+        ['v2', ShardChunkHeaderV2],
+        ['v3', ShardChunkHeaderV3]
+    ]}],
+    [ShardChunkHeaderV1, { kind: 'struct', fields: [
+        ['inner', ShardChunkHeaderInnerV1],
+        ['height_included', 'u64'],
+        ['signature', Signature],
+    ]}],
+    [ShardChunkHeaderV2, { kind: 'struct', fields: [
+        ['inner', ShardChunkHeaderInnerV1],
+        ['height_included', 'u64'],
+        ['signature', Signature],
+    ]}],
+    [ShardChunkHeaderV3, { kind: 'struct', fields: [
+        ['inner', ShardChunkHeaderInner],
+        ['height_included', 'u64'],
+        ['signature', Signature],
+    ]}],
+    [ShardChunkHeaderInner, { kind: 'enum', field: 'enum', values: [
+        ['v1', ShardChunkHeaderInnerV1],
+        ['v2', ShardChunkHeaderInnerV2]
+    ]}],
+    [ShardChunkHeaderInnerV1, { kind: 'struct', fields: [
+        ['prev_block_hash', [32]],
+        ['prev_state_root', [32]],
+        ['outcome_root', [32]],
+        ['encoded_merkle_root', [32]],
+        ['encoded_length', 'u64'],
+        ['height_created', 'u64'],
+        ['shard_id', 'u64'],
+        ['gas_used', 'u64'],
+        ['gas_limit', 'u64'],
+        ['balance_burnt', 'u128'],
+        ['outgoing_receipt_root', [32]],
+        ['tx_root', [32]],
+        ['validator_proposals', [ValidatorStakeV1]],
+    ]}],
+    [ShardChunkHeaderInnerV2, { kind: 'struct', fields: [
+        ['prev_block_hash', [32]],
+        ['prev_state_root', [32]],
+        ['outcome_root', [32]],
+        ['encoded_merkle_root', [32]],
+        ['encoded_length', 'u64'],
+        ['height_created', 'u64'],
+        ['shard_id', 'u64'],
+        ['gas_used', 'u64'],
+        ['gas_limit', 'u64'],
+        ['balance_burnt', 'u128'],
+        ['outgoing_receipt_root', [32]],
+        ['tx_root', [32]],
+        ['validator_proposals', [ValidatorStake]],
+    ]}],
+    [ValidatorStake, { kind: 'enum', field: 'enum', values: [
+        ['v1', ValidatorStakeV1],
+        ['v2', ValidatorStakeV2]
+    ]}],
+    [ValidatorStakeV1, { kind: 'struct', fields: [
+        ['account_id', 'string'],
+        ['public_key', PublicKey],
+        ['stake', 'u128'],
+    ]}],
+    [ValidatorStakeV2, { kind: 'struct', fields: [
+        ['account_id', 'string'],
+        ['public_key', PublicKey],
+        ['stake', 'u128'],
+        ['is_chunk_only', 'u8']
     ]}],
 ]);
 
