@@ -434,15 +434,22 @@ const socket = net.connect(24567, '127.0.0.1', async () => {
     socket.write(Buffer.concat([length, message]));
 });
 
+let unprocessedData = Buffer.alloc(0);
 socket.on('data', (data) => {
     console.log('data', data.toString('hex'));
 
+    data = Buffer.concat([unprocessedData, data]);
+
     const length = data.readInt32LE(0);
-    assert(length == data.length - 4);
+    if (length > data.length - 4) {
+        unprocessedData = data;
+        return;
+    }
 
-    const message = deserialize(BORSH_SCHEMA, PeerMessage, data.slice(4));
+    const message = deserialize(BORSH_SCHEMA, PeerMessage, data.slice(4, 4 + length));
+    unprocessedData = data.slice(4 + length);
+
     console.log('message', message?.handshake_failure?.failure_reason || message);
-
     //console.log('hash', Buffer.from(message?.handshake_failure?.failure_reason?.genesis_mismatch?.genesis_id?.hash).toString('hex'))
 });
 
