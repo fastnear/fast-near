@@ -395,6 +395,7 @@ const signEdgeInfo = async (nonce, peer0, peer1) => {
 
 const bs58 = require('bs58');
 const net = require('net');
+const EventEmitter = require('events');
 
 const socket = net.connect(24567, '127.0.0.1', async () => {
     console.log('connected');
@@ -435,25 +436,30 @@ const socket = net.connect(24567, '127.0.0.1', async () => {
     socket.write(Buffer.concat([length, message]));
 });
 
+let eventEmitter = new EventEmitter();
 let unprocessedData = Buffer.alloc(0);
 socket.on('data', (data) => {
     console.log('data', data.toString('hex'));
 
     data = Buffer.concat([unprocessedData, data]);
+    while (data.length > 4) {
+        const length = data.readInt32LE(0);
+        if (length > data.length - 4) {
+            unprocessedData = data;
+            return;
+        }
 
-    const length = data.readInt32LE(0);
-    if (length > data.length - 4) {
-        unprocessedData = data;
-        return;
-    }
+        const message = deserialize(BORSH_SCHEMA, PeerMessage, data.slice(4, 4 + length));
+        unprocessedData = data.slice(4 + length);
 
-    const message = deserialize(BORSH_SCHEMA, PeerMessage, data.slice(4, 4 + length));
-    unprocessedData = data.slice(4 + length);
-
-    console.log('message', message?.handshake_failure?.failure_reason || message);
-    //console.log('hash', Buffer.from(message?.handshake_failure?.failure_reason?.genesis_mismatch?.genesis_id?.hash).toString('hex'))
+        eventEmitter.emit('message', message);
+    };
 });
 
 socket.on('error', error => {
     console.log('error', error);
+});
+
+eventEmitter.on('message', message => {
+    console.log('message', message);
 });
