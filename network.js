@@ -528,7 +528,7 @@ socket.on('error', error => {
     console.log('error', error);
 });
 
-eventEmitter.on('message', message => {
+eventEmitter.on('message', async message => {
     console.log('message', message.enum);
     if (message.handshake) {
         console.log('received handshake', message.handshake);
@@ -543,7 +543,7 @@ eventEmitter.on('message', message => {
             target: new PeerIdOrHash({ peer_id: target_peer_id }),
             author: peer_id,
             body: new RoutedMessageBody({
-                ping: new PingPong({})
+                ping: new PingPong({ nonce: 0, source: peer_id })
             })
         });
 
@@ -551,7 +551,7 @@ eventEmitter.on('message', message => {
             routed: new RoutedMessage({
                 target: messageToSign.target,
                 author: messageToSign.author,
-                signature: signObject(messageToSign),
+                signature: await signObject(messageToSign),
                 ttl: 100,
                 body: messageToSign.body
             })
@@ -561,5 +561,9 @@ eventEmitter.on('message', message => {
     if (message.block) {
         const header = message.block.v2.header.v2;
         console.log('block', bs58.encode(header.prev_hash), header.inner_lite.height.toString());
+    }
+
+    if (message.routed) {
+        console.log('routed', message.routed);
     }
 });
