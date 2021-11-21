@@ -467,6 +467,6 @@ eventEmitter.on('message', message => {
     if (message.handshake) {
         console.log('received handshake', message.handshake);
 
-
+        sendMessage(socket, new PeerMessage({ peers_request: new PeersRequest()}));
     }
 });
