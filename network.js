@@ -397,6 +397,14 @@ const bs58 = require('bs58');
 const net = require('net');
 const EventEmitter = require('events');
 
+const sendMessage = (socket, message) => {
+    const messageData = serialize(BORSH_SCHEMA, message);
+    const length = Buffer.alloc(4);
+    length.writeInt32LE(messageData.length, 0);
+
+    socket.write(Buffer.concat([length, messageData]));
+}
+
 const socket = net.connect(24567, '127.0.0.1', async () => {
     console.log('connected');
 
@@ -429,11 +437,7 @@ const socket = net.connect(24567, '127.0.0.1', async () => {
     });
     console.log('handshake', handshake);
 
-    const message = serialize(BORSH_SCHEMA, handshake);
-    const length = Buffer.alloc(4);
-    length.writeInt32LE(message.length, 0);
-
-    socket.write(Buffer.concat([length, message]));
+    sendMessage(socket, handshake);
 });
 
 let eventEmitter = new EventEmitter();
@@ -462,5 +466,7 @@ eventEmitter.on('message', message => {
     console.log('message', message.enum);
     if (message.handshake) {
         console.log('received handshake', message.handshake);
+
+
     }
 });
