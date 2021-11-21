@@ -380,6 +380,9 @@ const BORSH_SCHEMA = new Map([
     [PeersResponse, { kind: 'struct', fields: [
         ['peers', [PeerInfo]],
     ]}],
+    [BlockRequest, { kind: 'struct', fields: [
+        ['block_hash', [32]],
+    ]}],
 ]);
 
 const ed = require('@noble/ed25519');
@@ -471,5 +474,8 @@ eventEmitter.on('message', message => {
         console.log('received handshake', message.handshake);
 
         sendMessage(socket, new PeerMessage({ peers_request: new PeersRequest()}));
+        sendMessage(socket, new PeerMessage({
+            block_request: new BlockRequest({ block_hash: bs58.decode('3A8fVMwPhppXXcXscdDixV2PkE7DDHxYrVNSSh8DX4px') })
+        }));
     }
 });
