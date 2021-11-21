@@ -33,6 +33,16 @@ class EdgeInfo {
     }
 }
 
+class EdgeInfoToSign {
+    peer0;
+    peer1;
+    nonce;
+
+    constructor(args) {
+        Object.assign(this, args);
+    }
+}
+
 class Signature {
     keyType;
     data;
@@ -170,7 +180,7 @@ const BORSH_SCHEMA = new Map([
         ['peer_id', PublicKey],
         ['target_peer_id', PublicKey],
         ['listen_port', { kind: 'option', type: 'u16' }],
-        ['chain_info', 'u128'],
+        ['chain_info', PeerChainInfoV2],
         ['edge_info', EdgeInfo],
     ]}],
     [PublicKey, { kind: 'struct', fields: [
@@ -185,11 +195,16 @@ const BORSH_SCHEMA = new Map([
         ['nonce', 'u64'],
         ['signature', Signature]
     ]}],
+    [EdgeInfoToSign, { kind: 'struct', fields: [
+        ['peer0', PublicKey],
+        ['peer1', PublicKey],
+        ['nonce', 'u64'],
+    ]}],
     [PeerChainInfoV2, { kind: 'struct', fields: [
         ['genesis_id', GenesisId],
         ['height', 'u64'],
         ['tracked_shards', ['u64']],
-        ['archival', 'bool'],
+        ['archival', 'u8'],
     ]}],
     [GenesisId, { kind: 'struct', fields: [
         ['chain_id', 'string'],
@@ -240,30 +255,54 @@ const BORSH_SCHEMA = new Map([
     ]}],
 ]);
 
+const ed = require('@noble/ed25519');
+const { sha256 } = require('@noble/hashes/lib/sha256');
+
+const privateKey = ed.utils.randomPrivateKey(); // 32-byte Uint8Array or string.
+
+const signEdgeInfo = async (nonce, peer0, peer1) => {
+    if (Buffer.compare(peer0.data, peer1.data) > 0) {
+        [peer1, peer0] = [peer0, peer1];
+    }
+    const data = serialize(BORSH_SCHEMA, new EdgeInfoToSign({ peer0, peer1, nonce }));
+    const signature = await ed.sign(sha256(data), privateKey);
+    return new Signature({ keyType: 0, data: Buffer.from(signature) });
+}
+
 const bs58 = require('bs58');
 const net = require('net');
 
-const socket = net.connect(24567, '34.94.158.10', () => {
+const socket = net.connect(24567, '34.73.25.182', async () => {
     console.log('connected');
 
-    // const pubkey = new PublicKey({ keyType: 0, data: new Uint8Array() })
-    // console.log('pubkey', pubkey.keyType, pubkey.data)
+    const publicKey = Buffer.from(await ed.getPublicKey(privateKey));
+    const nonce = 1;
+    const peer_id = new PublicKey({ keyType: 0, data: publicKey });
+    const target_peer_id = new PublicKey({ keyType: 0, data: bs58.decode('4k9csx6zMiXy4waUvRMPTkEtAS2RFKLVScocR5HwN53P') });
 
-    const publicKey = Buffer.alloc(32); // TODO: Real key
     const handshake = new PeerMessage({
         handshake: new Handshake({
-            version: 0,
-            oldest_supported_version: 0,
-            peer_id: new PublicKey({ type: 0, data: publicKey }),
-            target_peer_id:  new PublicKey({ type: 0, data: bs58.decode('4keFArc3M4SE1debUQWi3F1jiuFZSWThgVuA2Ja2p3Jv') }),
+            version: 48,
+            oldest_supported_version: 34,
+            peer_id,
+            target_peer_id,
             listen_port: null,
-            chain_info: '0',
+            chain_info: new PeerChainInfoV2({
+                genesis_id: new GenesisId({
+                    chain_id: 'testnet',
+                    hash: Buffer.from('d784da5a9e5e66668516c19a8095448fc54a22a28971dc330f0099df94379410', 'hex')
+                }),
+                height: 71969465,
+                tracked_shards: [0],
+                archival: 0
+            }),
             edge_info: new EdgeInfo({
-                nonce: 0,
-                signature: new Signature({ type: 0, data: Buffer.alloc(64) }),
+                nonce,
+                signature: await signEdgeInfo(nonce, peer_id, target_peer_id),
             })
         })
     });
+    console.log('handshake', handshake);
 
     const message = serialize(BORSH_SCHEMA, handshake);
     const length = Buffer.alloc(4);
@@ -280,6 +319,8 @@ socket.on('data', (data) => {
 
     const message = deserialize(BORSH_SCHEMA, PeerMessage, data.slice(4));
     console.log('message', message?.handshake_failure?.failure_reason || message);
+
+    // console.log('hash', Buffer.from(message?.handshake_failure?.failure_reason?.genesis_mismatch?.genesis_id?.hash).toString('hex'))
 });
 
 socket.on('error', error => {
