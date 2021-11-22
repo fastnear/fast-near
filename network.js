@@ -85,6 +85,7 @@ class PingPong extends BaseMessage {}
 class PartialEncodedChunk extends BaseMessage {}
 class StateResponseInfo extends BaseMessage {}
 class PartialEncodedChunkForwardMsg extends BaseMessage {}
+class StateRequestHeader extends BaseMessage {}
 
 const BORSH_SCHEMA = new Map([
     [Handshake, { kind: 'struct', fields: [
@@ -421,7 +422,7 @@ const BORSH_SCHEMA = new Map([
         ['query_response', false],  // TODO
         ['receipt_outcome_request', [32]],
         ['receipt_outcome_response', false],  // TODO
-        ['state_request_header', ['u64', [32]]],
+        ['state_request_header', StateRequestHeader],
         ['state_request_part', ['u64', [32], 'u64']],
         ['state_response_info', StateResponseInfoV1],
         ['partial_encoded_chunk_request', PartialEncodedChunkRequestMsg],
@@ -436,6 +437,10 @@ const BORSH_SCHEMA = new Map([
     [PingPong, { kind: 'struct', fields: [
         ['nonce', 'u64'],
         ['source', PublicKey]
+    ]}],
+    [StateRequestHeader, { kind: 'struct', fields: [
+        ['shard_id', 'u64'],
+        ['hash', [32]],
     ]}],
 ]);
 
@@ -528,6 +533,23 @@ socket.on('error', error => {
     console.log('error', error);
 });
 
+const sendRoutedMessage = async (messageBodyObj) => {
+    const messageToSign = new RoutedMessageToSign({
+        target: new PeerIdOrHash({ peer_id: target_peer_id }),
+        author: peer_id,
+        body: new RoutedMessageBody(messageBodyObj)
+    });
+    sendMessage(socket, new PeerMessage({
+        routed: new RoutedMessage({
+            target: messageToSign.target,
+            author: messageToSign.author,
+            signature: await signObject(messageToSign),
+            ttl: 100,
+            body: messageToSign.body
+        })
+    }));
+}
+
 eventEmitter.on('message', async message => {
     console.log('message', message.enum);
     if (message.handshake) {
@@ -539,23 +561,16 @@ eventEmitter.on('message', async message => {
             block_request: new BlockRequest({ block_hash: bs58.decode('2yG1Wy335qYQysqXLeXfA2htsNfRVgzwmUtw4swVbn4z') })
         }));
 
-        const messageToSign = new RoutedMessageToSign({
-            target: new PeerIdOrHash({ peer_id: target_peer_id }),
-            author: peer_id,
-            body: new RoutedMessageBody({
-                ping: new PingPong({ nonce: 0, source: peer_id })
-            })
+        sendRoutedMessage({
+            ping: new PingPong({ nonce: 0, source: peer_id })
         });
 
-        sendMessage(socket, new PeerMessage({
-            routed: new RoutedMessage({
-                target: messageToSign.target,
-                author: messageToSign.author,
-                signature: await signObject(messageToSign),
-                ttl: 100,
-                body: messageToSign.body
+        sendRoutedMessage({
+            state_request_header: new StateRequestHeader({
+                shard_id: 0,
+                hash: bs58.decode('2yG1Wy335qYQysqXLeXfA2htsNfRVgzwmUtw4swVbn4z')
             })
-        }));
+        });
     }
 
     if (message.block) {
