@@ -35,6 +35,23 @@ const imports = (ctx) => {
         return Buffer.from(Uint16Array.from(arr).buffer).toString('ucs2');
     }
 
+    function storageRead(key_len, key_ptr) {
+        const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
+        const compKey = Buffer.concat([Buffer.from(`${ctx.contractId}:`), storageKey]);
+        debug('storage_read', ctx.contractId, prettyBuffer(storageKey));
+
+        parentPort.postMessage({
+            methodName: 'storage_read',
+            compKey
+        });
+
+        let resultMessage
+        do {
+            resultMessage = receiveMessageOnPort(parentPort);
+        } while (!resultMessage);
+        return resultMessage.message;
+    }
+
     return {
         env: {
             register_len: (register_id) => {
@@ -128,22 +145,9 @@ const imports = (ctx) => {
 
             storage_write: prohibitedInView('storage_write'),
             storage_read: (key_len, key_ptr, register_id) => {
-                const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
-                const compKey = Buffer.concat([Buffer.from(`${ctx.contractId}:`), storageKey]);
-                debug('storage_read', ctx.contractId, prettyBuffer(storageKey));
+                const result = storageRead(key_len, key_ptr);
 
-                parentPort.postMessage({
-                    methodName: 'storage_read',
-                    compKey
-                });
-
-                let resultMessage
-                do {
-                    resultMessage = receiveMessageOnPort(parentPort);
-                } while (!resultMessage);
-                const result = resultMessage.message;
-
-                if (!result) {
+                if (result == null) {
                     debug('storage_read result: none');
                     return 0n;
                 }
@@ -153,8 +157,17 @@ const imports = (ctx) => {
                 return 1n;
             },
             storage_remove: prohibitedInView('storage_remove'),
-            storage_has_key: notImplemented('storage_has_key'), // TODO: But is it used in a wild?
+            storage_has_key: (key_len, key_ptr) => {
+                const result = storageRead(key_len, key_ptr);
 
+                if (result == null) {
+                    debug('storage_has_key: false');
+                    return 0n;
+                }
+
+                debug('storage_has_key: true');
+                return 1n;
+            },
             validator_stake: notImplemented('validator_stake'),
             validator_total_stake: notImplemented('validator_total_stake'),
         }
