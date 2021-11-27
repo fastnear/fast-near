@@ -25,7 +25,7 @@ class WorkerPool extends EventEmitter {
     addNewWorker() {
         const worker = new Worker('./worker.js');
         worker.on('message', ({ result, logs, error, errorCode, methodName, compKey }) => {
-            const { resolve, reject, blockHeight } = worker[kTaskInfo];
+            let { resolve, reject, blockHeight } = worker[kTaskInfo];
 
             if (!methodName) {
                 clearTimeout(worker[kTaskInfo].timeoutHandle);
@@ -46,9 +46,11 @@ class WorkerPool extends EventEmitter {
                 return resolve({ result, logs });
             }
 
+            compKey = Buffer.from(compKey);
+            blockHeight = Buffer.from(blockHeight);
+
             switch (methodName) {
                 case 'storage_read':
-                    // TODO: Should be possible to coalesce parallel reads to the same key? Or will caching on HTTP level be enough?
                     (async () => {
                         const blockHash = await this.storageClient.getLatestDataBlockHash(compKey, blockHeight);
 
