@@ -57,8 +57,11 @@ const parseBodyArgs = async (ctx, next) => {
 const runViewMethod = async ctx => {
     const { accountId, methodName } = ctx.params;
 
+    // TODO: Evaluate some alternate scheme, e.g. use URL prefix like /height/<block_height>/account/
+    const { near_block_height: blockHeight } = ctx.query;
+
     try {
-        const { result, logs } = await runContract(accountId, methodName, ctx.methodArgs);
+        const { result, logs } = await runContract(accountId, methodName, ctx.methodArgs, blockHeight, 10);
         // TODO: return logs somehow (in headers? if requested?)
         const resultBuffer = Buffer.from(result);
         if (isJSON(resultBuffer)) {

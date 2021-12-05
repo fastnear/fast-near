@@ -11,9 +11,9 @@ let contractCache = new LRU({
 
 let workerPool;
 
-async function runContract(contractId, methodName, methodArgs) {
+async function runContract(contractId, methodName, methodArgs, blockHeight) {
     const debug = require('debug')(`host:${contractId}:${methodName}`);
-    debug('runContract', contractId, methodName, methodArgs);
+    debug('runContract', contractId, methodName, methodArgs, blockHeight);
 
     if (!Buffer.isBuffer(methodArgs)) {
         methodArgs = Buffer.from(JSON.stringify(methodArgs));
@@ -26,17 +26,21 @@ async function runContract(contractId, methodName, methodArgs) {
     }
 
     const latestBlockHeight = await storageClient.getLatestBlockHeight();
-    debug('latestBlockHeight', latestBlockHeight)
+    blockHeight = blockHeight || latestBlockHeight;
+    if (parseInt(blockHeight, 10) > parseInt(latestBlockHeight, 10)) {
+        throw new FastNEARError('blockHeightNotFound', `Block height not found: ${blockHeight}`);
+    }
+    debug('blockHeight', blockHeight)
 
     debug('find contract code')
-    const contractBlockHash = await storageClient.getLatestContractBlockHash(contractId, latestBlockHeight);
+    const contractBlockHash = await storageClient.getLatestContractBlockHash(contractId, blockHeight);
     if (!contractBlockHash) {
-        const accountBlockHash = await storageClient.getLatestAccountBlockHash(contractId, latestBlockHeight);
+        const accountBlockHash = await storageClient.getLatestAccountBlockHash(contractId, blockHeight);
         console.log('accountBlockHash', accountBlockHash);
         if (!accountBlockHash) {
-            throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${latestBlockHeight} block height`);
+            throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
         }
-        throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${latestBlockHeight}`);
+        throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
     }
     // TODO: Have cache based on code hash instead?
     const cacheKey = `${contractId}:${contractBlockHash.toString('hex')}}`;
@@ -57,9 +61,9 @@ async function runContract(contractId, methodName, methodArgs) {
     }
 
     debug('worker start');
-    const { result, logs } = await workerPool.runContract(latestBlockHeight, wasmModule, contractId, methodName, methodArgs);
+    const { result, logs } = await workerPool.runContract(blockHeight, wasmModule, contractId, methodName, methodArgs);
     debug('worker done');
-    return { result, logs, blockHeight: latestBlockHeight };
+    return { result, logs, blockHeight: blockHeight };
 }
 
 module.exports = runContract;

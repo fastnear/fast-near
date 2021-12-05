@@ -74,7 +74,7 @@ const legacyError = ({ id, message }) => {
 
 const ALWAYS_PROXY = ['yes', 'true'].includes((process.env.FAST_NEAR_ALWAYS_PROXY || 'no').trim().toLowerCase());
 
-const handleError = async ({ ctx, accountId, error }) => {
+const handleError = async ({ ctx, accountId, blockHeight, error }) => {
     const { body } = ctx.request;
 
     // TODO: Match error handling? Structured errors? https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
@@ -104,6 +104,12 @@ const handleError = async ({ ctx, accountId, error }) => {
             message: `wasm execution failed with error: FunctionCallError(CompilationError(CodeDoesNotExist { account_id: AccountId("${accountId}") }))`
         });
         return;
+    case 'blockHeightNotFound':
+        ctx.body = legacyError({
+            id: body.id,
+            message: `DB Not Found Error: BLOCK HEIGHT: ${blockHeight} \n Cause: Unknown`
+        });
+        return;
     case 'accountNotFound':
         ctx.body = legacyError({
             id: body.id,
@@ -124,18 +130,30 @@ const handleJsonRpc = async ctx => {
 
     const { body } = ctx.request;
     if (body?.method == 'query' && body?.params?.request_type == 'call_function') {
-        const { finality, account_id: accountId, method_name: methodName, args_base64 } = body.params;
+        const { finality, block_id, account_id: accountId, method_name: methodName, args_base64 } = body.params;
         // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
-        await callViewFunction(ctx, { accountId, methodName, args: Buffer.from(args_base64, 'base64') });
+        if (typeof block_id == 'string') {
+            // TODO: Maintain block hash -> block height mapping
+            await proxyJson(ctx);
+            return;
+        }
+
+        await callViewFunction(ctx, { accountId, methodName, args: Buffer.from(args_base64, 'base64'), blockHeight: block_id });
         return;
     }
 
     if (body?.method == 'query' && body?.params?.request_type == 'view_account') {
-        // TODO: Handle finality and block_id
+        // TODO: Handle finality
         const { finality, block_id, account_id: accountId } = body.params;
 
-        await viewAccount(ctx, { accountId });
+        if (typeof block_id == 'string') {
+            // TODO: Maintain block hash -> block height mapping
+            await proxyJson(ctx);
+            return;
+        }
+
+        await viewAccount(ctx, { accountId, blockHeight: block_id });
         return;
     }
 
@@ -158,42 +176,47 @@ const handleJsonRpc = async ctx => {
     await proxyJson(ctx);
 };
 
-const callViewFunction = async (ctx,  { accountId, methodName, args }) => {
+const callViewFunction = async (ctx,  { accountId, methodName, args, blockHeight }) => {
     try {
-        const { result, logs, blockHeight } = await runContract(accountId, methodName, args);
+        const { result, logs, blockHeight: resolvedBlockHeight } = await runContract(accountId, methodName, args, blockHeight);
         const resultBuffer = Buffer.from(result);
         ctx.body = {
             jsonrpc: '2.0',
             result: {
                 result: Array.from(resultBuffer),
                 logs,
-                block_height: parseInt(blockHeight)
+                block_height: parseInt(resolvedBlockHeight)
                 // TODO: block_hash
             },
             id: ctx.request.body.id
         };
         return;
     } catch (error) {
-        await handleError({ ctx, accountId, error });
+        await handleError({ ctx, accountId, blockHeight, error });
     }
 }
 
-const viewAccount = async (ctx, { accountId }) => {
+const viewAccount = async (ctx, { accountId, blockHeight }) => {
     try {
+        // TODO: Refactor code to resolve block-height
         const latestBlockHeight = await storageClient.getLatestBlockHeight();
-        debug('latestBlockHeight', latestBlockHeight);
+        blockHeight = blockHeight || latestBlockHeight;
+        if (parseInt(blockHeight, 10) > parseInt(latestBlockHeight, 10)) {
+            throw new FastNEARError('blockHeightNotFound', `Block height not found: ${blockHeight}`);
+        }
+        debug('blockHeight', blockHeight);
 
         debug('find account data', accountId);
-        const blockHash = await storageClient.getLatestAccountBlockHash(accountId, latestBlockHeight);
+        const blockHash = await storageClient.getLatestAccountBlockHash(accountId, blockHeight);
         debug('blockHash', blockHash);
         if (!blockHash) {
-            throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${latestBlockHeight} block height`);
+            throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);
         }
 
         const accountData = await storageClient.getAccountData(accountId, blockHash);
         debug('account data loaded', accountId);
         if (!accountData) {
-            throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${latestBlockHeight} block height`);
+            throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);
         }
 
         const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
@@ -204,13 +227,13 @@ const viewAccount = async (ctx, { accountId }) => {
                 locked: locked.toString(),
                 code_hash: bs58.encode(code_hash),
                 storage_usage: parseInt(storage_usage.toString()),
-                block_height: parseInt(latestBlockHeight)
+                block_height: parseInt(blockHeight)
                 // TODO: block_hash
             },
             id: ctx.request.body.id
         };
     } catch (error) {
-        await handleError({ ctx, accountId: accountId, error });
+        await handleError({ ctx, accountId: accountId, blockHeight, error });
     }
 }
 
