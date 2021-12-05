@@ -61,7 +61,7 @@ const runViewMethod = async ctx => {
     const { near_block_height: blockHeight } = ctx.query;
 
     try {
-        const { result, logs } = await runContract(accountId, methodName, ctx.methodArgs, blockHeight, 10);
+        const { result, logs } = await runContract(accountId, methodName, ctx.methodArgs, blockHeight);
         // TODO: return logs somehow (in headers? if requested?)
         const resultBuffer = Buffer.from(result);
         if (isJSON(resultBuffer)) {
