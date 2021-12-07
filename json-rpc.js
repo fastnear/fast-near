@@ -30,6 +30,7 @@ const BORSH_SCHEMA = new Map([
 
 const { deserialize } = require('borsh');
 const bs58 = require('bs58');
+const resolveBlockHeight = require('./resolve-block-height');
 const debug = require('debug')('json-rpc');
 
 // NOTE: This is JSON-RPC proxy needed to pretend we are actual nearcore
@@ -121,6 +122,20 @@ const handleError = async ({ ctx, accountId, blockHeight, error }) => {
     ctx.throw(400, message);
 }
 
+const parseBlockIndex = async (ctx) => {
+    const { finality, block_id } = ctx.request.body.params;
+    // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
+
+    if (typeof block_id == 'string') {
+        // TODO: Maintain block hash -> block height mapping
+        await proxyJson(ctx);
+        return false;
+    }
+
+    ctx.blockHeight = block_id;
+    return true;
+}
+
 const handleJsonRpc = async ctx => {
     if (ALWAYS_PROXY) {
         return await proxyJson(ctx);
@@ -130,30 +145,16 @@ const handleJsonRpc = async ctx => {
 
     const { body } = ctx.request;
     if (body?.method == 'query' && body?.params?.request_type == 'call_function') {
-        const { finality, block_id, account_id: accountId, method_name: methodName, args_base64 } = body.params;
-        // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
-
-        if (typeof block_id == 'string') {
-            // TODO: Maintain block hash -> block height mapping
-            await proxyJson(ctx);
-            return;
-        }
-
-        await callViewFunction(ctx, { accountId, methodName, args: Buffer.from(args_base64, 'base64'), blockHeight: block_id });
+        const { account_id: accountId, method_name: methodName, args_base64 } = body.params;
+        await parseBlockIndex(ctx);
+        await callViewFunction(ctx, { accountId, methodName, args: Buffer.from(args_base64, 'base64') });
         return;
     }
 
     if (body?.method == 'query' && body?.params?.request_type == 'view_account') {
-        // TODO: Handle finality
-        const { finality, block_id, account_id: accountId } = body.params;
-
-        if (typeof block_id == 'string') {
-            // TODO: Maintain block hash -> block height mapping
-            await proxyJson(ctx);
-            return;
-        }
-
-        await viewAccount(ctx, { accountId, blockHeight: block_id });
+        const { account_id: accountId } = body.params;
+        await parseBlockIndex(ctx);
+        await viewAccount(ctx, { accountId });
         return;
     }
 
@@ -176,8 +177,9 @@ const handleJsonRpc = async ctx => {
     await proxyJson(ctx);
 };
 
-const callViewFunction = async (ctx,  { accountId, methodName, args, blockHeight }) => {
+const callViewFunction = async (ctx,  { accountId, methodName, args }) => {
     try {
+        const { blockHeight } = ctx;
         const { result, logs, blockHeight: resolvedBlockHeight } = await runContract(accountId, methodName, args, blockHeight);
         const resultBuffer = Buffer.from(result);
         ctx.body = {
@@ -196,14 +198,10 @@ const callViewFunction = async (ctx,  { accountId, methodName, args, blockHeight
     }
 }
 
-const viewAccount = async (ctx, { accountId, blockHeight }) => {
+const viewAccount = async (ctx, { accountId }) => {
+    let { blockHeight } = ctx;
     try {
-        // TODO: Refactor code to resolve block-height
-        const latestBlockHeight = await storageClient.getLatestBlockHeight();
-        blockHeight = blockHeight || latestBlockHeight;
-        if (parseInt(blockHeight, 10) > parseInt(latestBlockHeight, 10)) {
-            throw new FastNEARError('blockHeightNotFound', `Block height not found: ${blockHeight}`);
-        }
+        blockHeight = await resolveBlockHeight(blockHeight);
         debug('blockHeight', blockHeight);
 
         debug('find account data', accountId);

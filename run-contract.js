@@ -1,5 +1,6 @@
 const WorkerPool = require('./worker-pool');
 const storageClient = require('./storage-client');
+const resolveBlockHeight = require('./resolve-block-height');
 const { FastNEARError } = require('./error');
 
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
@@ -25,11 +26,7 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
         debug('workerPool done');
     }
 
-    const latestBlockHeight = await storageClient.getLatestBlockHeight();
-    blockHeight = blockHeight || latestBlockHeight;
-    if (parseInt(blockHeight, 10) > parseInt(latestBlockHeight, 10)) {
-        throw new FastNEARError('blockHeightNotFound', `Block height not found: ${blockHeight}`);
-    }
+    blockHeight = await resolveBlockHeight(blockHeight);
     debug('blockHeight', blockHeight)
 
     debug('find contract code')
