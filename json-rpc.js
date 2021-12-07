@@ -34,13 +34,15 @@ const resolveBlockHeight = require('./resolve-block-height');
 const debug = require('debug')('json-rpc');
 
 // NOTE: This is JSON-RPC proxy needed to pretend we are actual nearcore
-const NODE_URL = process.env.FAST_NEAR_NODE_URL || 'http://35.236.45.138:3030';
+const NODE_URL = process.env.FAST_NEAR_NODE_URL || 'https://rpc.mainnet.near.org';
+const ARCHIVAL_NODE_URL = process.env.FAST_NEAR_ARCHIVAL_NODE_URL || 'https://rpc.mainnet.internal.near.org';
 
-const proxyJson = async ctx => {
+const proxyJson = async (ctx, { archival = false }) => {
+    const nodeUrl = archival ? ARCHIVAL_NODE_URL : NODE_URL;
     const rawBody = ctx.request.body ? JSON.stringify(ctx.request.body) : await getRawBody(ctx.req);
     debug('proxyJson', ctx.request.method, ctx.request.path, rawBody.toString('utf8'));
     ctx.type = 'json';
-    ctx.body = Buffer.from(await (await fetch(`${NODE_URL}${ctx.request.path}`, {
+    ctx.body = Buffer.from(await (await fetch(`${nodeUrl}${ctx.request.path}`, {
         method: ctx.request.method,
         headers: {
             'Content-Type': 'application/json'
@@ -105,7 +107,10 @@ const handleError = async ({ ctx, accountId, blockHeight, error }) => {
             message: `wasm execution failed with error: FunctionCallError(CompilationError(CodeDoesNotExist { account_id: AccountId("${accountId}") }))`
         });
         return;
-    case 'blockHeightNotFound':
+    case 'blockHeightTooLow':
+        await proxyJson(ctx, { archival: true });
+        return;
+    case 'blockHeightTooHigh':
         ctx.body = legacyError({
             id: body.id,
             message: `DB Not Found Error: BLOCK HEIGHT: ${blockHeight} \n Cause: Unknown`
