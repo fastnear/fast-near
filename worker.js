@@ -61,9 +61,8 @@ const imports = (ctx) => {
                 const mem = new Uint8Array(ctx.memory.buffer)
                 mem.set(registers[register_id] || Buffer.from([]), Number(ptr));
             },
-
             current_account_id: (register_id) => {
-                registers[register_id] = Buffer.from(ctx.contract_id);
+                registers[register_id] = Buffer.from(ctx.contractId);
             },
             signer_account_id: prohibitedInView('signer_account_id'),
             signer_account_pk: prohibitedInView('signer_account_pk'),
