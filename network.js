@@ -86,6 +86,34 @@ class PartialEncodedChunk extends BaseMessage {}
 class StateResponseInfo extends BaseMessage {}
 class PartialEncodedChunkForwardMsg extends BaseMessage {}
 class StateRequestHeader extends BaseMessage {}
+class ShardStateSyncResponseV1 extends BaseMessage {}
+class ShardStateSyncResponseHeaderV1 extends BaseMessage {}
+class SyncPart extends BaseMessage {}
+class MerklePath extends BaseMessage {}
+class ShardChunk extends BaseMessage {}
+class Receipt extends BaseMessage {}
+class ReceiptEnum extends Enum {}
+class ActionReceipt extends BaseMessage {}
+class AccessKey extends BaseMessage {}
+class AccessKeyPermission extends BaseMessage {}
+class FunctionCallPermission extends BaseMessage {}
+class FullAccessPermission extends BaseMessage {}
+class Action extends Enum {}
+class CreateAccount extends BaseMessage {}
+class DeployContract extends BaseMessage {}
+class FunctionCall extends BaseMessage {}
+class Transfer extends BaseMessage {}
+class Stake extends BaseMessage {}
+class AddKey extends BaseMessage {}
+class DeleteKey extends BaseMessage {}
+class DeleteAccount extends BaseMessage {}
+class DataReceiver extends BaseMessage {}
+class DataReceipt extends BaseMessage {}
+class ReceiptProof extends BaseMessage {}
+class ReceiptProofResponse extends BaseMessage {}
+class ShardProof extends BaseMessage {}
+class StateRootNode extends BaseMessage {}
+class RootProof extends BaseMessage {}
 
 const BORSH_SCHEMA = new Map([
     [Handshake, { kind: 'struct', fields: [
@@ -442,6 +470,116 @@ const BORSH_SCHEMA = new Map([
         ['shard_id', 'u64'],
         ['hash', [32]],
     ]}],
+    [StateResponseInfoV1, { kind: 'struct', fields: [
+        ['shard_id', 'u64'],
+        ['sync_hash', [32]],
+        ['state_response', ShardStateSyncResponseV1]
+    ]}],
+    [SyncPart, { kind: 'struct', fields: [
+        ['part_id', 'u64'],
+        ['data', ['u8']],
+    ]}],
+    [ShardStateSyncResponseV1, { kind: 'struct', fields: [
+        ['header', { kind: 'option', type: ShardStateSyncResponseHeaderV1 }],
+        ['part', { kind: 'option', type: SyncPart }],
+    ]}],
+    [Receipt, { kind: 'struct', fields: [
+        ['predecessor_id', 'string'],
+        ['receiver_id', 'string'],
+        ['receipt_id', [32]],
+        ['receipt', ReceiptEnum],
+    ]}],
+    [ReceiptEnum, { kind: 'enum', field: 'enum', values: [
+        ['Action', ActionReceipt],
+        ['Data', DataReceipt],
+    ]}],
+    [ActionReceipt, { kind: 'struct', fields: [
+        ['signer_id', 'string'],
+        ['signer_public_key', PublicKey],
+        ['gas_price', 'u128'],
+        ['output_data_receivers', [DataReceiver]],
+        ['input_data_ids', [[32]]],
+        ['actions', [Action]],
+    ]}],
+    [DataReceiver, { kind: 'struct', fields: [
+        ['data_id', [32]],
+        ['receiver_id', 'string'],
+    ]}],
+    [AccessKey, { kind: 'struct', fields: [
+        ['nonce', 'u64'],
+        ['permission', AccessKeyPermission],
+    ]}],
+    [AccessKeyPermission, {kind: 'enum', field: 'enum', values: [
+        ['functionCall', FunctionCallPermission],
+        ['fullAccess', FullAccessPermission],
+    ]}],
+    [FunctionCallPermission, {kind: 'struct', fields: [
+        ['allowance', {kind: 'option', type: 'u128'}],
+        ['receiverId', 'string'],
+        ['methodNames', ['string']],
+    ]}],
+    [FullAccessPermission, {kind: 'struct', fields: []}],
+    [Action, { kind: 'enum', field: 'enum', values: [
+        ['createAccount', CreateAccount],
+        ['deployContract', DeployContract],
+        ['functionCall', FunctionCall],
+        ['transfer', Transfer],
+        ['stake', Stake],
+        ['addKey', AddKey],
+        ['deleteKey', DeleteKey],
+        ['deleteAccount', DeleteAccount],
+    ]}],
+    [CreateAccount, { kind: 'struct', fields: [] }],
+    [DeployContract, { kind: 'struct', fields: [
+        ['code', ['u8']]
+    ]}],
+    [FunctionCall, { kind: 'struct', fields: [
+        ['methodName', 'string'],
+        ['args', ['u8']],
+        ['gas', 'u64'],
+        ['deposit', 'u128']
+    ]}],
+    [Transfer, { kind: 'struct', fields: [
+        ['deposit', 'u128']
+    ]}],
+    [Stake, { kind: 'struct', fields: [
+        ['stake', 'u128'],
+        ['publicKey', PublicKey]
+    ]}],
+    [AddKey, { kind: 'struct', fields: [
+        ['publicKey', PublicKey],
+        ['accessKey', AccessKey]
+    ]}],
+    [DeleteKey, { kind: 'struct', fields: [
+        ['publicKey', PublicKey]
+    ]}],
+    [DeleteAccount, { kind: 'struct', fields: [
+        ['beneficiaryId', 'string']
+    ]}],
+    [DataReceipt, { kind: 'struct', fields: [
+        ['data_id', [32]],
+        ['data', { kind: 'option', type: ['u8'] }],
+    ]}],
+    [ReceiptProof, { kind: 'struct', fields: [
+        ['receipts', [Receipt]],
+        ['proof', ShardProof]
+    ]}],
+    [ReceiptProofResponse, { kind: 'struct', fields: [
+        ['hash', [32]],
+        ['proofs', [ReceiptProof]]
+    ]}],
+    [RootProof, { kind: 'struct', fields: [
+        ['hash', [32]],
+        ['path', MerklePath]
+    ]}],
+    [ShardStateSyncResponseHeaderV1, { kind: 'struct', fields: [
+        ['chunk', ShardChunk], ['chunk_proof', MerklePath],
+        ['prev_chunk_header', { kind: 'option', type: ShardChunkHeaderV1}],
+        ['prev_chunk_proof', { kind: 'option', type: MerklePath }],
+        ['incoming_receipts_proofs', [ReceiptProofResponse]], // TODO
+        ['root_proofs', [[RootProof]]], // TODO
+        ['state_root_node', StateRootNode]
+    ]}],
 ]);
 
 const ed = require('@noble/ed25519');
@@ -553,12 +691,12 @@ const sendRoutedMessage = async (messageBodyObj) => {
 eventEmitter.on('message', async message => {
     console.log('message', message.enum);
     if (message.handshake) {
-        console.log('received handshake', message.handshake);
+        console.log('received handshake');
 
         sendMessage(socket, new PeerMessage({ peers_request: new PeersRequest() }));
         sendMessage(socket, new PeerMessage({
-            // NOTE: prev_hash is CTX4tj3kbbXiDdtveCW9nyuGgBoRcH6PHwxD2rwBcgWT
-            block_request: new BlockRequest({ block_hash: bs58.decode('2yG1Wy335qYQysqXLeXfA2htsNfRVgzwmUtw4swVbn4z') })
+            // NOTE: block is returned by previous block hash?
+            block_request: new BlockRequest({ block_hash: bs58.decode('5xFjQhte3amNExUZxtLRaKEzQ7qofStXm5WjU63sjhM4') })
         }));
 
         sendRoutedMessage({
@@ -568,7 +706,7 @@ eventEmitter.on('message', async message => {
         sendRoutedMessage({
             state_request_header: new StateRequestHeader({
                 shard_id: 0,
-                hash: bs58.decode('2yG1Wy335qYQysqXLeXfA2htsNfRVgzwmUtw4swVbn4z')
+                hash: bs58.decode('5xFjQhte3amNExUZxtLRaKEzQ7qofStXm5WjU63sjhM4')
             })
         });
     }
@@ -579,6 +717,6 @@ eventEmitter.on('message', async message => {
     }
 
     if (message.routed) {
-        console.log('routed', message.routed);
+        console.log('routed', message.routed.body.enum);
     }
 });
