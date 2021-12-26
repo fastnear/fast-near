@@ -183,8 +183,8 @@ const handleJsonRpc = async ctx => {
 };
 
 const callViewFunction = async (ctx,  { accountId, methodName, args }) => {
+    const { blockHeight } = ctx;
     try {
-        const { blockHeight } = ctx;
         const { result, logs, blockHeight: resolvedBlockHeight } = await runContract(accountId, methodName, args, blockHeight);
         const resultBuffer = Buffer.from(result);
         ctx.body = {

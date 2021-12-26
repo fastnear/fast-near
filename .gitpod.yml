@@ -1,0 +1,7 @@
+tasks:
+  - init: |
+      yarn
+      sudo apt install redis
+    command: |
+      sudo service redis-server start
+      DEBUG=* yarn start
