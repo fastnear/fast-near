@@ -53,9 +53,12 @@ const preload_account = process.argv[2];
     console.error(e.message);
     if (e.message.indexOf('too large')) {
       console.log('trying to get state from history instead');
-      const activityHistory = await (await fetch(`https://helper.mainnet.near.org/account/${preload_account}/activity`)).json();
+      const activityHistory = await (await fetch(`https://helper.mainnet.near.org/account/${preload_account}/activity?limit=1000`)).json();
+
       for(const activity of activityHistory) {
-        const changes_response = await (await fetch(config.nodeUrl, {
+        console.log('getting changes from block_hash', activity.block_hash);
+        
+        const changes_response = await (await fetch('https://archival-rpc.mainnet.near.org', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
@@ -68,8 +71,14 @@ const preload_account = process.argv[2];
               "block_id": activity.block_hash
             }
           })
-        })).text();
-        console.log(changes_response);
+        })).json();
+        const changes = changes_response.result.changes.filter(ch => ch.type === 'data_update').map(ch => ch.change);
+        for (const change of changes) {
+          const storagekey = Buffer.from(change.key_base64,'base64').toString();
+          console.log('updating storage with key', storagekey);
+          await client.sendCommand('ZADD', [`data:${preload_account}:${storagekey}`, block_height, activity.block_hash]);
+          await client.set(`data-value:${preload_account}:${storagekey}:${activity.block_hash}`, Buffer.from(change.value_base64, 'base64'));
+        }
       }
     }
   }
