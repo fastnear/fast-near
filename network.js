@@ -667,6 +667,7 @@ const target_peer_id = new PublicKey({ keyType: 0, data: bs58.decode('2gYpfHjqJa
 let peer_id;
 
 const NODE_ADDRESS = process.env.NODE_ADDRESS || '127.0.0.1'
+const NUM_TOTAL_PARTS = 50;
 
 const socket = net.connect(24567, NODE_ADDRESS, async () => {
     console.log('connected');
@@ -782,10 +783,10 @@ eventEmitter.on('message', async message => {
         console.log('block', bs58.encode(header.prev_hash), header.inner_lite.height.toString());
         // console.log(bs58.encode(header.inner_lite.prev_state_root));
         // console.log('header', header);
-        console.log('chunks', message.block.v2.chunks.map(it => it.v2));
+        // console.log('chunks', message.block.v2.chunks.map(it => it.v2));
 
-        const { prev_state_root } = message.block.v2.chunks[0].v2.inner;
-        console.log('prev_state_root', bs58.encode(prev_state_root));
+        // const { prev_state_root } = message.block.v2.chunks[0].v2.inner;
+        // console.log('prev_state_root', bs58.encode(prev_state_root));
 
         // sendRoutedMessage({
         //     state_request_header: new StateRequestHeader({
@@ -803,7 +804,7 @@ eventEmitter.on('message', async message => {
         sendRoutedMessage({
             partial_encoded_chunk_request: new PartialEncodedChunkRequestMsg({
                 chunk_hash: chunkHash(message.block.v2.chunks[0]),
-                part_ords: [0],
+                part_ords: [...Array(NUM_TOTAL_PARTS)].map((_, i) => i),
                 tracking_shards: [0]
             })
         });
@@ -812,15 +813,20 @@ eventEmitter.on('message', async message => {
     if (message.routed) {
         console.log('routed', message.routed.body.enum);
 
-        const { body } = message.routed;
+        const {
+            body: {
+                state_response_info,
+                partial_encoded_chunk_response,
+            }
+        } = message.routed;
 
-        if (body.state_response_info) {
-            console.log('state_response_info', body.state_response_info);
+        if (state_response_info) {
+            console.log('state_response_info', state_response_info);
         }
 
-        if (body.partial_encoded_chunk_response) {
-            console.log('partial_encoded_chunk_response', body.partial_encoded_chunk_response);
-            console.log('parts', body.partial_encoded_chunk_response.parts);
+        if (partial_encoded_chunk_response) {
+            // console.log('partial_encoded_chunk_response', partial_encoded_chunk_response);
+            console.log('parts', partial_encoded_chunk_response.parts.map(({ part }) => Buffer.from(part).toString('hex')));
         }
     }
 });
