@@ -81,8 +81,10 @@ class StateResponseInfoV1 extends BaseMessage {}
 class PartialEncodedChunkRequestMsg extends BaseMessage {}
 class PartialEncodedChunkResponseMsg extends BaseMessage {}
 class PartialEncodedChunkV1 extends BaseMessage {}
+class PartialEncodedChunkV2 extends BaseMessage {}
+class PartialEncodedChunkPart extends BaseMessage {}
 class PingPong extends BaseMessage {}
-class PartialEncodedChunk extends BaseMessage {}
+class PartialEncodedChunk extends Enum {}
 class StateResponseInfo extends BaseMessage {}
 class PartialEncodedChunkForwardMsg extends BaseMessage {}
 class StateRequestHeader extends BaseMessage {}
@@ -90,6 +92,9 @@ class ShardStateSyncResponseV1 extends BaseMessage {}
 class ShardStateSyncResponseHeaderV1 extends BaseMessage {}
 class SyncPart extends BaseMessage {}
 class MerklePath extends BaseMessage {}
+class MerklePathItem extends BaseMessage {}
+class Direction extends Enum {}
+class UnitType extends BaseMessage {}
 class ShardChunk extends BaseMessage {}
 class Receipt extends BaseMessage {}
 class ReceiptEnum extends Enum {}
@@ -580,6 +585,52 @@ const BORSH_SCHEMA = new Map([
         ['root_proofs', [[RootProof]]], // TODO
         ['state_root_node', StateRootNode]
     ]}],
+    [PartialEncodedChunk, { kind: 'enum', field: 'enum', values: [
+        ['V1', PartialEncodedChunkV1],
+        ['V2', PartialEncodedChunkV2]
+    ]}],
+    [PartialEncodedChunkV1,  { kind: 'struct', fields: [
+        ['header', ShardChunkHeaderV1],
+        ['parts', [PartialEncodedChunkPart]],
+        ['receipts', [ReceiptProof]]
+    ]}],
+    [PartialEncodedChunkV2, { kind: 'struct', fields: [
+        ['header', ShardChunkHeader],
+        ['parts', [PartialEncodedChunkPart]],
+        ['receipts', [ReceiptProof]]
+    ]}],
+    [PartialEncodedChunkRequestMsg, { kind: 'struct', fields: [
+        ['chunk_hash', [32]],
+        ['part_ords', ['u64']],
+        ['tracking_shards', ['u64']]
+    ]}],
+    [PartialEncodedChunkResponseMsg, { kind: 'struct', fields: [
+        ['chunk_hash', [32]],
+        ['parts', [PartialEncodedChunkPart]],
+        ['receipts', [ReceiptProof]]
+    ]}],
+    [PartialEncodedChunkPart, { kind: 'struct', fields: [
+        ['part_ord', 'u64'],
+        ['part', ['u8']],
+        ['merkle_proof', MerklePath],
+    ]}],
+    [MerklePath, { kind: 'struct', fields: [
+        ['items', [MerklePathItem]],
+    ]}],
+    [MerklePathItem, { kind: 'struct', fields: [
+        ['hash', [32]],
+        ['direction', Direction],
+    ]}],
+    [Direction, {kind: 'enum', field: 'enum', values: [
+        ['Left', UnitType],
+        ['Right', UnitType],
+    ]}],
+    [UnitType, { kind: 'struct', fields: []}],
+    [ShardProof, { kind: 'struct', fields: [
+        ['from_shard_id', 'u64'],
+        ['to_shard_id', 'u64'],
+        ['proof', MerklePath]
+    ]}],
 ]);
 
 const ed = require('@noble/ed25519');
@@ -615,12 +666,15 @@ const sendMessage = (socket, message) => {
 const target_peer_id = new PublicKey({ keyType: 0, data: bs58.decode('2gYpfHjqJa5Ji3btBnScQrxgwx2Ya5NXnJoTDqJWY36c') });
 let peer_id;
 
-const socket = net.connect(24567, '127.0.0.1', async () => {
+const NODE_ADDRESS = process.env.NODE_ADDRESS || '127.0.0.1'
+
+const socket = net.connect(24567, NODE_ADDRESS, async () => {
     console.log('connected');
 
     const publicKey = Buffer.from(await ed.getPublicKey(privateKey));
     const nonce = 1;
     peer_id = new PublicKey({ keyType: 0, data: publicKey });
+    console.log('peer_id', bs58.encode(peer_id.data))
 
     const handshake = new PeerMessage({
         handshake: new Handshake({
@@ -634,7 +688,7 @@ const socket = net.connect(24567, '127.0.0.1', async () => {
                     chain_id: 'localnet',
                     hash: Buffer.from('b2adf5f9273460d714aa622a92cd9445bcfa110cf6315bc20241552b4c61f0a1', 'hex')
                 }),
-                height: 71969465,
+                height: 3138788, // TODO: Update to avoid HeightFraud?
                 tracked_shards: [0],
                 archival: 0
             }),
@@ -672,6 +726,7 @@ socket.on('error', error => {
 });
 
 const sendRoutedMessage = async (messageBodyObj) => {
+    // console.log('sendRoutedMessage', messageBodyObj);
     const messageToSign = new RoutedMessageToSign({
         target: new PeerIdOrHash({ peer_id: target_peer_id }),
         author: peer_id,
@@ -688,16 +743,26 @@ const sendRoutedMessage = async (messageBodyObj) => {
     }));
 }
 
+const chunkHash = (chunkHeader) => {
+    // TODO: v1 and v3?
+    if (chunkHeader.v2) {
+        const { inner } = chunkHeader.v2;
+        const serialized = serialize(BORSH_SCHEMA, inner);
+        const innerHash = sha256(serialized);
+        return sha256(Buffer.concat([innerHash, inner.encoded_merkle_root]));
+    }
+}
+
 eventEmitter.on('message', async message => {
     console.log('message', message.enum);
     if (message.handshake) {
         console.log('received handshake');
 
-        sendMessage(socket, new PeerMessage({ peers_request: new PeersRequest() }));
-        sendMessage(socket, new PeerMessage({
-            // NOTE: block is returned by previous block hash?
-            block_request: new BlockRequest({ block_hash: bs58.decode('5xFjQhte3amNExUZxtLRaKEzQ7qofStXm5WjU63sjhM4') })
-        }));
+        // sendMessage(socket, new PeerMessage({ peers_request: new PeersRequest() }));
+        // sendMessage(socket, new PeerMessage({
+        //     // NOTE: block is returned by previous block hash?
+        //     block_request: new BlockRequest({ block_hash: bs58.decode('5xFjQhte3amNExUZxtLRaKEzQ7qofStXm5WjU63sjhM4') })
+        // }));
 
         sendRoutedMessage({
             ping: new PingPong({ nonce: 0, source: peer_id })
@@ -706,7 +771,8 @@ eventEmitter.on('message', async message => {
         sendRoutedMessage({
             state_request_header: new StateRequestHeader({
                 shard_id: 0,
-                hash: bs58.decode('5xFjQhte3amNExUZxtLRaKEzQ7qofStXm5WjU63sjhM4')
+                // NOTE: Should this be prev hash of epoch start block hash?
+                hash: bs58.decode('2i88qoGUT1HJ7rQoc5QrR492K1tpAKbEyyRF7h3YS6zS')
             })
         });
     }
@@ -714,9 +780,47 @@ eventEmitter.on('message', async message => {
     if (message.block) {
         const header = message.block.v2.header.v2;
         console.log('block', bs58.encode(header.prev_hash), header.inner_lite.height.toString());
+        // console.log(bs58.encode(header.inner_lite.prev_state_root));
+        // console.log('header', header);
+        console.log('chunks', message.block.v2.chunks.map(it => it.v2));
+
+        const { prev_state_root } = message.block.v2.chunks[0].v2.inner;
+        console.log('prev_state_root', bs58.encode(prev_state_root));
+
+        // sendRoutedMessage({
+        //     state_request_header: new StateRequestHeader({
+        //         shard_id: 0,
+        //         hash: prev_state_root
+        //     })
+        // });
+
+        // sendRoutedMessage({
+        //     block_request: new BlockRequest({
+        //         block_hash: header.prev_hash
+        //     })
+        // });
+
+        sendRoutedMessage({
+            partial_encoded_chunk_request: new PartialEncodedChunkRequestMsg({
+                chunk_hash: chunkHash(message.block.v2.chunks[0]),
+                part_ords: [0],
+                tracking_shards: [0]
+            })
+        });
     }
 
     if (message.routed) {
         console.log('routed', message.routed.body.enum);
+
+        const { body } = message.routed;
+
+        if (body.state_response_info) {
+            console.log('state_response_info', body.state_response_info);
+        }
+
+        if (body.partial_encoded_chunk_response) {
+            console.log('partial_encoded_chunk_response', body.partial_encoded_chunk_response);
+            console.log('parts', body.partial_encoded_chunk_response.parts);
+        }
     }
 });
