@@ -830,7 +830,7 @@ eventEmitter.on('message', async message => {
             sendRoutedMessage({
                 partial_encoded_chunk_request: new PartialEncodedChunkRequestMsg({
                     chunk_hash: hash,
-                    part_ords: [...Array(NUM_TOTAL_PARTS)].map((_, i) => i),
+                    part_ords: [...Array(NUM_DATA_PARTS)].map((_, i) => i),
                     tracking_shards: [0]
                 })
             });
@@ -862,25 +862,7 @@ eventEmitter.on('message', async message => {
             }
 
             const { encoded_length } = chunk.v2.inner;
-
-            const { ReedSolomonErasure } = require("@subspace/reed-solomon-erasure.wasm");
-            const reedSolomonErasure = await ReedSolomonErasure.fromCurrentDirectory();
             const allParts = Buffer.concat(partial_encoded_chunk_response.parts.map(({ part }) => Buffer.from(part)));
-            const partSize = allParts.length / NUM_TOTAL_PARTS;
-            console.log('allParts', Buffer.from(allParts).toString('hex'));
-            const validParts = [...Array(NUM_TOTAL_PARTS)].map(() => true);
-            // validParts[0] = false;
-            // allParts.set([...Array(partSize)].map(() => 0), 0);
-            const result = reedSolomonErasure.reconstruct(
-                allParts,
-                NUM_DATA_PARTS,
-                NUM_TOTAL_PARTS - NUM_DATA_PARTS,
-                validParts
-            );
-            // TODO: Check return result if error?
-            console.log('result', result);
-            console.log('decoded', Buffer.from(allParts).toString('hex'));
-
             const { transactions, receipts } = deserialize(BORSH_SCHEMA, TransactionReceipt, allParts.slice(0, encoded_length));
             console.log('transactions', transactions);
             console.log('receipts', receipts);
