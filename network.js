@@ -119,6 +119,7 @@ class ReceiptProofResponse extends BaseMessage {}
 class ShardProof extends BaseMessage {}
 class StateRootNode extends BaseMessage {}
 class RootProof extends BaseMessage {}
+class TransactionReceipt extends BaseMessage {}
 
 const BORSH_SCHEMA = new Map([
     [Handshake, { kind: 'struct', fields: [
@@ -524,6 +525,18 @@ const BORSH_SCHEMA = new Map([
         ['methodNames', ['string']],
     ]}],
     [FullAccessPermission, {kind: 'struct', fields: []}],
+    [SignedTransaction, {kind: 'struct', fields: [
+        ['transaction', Transaction],
+        ['signature', Signature]
+    ]}],
+    [Transaction, { kind: 'struct', fields: [
+        ['signerId', 'string'],
+        ['publicKey', PublicKey],
+        ['nonce', 'u64'],
+        ['receiverId', 'string'],
+        ['blockHash', [32]],
+        ['actions', [Action]]
+    ]}],
     [Action, { kind: 'enum', field: 'enum', values: [
         ['createAccount', CreateAccount],
         ['deployContract', DeployContract],
@@ -631,6 +644,10 @@ const BORSH_SCHEMA = new Map([
         ['to_shard_id', 'u64'],
         ['proof', MerklePath]
     ]}],
+    [TransactionReceipt, { kind: 'struct', fields: [
+        ['transactions', [SignedTransaction]],
+        ['receipts', [Receipt]]
+    ]}],
 ]);
 
 const ed = require('@noble/ed25519');
@@ -654,6 +671,7 @@ const signEdgeInfo = async (nonce, peer0, peer1) => {
 const bs58 = require('bs58');
 const net = require('net');
 const EventEmitter = require('events');
+const { Buffer } = require('buffer');
 
 const sendMessage = (socket, message) => {
     const messageData = serialize(BORSH_SCHEMA, message);
@@ -668,6 +686,7 @@ let peer_id;
 
 const NODE_ADDRESS = process.env.NODE_ADDRESS || '127.0.0.1'
 const NUM_TOTAL_PARTS = 50;
+const NUM_DATA_PARTS = Math.floor((NUM_TOTAL_PARTS - 1) / 3);
 
 const socket = net.connect(24567, NODE_ADDRESS, async () => {
     console.log('connected');
@@ -754,6 +773,8 @@ const chunkHash = (chunkHeader) => {
     }
 }
 
+const chunkHeaders = {};
+
 eventEmitter.on('message', async message => {
     console.log('message', message.enum);
     if (message.handshake) {
@@ -801,13 +822,19 @@ eventEmitter.on('message', async message => {
         //     })
         // });
 
-        sendRoutedMessage({
-            partial_encoded_chunk_request: new PartialEncodedChunkRequestMsg({
-                chunk_hash: chunkHash(message.block.v2.chunks[0]),
-                part_ords: [...Array(NUM_TOTAL_PARTS)].map((_, i) => i),
-                tracking_shards: [0]
-            })
-        });
+        const { chunks } = message.block.v2;
+
+        for (let chunk of chunks) {
+            const hash = chunkHash(chunk);
+            chunkHeaders[bs58.encode(hash)] = chunk;
+            sendRoutedMessage({
+                partial_encoded_chunk_request: new PartialEncodedChunkRequestMsg({
+                    chunk_hash: hash,
+                    part_ords: [...Array(NUM_TOTAL_PARTS)].map((_, i) => i),
+                    tracking_shards: [0]
+                })
+            });
+        }
     }
 
     if (message.routed) {
@@ -826,7 +853,37 @@ eventEmitter.on('message', async message => {
 
         if (partial_encoded_chunk_response) {
             // console.log('partial_encoded_chunk_response', partial_encoded_chunk_response);
-            console.log('parts', partial_encoded_chunk_response.parts.map(({ part }) => Buffer.from(part).toString('hex')));
+            // console.log('parts', partial_encoded_chunk_response.parts.map(({ part }) => Buffer.from(part).toString('hex')));
+            const { chunk_hash } = partial_encoded_chunk_response;
+            const chunk = chunkHeaders[bs58.encode(chunk_hash)];
+            if (!chunk) {
+                console.error('cannot find chunk header:', bs58.encode(chunk_hash))
+                return;
+            }
+
+            const { encoded_length } = chunk.v2.inner;
+
+            const { ReedSolomonErasure } = require("@subspace/reed-solomon-erasure.wasm");
+            const reedSolomonErasure = await ReedSolomonErasure.fromCurrentDirectory();
+            const allParts = Buffer.concat(partial_encoded_chunk_response.parts.map(({ part }) => Buffer.from(part)));
+            const partSize = allParts.length / NUM_TOTAL_PARTS;
+            console.log('allParts', Buffer.from(allParts).toString('hex'));
+            const validParts = [...Array(NUM_TOTAL_PARTS)].map(() => true);
+            // validParts[0] = false;
+            // allParts.set([...Array(partSize)].map(() => 0), 0);
+            const result = reedSolomonErasure.reconstruct(
+                allParts,
+                NUM_DATA_PARTS,
+                NUM_TOTAL_PARTS - NUM_DATA_PARTS,
+                validParts
+            );
+            // TODO: Check return result if error?
+            console.log('result', result);
+            console.log('decoded', Buffer.from(allParts).toString('hex'));
+
+            const { transactions, receipts } = deserialize(BORSH_SCHEMA, TransactionReceipt, allParts.slice(0, encoded_length));
+            console.log('transactions', transactions);
+            console.log('receipts', receipts);
         }
     }
 });
