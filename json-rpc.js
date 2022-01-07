@@ -37,7 +37,7 @@ const debug = require('debug')('json-rpc');
 const NODE_URL = process.env.FAST_NEAR_NODE_URL || 'https://rpc.mainnet.near.org';
 const ARCHIVAL_NODE_URL = process.env.FAST_NEAR_ARCHIVAL_NODE_URL || 'https://rpc.mainnet.internal.near.org';
 
-const proxyJson = async (ctx, { archival = false }) => {
+const proxyJson = async (ctx, { archival = false } = {}) => {
     const nodeUrl = archival ? ARCHIVAL_NODE_URL : NODE_URL;
     const rawBody = ctx.request.body ? JSON.stringify(ctx.request.body) : await getRawBody(ctx.req);
     debug('proxyJson', ctx.request.method, ctx.request.path, rawBody.toString('utf8'));
