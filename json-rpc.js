@@ -47,7 +47,7 @@ const proxyJson = async (ctx, { archival = false } = {}) => {
         headers: {
             'Content-Type': 'application/json'
         },
-        body: rawBody
+        body: ctx.request.method != 'GET' ? rawBody : undefined
     })).arrayBuffer());
 }
 
