@@ -143,7 +143,7 @@ const parseBlockIndex = async (ctx) => {
 
 const handleJsonRpc = async ctx => {
     if (ALWAYS_PROXY) {
-        return await proxyJson(ctx);
+        return await proxyJson(ctx, {});
     }
 
     ctx.request.body = JSON.parse((await getRawBody(ctx.req)).toString('utf8'));
