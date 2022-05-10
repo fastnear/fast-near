@@ -171,7 +171,7 @@ const BORSH_SCHEMA = new Map([
         ['block_headers', BlockHeaders],
         ['block_request', BlockRequest],
         ['block', Block],
-        ['transaction', Transaction],
+        ['transaction', SignedTransaction],
         ['routed', RoutedMessage],
         ['disconnect', Disconnect],
         ['challenge', Challenge],
