@@ -11,8 +11,6 @@ let redisCache = new LRU({
 const BLOCK_INDEX_CACHE_TIME = 500;
 const REDIS_URL = process.env.FAST_NEAR_REDIS_URL || 'redis://localhost:6379';
 
-const SCAN_COUNT = 100000;
-
 let redisClient;
 function getRedisClient() {
     if (!redisClient) {
@@ -67,7 +65,7 @@ const withRedisAndCache = ({ name, cachedExpires }, fn) => async (...args) => {
         }
         debug(name, 'local cache miss', cacheKey);
 
-        const redisClient = getRedisClient();
+        const redisClient = getRedisClient();   
         const resultPromise = fn(redisClient)(...args);
         // TODO: Protect from size-bombing cache?
         redisCache.set(cacheKey, resultPromise, cachedExpires && BLOCK_INDEX_CACHE_TIME);
@@ -153,9 +151,17 @@ const scanAllKeys = redisClient => async (iterator) => {
     )];
 }
 
+const MAX_SCAN_STEPS = 10;
+const SCAN_COUNT = 100000;
+// TODO: Does this work ok with caching???
 const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, iterator, limit) => {
-    const [newIterator, keys] = await redisClient.scan(iterator, 'MATCH', Buffer.from(`data:${contractId}:${keyPattern}`), 'COUNT', limit);
-    const data = await Promise.all(keys.map(async key => {
+    // TODO: Looks like SCAN requires ways too many iterations to find matching keys?
+    let step = 0;
+    let data = [];
+    do {
+        const [newIterator, keys] = await redisClient.scan(iterator, 'MATCH', Buffer.from(`data:${contractId}:${keyPattern}`), 'COUNT', SCAN_COUNT); 
+        console.log('keys', keys, newIterator)
+        const newData = await Promise.all(keys.map(async key => {
         const compKey = Buffer.from(key).slice('data:'.length);
         const storageKey = compKey.slice(contractId.length + 1);
         const blockHash = await module.exports.getLatestDataBlockHash(compKey, blockHeight);
@@ -164,8 +170,13 @@ const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, 
         }
         return [storageKey, await module.exports.getData(compKey, blockHash)];
     }));
+        iterator = newIterator;
+        data = data.concat(newData);
+        step++;
+        console.log('step', step, 'iterator', iterator);
+    } while (step < MAX_SCAN_STEPS && data.length < limit);
     return {
-        iterator: Buffer.from(newIterator).toString('utf8'),
+        iterator: Buffer.from(iterator).toString('utf8'),
         data
     };
 };
