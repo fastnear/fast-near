@@ -53,7 +53,8 @@ async function handleStreamerMessage(streamerMessage) {
     await setLatestBlockHeight(blockHeight);
 }
 
-const yargs = require('yargs/yargs')
+const yargs = require('yargs/yargs');
+const storageClient = require("../storage-client");
 yargs(process.argv.slice(2))
     .command(['s3 [bucket-name] [start-block-height] [region-name] [endpoint]', '$0'],
             'loads data from NEAR Lake S3 into Redis DB',
@@ -69,12 +70,10 @@ yargs(process.argv.slice(2))
 
         const { startBlockHeight, bucketName, regionName, endpoint } = argv;
         await startStream({
-            // TODO: Read latest block height from Redis
-            startBlockHeight: startBlockHeight || 0,
+            startBlockHeight: startBlockHeight || await storageClient.getLatestBlockHeight() || 0,
             s3BucketName: bucketName || "near-lake-data-mainnet",
             s3RegionName: regionName || "eu-central-1",
             s3Endpoint: endpoint
-
         }, handleStreamerMessage);
     })
     .parse();
