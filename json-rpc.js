@@ -5,28 +5,7 @@ const runContract  = require('./run-contract');
 const storageClient = require('./storage-client');
 const { FastNEARError } = require('./error');
 
-class Account {
-    amount;
-    locked;
-    code_hash;
-    storage_usage;
-
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-const BORSH_SCHEMA = new Map([
-    [Account, {
-        kind: 'struct',
-        fields: [
-            ['amount', 'u128'],
-            ['locked', 'u128'],
-            ['code_hash', ['u8', 32]],
-            ['storage_usage', 'u64'],
-        ]
-    }]
-]);
+const { Account, BORSH_SCHEMA } = require('./data-model');
 
 const { deserialize } = require('borsh');
 const bs58 = require('bs58');
@@ -39,6 +18,7 @@ const ARCHIVAL_NODE_URL = process.env.FAST_NEAR_ARCHIVAL_NODE_URL || 'https://rp
 
 const proxyJson = async (ctx, { archival = false } = {}) => {
     const nodeUrl = archival ? ARCHIVAL_NODE_URL : NODE_URL;
+    console.log('proxyJson', ctx.request.method, nodeUrl);
     const rawBody = ctx.request.body ? JSON.stringify(ctx.request.body) : await getRawBody(ctx.req);
     debug('proxyJson', ctx.request.method, ctx.request.path, rawBody.toString('utf8'));
     ctx.type = 'json';
@@ -78,6 +58,7 @@ const legacyError = ({ id, message }) => {
 const ALWAYS_PROXY = ['yes', 'true'].includes((process.env.FAST_NEAR_ALWAYS_PROXY || 'no').trim().toLowerCase());
 
 const handleError = async ({ ctx, accountId, blockHeight, error }) => {
+    console.log('handleError', error);
     const { body } = ctx.request;
 
     // TODO: Match error handling? Structured errors? https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6

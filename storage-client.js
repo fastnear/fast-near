@@ -22,6 +22,8 @@ function getRedisClient() {
 
     return {
         get: promisify(redisClient.get).bind(redisClient),
+        set: promisify(redisClient.set).bind(redisClient),
+        zadd: promisify(redisClient.zadd).bind(redisClient),
         sendCommand: promisify(redisClient.sendCommand).bind(redisClient),
         scan: promisify(redisClient.scan).bind(redisClient),
     };
@@ -29,11 +31,24 @@ function getRedisClient() {
 
 const prettyBuffer = require('./pretty-buffer');
 
-const withRedis = ({ name, cachedExpires }, fn) => async (...args) => {
-    const prettyArgs = args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
-    debug(name, ...prettyArgs);
+const prettyArgs = args => args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
+
+const withRedis = ({ name }, fn) => async (...args) => {
+    const readableArgs = prettyArgs(args);
+    debug(name, ...readableArgs);
     try {
-        let cacheKey = [name, ...prettyArgs].join('$$');
+        const redisClient = getRedisClient();   
+        return await fn(redisClient)(...args);
+    } finally {
+        debug(`${name} done`, ...readableArgs);
+    }
+}
+
+const withRedisAndCache = ({ name, cachedExpires }, fn) => async (...args) => {
+    const readableArgs = prettyArgs(args);
+    debug(name, ...readableArgs);
+    try {
+        let cacheKey = [name, ...readableArgs].join('$$');
         const cachedPromise = redisCache.get(cacheKey);
         if (cachedPromise) {
             debug(name, 'local cache hit', cacheKey);
@@ -47,13 +62,18 @@ const withRedis = ({ name, cachedExpires }, fn) => async (...args) => {
         redisCache.set(cacheKey, resultPromise, cachedExpires && BLOCK_INDEX_CACHE_TIME);
         return await resultPromise;
     } finally {
-        debug(`${name} done`, ...prettyArgs);
+        debug(`${name} done`, ...readableArgs);
     }
 }
 
 const getLatestBlockHeight = redisClient => async () => {
     return await redisClient.get('latest_block_height');
 };
+
+const setLatestBlockHeight = redisClient => async (blockHeight) => {
+    console.log('redisClient', redisClient);
+    return await redisClient.set('latest_block_height', blockHeight.toString());
+}
 
 const getLatestContractBlockHash = redisClient => async (contractId, blockHeight) => {
     const [contractBlockHash] = await redisClient.sendCommand('ZREVRANGEBYSCORE',
@@ -65,26 +85,57 @@ const getContractCode = redisClient => async (contractId, blockHash) => {
     return await redisClient.get(Buffer.concat([Buffer.from(`code:${contractId}:`), blockHash]));
 };
 
+function accountBlockHashKey(accountId) {
+    return Buffer.from(`account:${accountId}`);
+}
+
+function accountDataKey(accountId, blockHash) {
+    return Buffer.concat([Buffer.from(`account-data:${accountId}:`), blockHash]);
+}
+
 const getLatestAccountBlockHash = redisClient => async (accountId, blockHeight) => {
     const [blockHash] = await redisClient.sendCommand('ZREVRANGEBYSCORE',
-        [Buffer.from(`account:${accountId}`), blockHeight, '-inf', 'LIMIT', '0', '1']);
+        [accountBlockHashKey(accountId), blockHeight, '-inf', 'LIMIT', '0', '1']);
     return blockHash;
 };
 
 const getAccountData = redisClient => async (accountId, blockHash) => {
-    return await redisClient.get(Buffer.concat([Buffer.from(`account-data:${accountId}:`), blockHash]));
+    return await redisClient.get(accountDataKey(accountId, blockHash));
 };
+
+const setAccountData = redisClient => async (accountId, blockHash, blockHeight, data) => {
+    await redisClient
+        .set(accountDataKey(accountId, blockHash), data);
+    await redisClient
+        .zadd(accountBlockHashKey(accountId), blockHeight, blockHash);
+};
+
+function dataBlockHashKey(compKey) {
+    return Buffer.concat([Buffer.from('data:'), compKey]);
+}
+
+function dataKey(compKey, blockHash) {
+    return Buffer.concat([Buffer.from('data-value:'), compKey, Buffer.from(':'), blockHash]);
+}
 
 const getLatestDataBlockHash = redisClient => async (compKey, blockHeight) => {
     compKey = Buffer.from(compKey);
     const [blockHash] = await redisClient.sendCommand('ZREVRANGEBYSCORE',
-        [Buffer.concat([Buffer.from('data:'), compKey]), blockHeight, '-inf', 'LIMIT', '0', '1']);
+        [dataBlockHashKey(compKey), blockHeight, '-inf', 'LIMIT', '0', '1']);
     return blockHash;
 };
 
 const getData = redisClient => async (compKey, blockHash) => {
     compKey = Buffer.from(compKey);
-    return await redisClient.get(Buffer.concat([Buffer.from('data-value:'), compKey, Buffer.from(':'), blockHash]));
+    return await redisClient.get(dataKey(compKey, blockHash));
+};
+
+const setData = redisClient => async (compKey, blockHash, blockHeight, data) => {
+    compKey = Buffer.from(compKey);
+    await redisClient
+        .set(dataKey(compKey, blockHash), data);
+    await redisClient
+        .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
 };
 
 const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, iterator, limit) => {
@@ -117,6 +168,22 @@ const exportsMap = {
 
 const cacheExpiresList = [ getLatestBlockHeight ];
 
-module.exports = Object.keys(exportsMap)
-    .map(name => ({ [name]: withRedis({ name, cachedExpires: cacheExpiresList.includes(exportsMap[name]) }, exportsMap[name]) }))
+const readMethods = Object.keys(exportsMap)
+    .map(name => ({ [name]: withRedisAndCache({ name, cachedExpires: cacheExpiresList.includes(exportsMap[name]) }, exportsMap[name]) }))
     .reduce((a, b) => Object.assign(a, b));
+
+const writeExportsMap = {
+    setLatestBlockHeight,
+    setAccountData,
+    setData,
+}
+
+const writeMethods = Object.keys(writeExportsMap)
+    .map(name => ({ [name]: withRedis({ name }, writeExportsMap[name]) }))
+    .reduce((a, b) => Object.assign(a, b));
+
+module.exports = {
+    ...readMethods,
+    ...writeMethods
+}
+

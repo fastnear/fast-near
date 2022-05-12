@@ -9,9 +9,11 @@
     "koa": "^2.13.4",
     "koa-router": "^10.1.1",
     "lru-cache": "^6.0.0",
+    "near-lake-framework": "^1.0.1",
     "node-fetch": "2",
     "raw-body": "^2.4.2",
-    "redis": "^3.1.2"
+    "redis": "^3.1.2",
+    "yargs": "^17.5.0"
   },
   "scripts": {
     "dev": "nodemon app",
