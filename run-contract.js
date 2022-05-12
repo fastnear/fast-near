@@ -35,7 +35,6 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
     const contractBlockHash = await storageClient.getLatestDataBlockHash(contractCodeKey, blockHeight);
     if (!contractBlockHash) {
         const accountBlockHash = await storageClient.getLatestDataBlockHash(accountKey(contractId), blockHeight);
-        console.log('accountBlockHash', accountBlockHash);
         if (!accountBlockHash) {
             throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
         }

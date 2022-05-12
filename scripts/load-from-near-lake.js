@@ -9,7 +9,6 @@ async function handleStreamerMessage(streamerMessage) {
     const { height: blockHeight, hash: blockHashB58 } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
     console.log(`Block #${blockHeight} Shards: ${streamerMessage.shards.length}`);
-    // console.log('streamerMessage', streamerMessage);
 
     for (let { stateChanges } of streamerMessage.shards) {
         for (let { type, change } of stateChanges) {
