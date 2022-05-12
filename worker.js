@@ -8,6 +8,7 @@ const debug = require('debug')(`worker:${threadId}`);
 
 const { FastNEARError } = require('./error');
 const prettyBuffer = require('./pretty-buffer');
+const { dataKey } = require('./storage-keys');
 
 const MAX_U64 = 18446744073709551615n;
 
@@ -37,7 +38,7 @@ const imports = (ctx) => {
 
     function storageRead(key_len, key_ptr) {
         const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
-        const compKey = Buffer.concat([Buffer.from(`${ctx.contractId}:`), storageKey]);
+        const compKey = dataKey(ctx.contractId, storageKey);
         debug('storage_read', ctx.contractId, prettyBuffer(storageKey));
 
         parentPort.postMessage({

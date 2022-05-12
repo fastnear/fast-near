@@ -6,6 +6,7 @@ const { FastNEARError } = require('./error');
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
 
 const LRU = require("lru-cache");
+const { codeKey, accountKey } = require('./storage-keys');
 let contractCache = new LRU({
     max: 25
 });
@@ -30,9 +31,10 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
     debug('blockHeight', blockHeight)
 
     debug('find contract code')
-    const contractBlockHash = await storageClient.getLatestContractBlockHash(contractId, blockHeight);
+    const contractCodeKey = codeKey(contractId);
+    const contractBlockHash = await storageClient.getLatestDataBlockHash(contractCodeKey, blockHeight);
     if (!contractBlockHash) {
-        const accountBlockHash = await storageClient.getLatestAccountBlockHash(contractId, blockHeight);
+        const accountBlockHash = await storageClient.getLatestDataBlockHash(accountKey(contractId), blockHeight);
         console.log('accountBlockHash', accountBlockHash);
         if (!accountBlockHash) {
             throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
@@ -48,7 +50,7 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
         debug('contract cache miss', cacheKey);
 
         debug('blockHash', contractBlockHash);
-        const wasmData = await storageClient.getContractCode(contractId, contractBlockHash);
+        const wasmData = await storageClient.getData(contractCodeKey, contractBlockHash);
         debug('wasmData.length', wasmData.length);
 
         debug('wasm compile');

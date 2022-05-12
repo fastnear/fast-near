@@ -1,46 +1,57 @@
 const { startStream } = require("near-lake-framework");
 const bs58 = require('bs58');
 const { serialize } = require('borsh');
-const { setLatestBlockHeight, setAccountData, setData, deleteData } = require('../storage-client');
+const { setLatestBlockHeight, setData, deleteData } = require('../storage-client');
+const { accountKey, dataKey, codeKey } = require('../storage-keys');
 const { Account, BORSH_SCHEMA } = require('../data-model');
 
 async function handleStreamerMessage(streamerMessage) {
     const { height: blockHeight, hash: blockHashB58 } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
     console.log(`Block #${blockHeight} Shards: ${streamerMessage.shards.length}`);
-    console.log('streamerMessage', streamerMessage);
+    // console.log('streamerMessage', streamerMessage);
 
     for (let { stateChanges } of streamerMessage.shards) {
         for (let { type, change } of stateChanges) {
-            console.log(type, change);
             switch (type) {
                 case 'account_update': {
                     const { accountId, amount, locked, codeHash, storageUsage } = change;
-                    await setAccountData(accountId, blockHash, blockHeight,
+                    await setData(accountKey(accountId), blockHash, blockHeight,
                         serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage })))
+                    break;
+                }
+                case 'account_deletion': {
+                    const { accountId } = change;
+                    await deleteData(accountKey(accountId), blockHash, blockHeight);
                     break;
                 }
                 case 'data_update': {
                     const { accountId, keyBase64, valueBase64 } = change;
                     const storageKey = Buffer.from(keyBase64, 'base64');
-                    // TODO: Refactor compKey logic?
-                    const compKey = Buffer.concat([Buffer.from(`${accountId}:`), storageKey]);
-                    await setData(compKey, blockHash, blockHeight,
-                        Buffer.from(valueBase64, 'base64'));
+                    await setData(dataKey(accountId, storageKey), blockHash, blockHeight, Buffer.from(valueBase64, 'base64'));
                     break;
                 }
                 case 'data_deletion': {
                     const { accountId, keyBase64 } = change;
                     const storageKey = Buffer.from(keyBase64, 'base64');
-                    const compKey = Buffer.concat([Buffer.from(`${accountId}:`), storageKey]);
-                    await deleteData(compKey, blockHash, blockHeigh);
+                    await deleteData(dataKey(accountId, storageKey), blockHash, blockHeight);
+                    break;
+                }
+                case 'contract_code_update': {
+                    const { accountId, codeBase64 } = change;
+                    await setData(codeKey(accountId), blockHash, blockHeight, Buffer.from(codeBase64, 'base64'));
+                    break;
+                }
+                case 'contract_code_deletion': {
+                    const { accountId } = change;
+                    await deleteData(codeKey(accountId), blockHash, blockHeight);
                     break;
                 }
             }
         }
     }
 
-    await setLatestBlockHeight(streamerMessage);
+    await setLatestBlockHeight(blockHeight);
 }
 
 const yargs = require('yargs/yargs')

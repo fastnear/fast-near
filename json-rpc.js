@@ -10,6 +10,7 @@ const { Account, BORSH_SCHEMA } = require('./data-model');
 const { deserialize } = require('borsh');
 const bs58 = require('bs58');
 const resolveBlockHeight = require('./resolve-block-height');
+const { accountKey } = require('./storage-keys');
 const debug = require('debug')('json-rpc');
 
 // NOTE: This is JSON-RPC proxy needed to pretend we are actual nearcore
@@ -191,13 +192,14 @@ const viewAccount = async (ctx, { accountId }) => {
         debug('blockHeight', blockHeight);
 
         debug('find account data', accountId);
-        const blockHash = await storageClient.getLatestAccountBlockHash(accountId, blockHeight);
+        const compKey = accountKey(accountId);
+        const blockHash = await storageClient.getLatestDataBlockHash(compKey, blockHeight);
         debug('blockHash', blockHash);
         if (!blockHash) {
             throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);
         }
 
-        const accountData = await storageClient.getAccountData(accountId, blockHash);
+        const accountData = await storageClient.getData(compKey, blockHash);
         debug('account data loaded', accountId);
         if (!accountData) {
             throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);
