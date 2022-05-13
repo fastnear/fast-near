@@ -57,6 +57,8 @@ async function handleStreamerMessage(streamerMessage) {
     await setLatestBlockHeight(blockHeight);
 }
 
+const DEFAULT_BATCH_SIZE = 20;
+
 const yargs = require('yargs/yargs');
 const storageClient = require("../storage-client");
 yargs(process.argv.slice(2))
@@ -69,15 +71,21 @@ yargs(process.argv.slice(2))
                 })
                 .describe('bucket-name', 'S3 bucket name')
                 .describe('region-name', 'S3 region name')
-                .describe('endpoint', 'S3-compatible storage URL'),
+                .describe('endpoint', 'S3-compatible storage URL')
+                .option('batch-size', {
+                    describe: 'how many blocks to try fetch in parallel',
+                    number: true,
+                    default: DEFAULT_BATCH_SIZE
+                }),
             async argv => {
 
-        const { startBlockHeight, bucketName, regionName, endpoint } = argv;
+        const { startBlockHeight, bucketName, regionName, endpoint, batchSize } = argv;
         await startStream({
             startBlockHeight: startBlockHeight || await storageClient.getLatestBlockHeight() || 0,
             s3BucketName: bucketName || "near-lake-data-mainnet",
             s3RegionName: regionName || "eu-central-1",
-            s3Endpoint: endpoint
+            s3Endpoint: endpoint,
+            batchSize
         }, handleStreamerMessage);
     })
     .parse();
