@@ -9,7 +9,7 @@
     "koa": "^2.13.4",
     "koa-router": "^10.1.1",
     "lru-cache": "^6.0.0",
-    "near-lake-framework": "^1.0.1",
+    "near-lake-framework": "vgrichina/near-lake-framework-js#parallel-load",
     "node-fetch": "2",
     "raw-body": "^2.4.2",
     "redis": "^3.1.2",
