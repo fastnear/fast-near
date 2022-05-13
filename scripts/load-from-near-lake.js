@@ -5,10 +5,14 @@ const { setLatestBlockHeight, setData, deleteData } = require('../storage-client
 const { accountKey, dataKey, codeKey } = require('../storage-keys');
 const { Account, BORSH_SCHEMA } = require('../data-model');
 
+let totalMessages = 0;
+let timeStarted = Date.now();
+
 async function handleStreamerMessage(streamerMessage) {
     const { height: blockHeight, hash: blockHashB58 } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
-    console.log(`Block #${blockHeight} Shards: ${streamerMessage.shards.length}`);
+    totalMessages++;
+    console.log(`Block #${blockHeight} Shards: ${streamerMessage.shards.length} Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`);
 
     for (let { stateChanges } of streamerMessage.shards) {
         for (let { type, change } of stateChanges) {
