@@ -6,7 +6,7 @@ async function compressHistory() {
     do {
         const [newIterator, keys] = await scanAllKeys(iterator); 
         await Promise.all(keys.map(async key => {
-            console.log('compress', key.toString('utf8'));
+            console.log('compress', JSON.stringify(key.toString('utf8')));
             await cleanOlderData(key, blockHeight);
         }));
         iterator = newIterator;
