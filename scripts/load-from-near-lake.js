@@ -85,7 +85,7 @@ yargs(process.argv.slice(2))
             s3BucketName: bucketName || "near-lake-data-mainnet",
             s3RegionName: regionName || "eu-central-1",
             s3Endpoint: endpoint,
-            batchSize
+            blocksPreloadPoolSize: batchSize
         }, handleStreamerMessage);
     })
     .parse();
