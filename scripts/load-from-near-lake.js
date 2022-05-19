@@ -1,4 +1,4 @@
-const { startStream } = require("near-lake-framework");
+const { stream } = require('near-lake-framework');
 const bs58 = require('bs58');
 const { serialize } = require('borsh');
 const { setLatestBlockHeight, setData, deleteData } = require('../storage-client');
@@ -80,12 +80,15 @@ yargs(process.argv.slice(2))
             async argv => {
 
         const { startBlockHeight, bucketName, regionName, endpoint, batchSize } = argv;
-        await startStream({
+
+        for await (let streamerMessage of stream({
             startBlockHeight: startBlockHeight || await storageClient.getLatestBlockHeight() || 0,
             s3BucketName: bucketName || "near-lake-data-mainnet",
             s3RegionName: regionName || "eu-central-1",
             s3Endpoint: endpoint,
             blocksPreloadPoolSize: batchSize
-        }, handleStreamerMessage);
+        })) {
+            await handleStreamerMessage(streamerMessage);
+        }
     })
     .parse();
