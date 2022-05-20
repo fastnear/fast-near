@@ -115,18 +115,14 @@ const deleteData = redisClient => async (compKey, blockHash, blockHeight) => {
 };
 
 const cleanOlderData = redisClient => async (compKey, blockHeight) => {
-    console.time('cleanOlderData');
     compKey = Buffer.from(compKey);
     const blockHashKey = dataBlockHashKey(compKey);
     const blockHashes = await redisClient.sendCommand('ZREVRANGEBYSCORE', [blockHashKey, blockHeight, '-inf']);
     const hashesToRemove = blockHashes.slice(1);
     if (hashesToRemove.length > 0) {
-        console.time('cleanOlderData inner');
         await redisClient.del(hashesToRemove.map(blockHash => dataKey(compKey, blockHash)));
         await redisClient.zrem(blockHashKey, hashesToRemove);
-        console.timeEnd('cleanOlderData inner');
     }
-    console.timeEnd('cleanOlderData');
 }
 
 const scanAllKeys = redisClient => async (iterator) => {
