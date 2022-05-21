@@ -36,7 +36,7 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
             const data = serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage }));
             await setData(batch)(compKey, blockHash, blockHeight, data);
             if (keepFromBlockHeight) {
-                await cleanOlderData(compKey, keepFromBlockHeight);
+                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
             }
             break;
         }
@@ -45,7 +45,7 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
             const compKey = accountKey(accountId);
             await deleteData(batch)(compKey, blockHash, blockHeight);
             if (keepFromBlockHeight) {
-                await cleanOlderData(compKey, keepFromBlockHeight);
+                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
             }
             break;
         }
@@ -55,7 +55,7 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
             const compKey = dataKey(accountId, storageKey);
             await setData(batch)(compKey, blockHash, blockHeight, Buffer.from(valueBase64, 'base64'));
             if (keepFromBlockHeight) {
-                await cleanOlderData(compKey, keepFromBlockHeight);
+                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
             }
             break;
         }
@@ -65,7 +65,7 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
             const compKey = dataKey(accountId, storageKey);
             await deleteData(batch)(compKey, blockHash, blockHeight);
             if (keepFromBlockHeight) {
-                await cleanOlderData(compKey, keepFromBlockHeight);
+                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
             }
             break;
         }
@@ -74,7 +74,7 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
             const compKey = codeKey(accountId);
             await setData(batch)(compKey, blockHash, blockHeight, Buffer.from(codeBase64, 'base64'));
             if (keepFromBlockHeight) {
-                await cleanOlderData(compKey, keepFromBlockHeight);
+                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
             }
             break;
         }
@@ -83,7 +83,7 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
             const compKey = codeKey(accountId);
             await deleteData(batch)(compKey, blockHash, blockHeight);
             if (keepFromBlockHeight) {
-                await cleanOlderData(compKey, keepFromBlockHeight);
+                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
             }
             break;
         }

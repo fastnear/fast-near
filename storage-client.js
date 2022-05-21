@@ -30,15 +30,17 @@ function getRedisClient() {
         zrem: promisify(redisClient.zrem).bind(redisClient),
         sendCommand: promisify(redisClient.sendCommand).bind(redisClient),
         scan: promisify(redisClient.scan).bind(redisClient),
-        batch: () => {
+        batch() {
             const batch = redisClient.batch();
             batch.exec = promisify(batch.exec).bind(batch);
+            batch.redisClient = this;
             return batch;
         }
     };
 }
 
 const prettyBuffer = require('./pretty-buffer');
+const { withTimeCounter } = require('./counters');
 
 const prettyArgs = args => args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
 
@@ -118,18 +120,22 @@ const deleteData = batch => async (compKey, blockHash, blockHeight) => {
         .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
 };
 
-const cleanOlderData = redisClient => async (compKey, blockHeight) => {
-    compKey = Buffer.from(compKey);
-    const blockHashKey = dataBlockHashKey(compKey);
-    const blockHashes = await redisClient.sendCommand('ZREVRANGEBYSCORE', [blockHashKey, blockHeight, '-inf']);
-    let hashesToRemove = blockHashes.slice(1);
-    const BATCH_SIZE = 100000;
-    while (hashesToRemove.length > 0) {
-        const removeBatch = hashesToRemove.slice(0, BATCH_SIZE);
-        await redisClient.del(removeBatch.map(blockHash => dataKey(compKey, blockHash)));
-        await redisClient.zrem(blockHashKey, removeBatch);
-        hashesToRemove = hashesToRemove.slice(BATCH_SIZE);
-    }
+const cleanOlderData = batch => async (compKey, blockHeight) => {
+    const redisClient = batch.redisClient;
+    await withTimeCounter('cleanOlderData', async () => {
+        compKey = Buffer.from(compKey);
+        const blockHashKey = dataBlockHashKey(compKey);
+        const blockHashes = await withTimeCounter('cleanOlderData:range', () => redisClient.sendCommand('ZREVRANGEBYSCORE', [blockHashKey, blockHeight, '-inf']));
+        let hashesToRemove = blockHashes.slice(1);
+        const BATCH_SIZE = 100000;
+        while (hashesToRemove.length > 0) {
+            const removeBatch = hashesToRemove.slice(0, BATCH_SIZE);
+            batch
+                .del(removeBatch.map(blockHash => dataKey(compKey, blockHash)))
+                .zrem(blockHashKey, removeBatch);
+            hashesToRemove = hashesToRemove.slice(BATCH_SIZE);
+        }
+    });
 }
 
 const scanAllKeys = redisClient => async (iterator) => {
@@ -173,10 +179,10 @@ module.exports = {
     getData: withRedisAndCache({ name: 'getData' }, getData),
     scanDataKeys: withRedisAndCache({ name: 'scanDataKeys' }, scanDataKeys),
     setLatestBlockHeight: withRedis({ name: 'setLatestBlockHeight' }, setLatestBlockHeight),
-    cleanOlderData: withRedis({ name: 'cleanOlderData' }, cleanOlderData),
     scanAllKeys: withRedis({ name: 'scanAllKeys' }, scanAllKeys),
     setData,
     deleteData,
+    cleanOlderData,
     redisBatch,
     closeRedis,
 }
