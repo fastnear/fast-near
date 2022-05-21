@@ -5,6 +5,8 @@ const { setLatestBlockHeight, setData, deleteData, cleanOlderData } = require('.
 const { accountKey, dataKey, codeKey } = require('../storage-keys');
 const { Account, BORSH_SCHEMA } = require('../data-model');
 
+const { withTimeCounter, getCounters, resetCounters} = require('../counters');
+
 let totalMessages = 0;
 let timeStarted = Date.now();
 
@@ -128,7 +130,12 @@ yargs(process.argv.slice(2))
             s3Endpoint: endpoint,
             blocksPreloadPoolSize: batchSize
         })) {
-            await handleStreamerMessage(streamerMessage, { historyLength });
+            await withTimeCounter('handleStreamerMessage', async () => {
+                await handleStreamerMessage(streamerMessage, { historyLength });
+            });
+
+            console.log('counters', getCounters());
+            resetCounters();
             blocksProcessed++;
             if (limit && blocksProcessed >= limit) {
                 // TODO: Make break work
