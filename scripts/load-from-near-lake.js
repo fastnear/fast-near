@@ -18,11 +18,11 @@ async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
     console.log(`Block #${blockHeight} Shards: ${streamerMessage.shards.length} Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`);
 
     for (let { stateChanges } of streamerMessage.shards) {
-        for (let { type, change } of stateChanges) {
-            await redisBatch(async batch => {
+        await redisBatch(async batch => {
+            for (let { type, change } of stateChanges) {
                 await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight });
-            });
-        }
+            }
+        });
     }
 
     await setLatestBlockHeight(blockHeight);
