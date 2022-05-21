@@ -17,69 +17,75 @@ async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
 
     for (let { stateChanges } of streamerMessage.shards) {
         for (let { type, change } of stateChanges) {
-            switch (type) {
-                case 'account_update': {
-                    const { accountId, amount, locked, codeHash, storageUsage } = change;
-                    const compKey = accountKey(accountId);
-                    await setData(compKey, blockHash, blockHeight,
-                        serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage })))
-                    if (keepFromBlockHeight) {
-                        await cleanOlderData(compKey, keepFromBlockHeight);
-                    }
-                    break;
-                }
-                case 'account_deletion': {
-                    const { accountId } = change;
-                    const compKey = accountKey(accountId);
-                    await deleteData(compKey, blockHash, blockHeight);
-                    if (keepFromBlockHeight) {
-                        await cleanOlderData(compKey, keepFromBlockHeight);
-                    }
-                    break;
-                }
-                case 'data_update': {
-                    const { accountId, keyBase64, valueBase64 } = change;
-                    const storageKey = Buffer.from(keyBase64, 'base64');
-                    const compKey = dataKey(accountId, storageKey);
-                    await setData(compKey, blockHash, blockHeight, Buffer.from(valueBase64, 'base64'));
-                    if (keepFromBlockHeight) {
-                        await cleanOlderData(compKey, keepFromBlockHeight);
-                    }
-                    break;
-                }
-                case 'data_deletion': {
-                    const { accountId, keyBase64 } = change;
-                    const storageKey = Buffer.from(keyBase64, 'base64');
-                    const compKey = dataKey(accountId, storageKey);
-                    await deleteData(compKey, blockHash, blockHeight);
-                    if (keepFromBlockHeight) {
-                        await cleanOlderData(compKey, keepFromBlockHeight);
-                    }
-                    break;
-                }
-                case 'contract_code_update': {
-                    const { accountId, codeBase64 } = change;
-                    const compKey = codeKey(accountId);
-                    await setData(compKey, blockHash, blockHeight, Buffer.from(codeBase64, 'base64'));
-                    if (keepFromBlockHeight) {
-                        await cleanOlderData(compKey, keepFromBlockHeight);
-                    }
-                    break;
-                }
-                case 'contract_code_deletion': {
-                    const { accountId } = change;
-                    const compKey = codeKey(accountId);
-                    await deleteData(compKey, blockHash, blockHeight);
-                    if (keepFromBlockHeight) {
-                        await cleanOlderData(compKey, keepFromBlockHeight);
-                    }
-                    break;
-                }
-            }
+            await handleChange({ blockHash, blockHeight, type, change, keepFromBlockHeight });
         }
     }
 
     await setLatestBlockHeight(blockHeight);
+}
+
+async function handleChange({ blockHash, blockHeight, type, change, keepFromBlockHeight }) {
+    switch (type) {
+        case 'account_update': {
+            const { accountId, amount, locked, codeHash, storageUsage } = change;
+            const compKey = accountKey(accountId);
+            const data = await withTimeCounter(`${type}:serialize`, async () => {
+                return serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage }));
+            });
+            await setData(compKey, blockHash, blockHeight, data);
+            if (keepFromBlockHeight) {
+                await cleanOlderData(compKey, keepFromBlockHeight);
+            }
+            break;
+        }
+        case 'account_deletion': {
+            const { accountId } = change;
+            const compKey = accountKey(accountId);
+            await deleteData(compKey, blockHash, blockHeight);
+            if (keepFromBlockHeight) {
+                await cleanOlderData(compKey, keepFromBlockHeight);
+            }
+            break;
+        }
+        case 'data_update': {
+            const { accountId, keyBase64, valueBase64 } = change;
+            const storageKey = Buffer.from(keyBase64, 'base64');
+            const compKey = dataKey(accountId, storageKey);
+            await setData(compKey, blockHash, blockHeight, Buffer.from(valueBase64, 'base64'));
+            if (keepFromBlockHeight) {
+                await cleanOlderData(compKey, keepFromBlockHeight);
+            }
+            break;
+        }
+        case 'data_deletion': {
+            const { accountId, keyBase64 } = change;
+            const storageKey = Buffer.from(keyBase64, 'base64');
+            const compKey = dataKey(accountId, storageKey);
+            await deleteData(compKey, blockHash, blockHeight);
+            if (keepFromBlockHeight) {
+                await cleanOlderData(compKey, keepFromBlockHeight);
+            }
+            break;
+        }
+        case 'contract_code_update': {
+            const { accountId, codeBase64 } = change;
+            const compKey = codeKey(accountId);
+            await setData(compKey, blockHash, blockHeight, Buffer.from(codeBase64, 'base64'));
+            if (keepFromBlockHeight) {
+                await cleanOlderData(compKey, keepFromBlockHeight);
+            }
+            break;
+        }
+        case 'contract_code_deletion': {
+            const { accountId } = change;
+            const compKey = codeKey(accountId);
+            await deleteData(compKey, blockHash, blockHeight);
+            if (keepFromBlockHeight) {
+                await cleanOlderData(compKey, keepFromBlockHeight);
+            }
+            break;
+        }
+    }
 }
 
 const DEFAULT_BATCH_SIZE = 20;
