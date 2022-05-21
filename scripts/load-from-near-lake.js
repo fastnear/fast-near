@@ -33,9 +33,7 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
         case 'account_update': {
             const { accountId, amount, locked, codeHash, storageUsage } = change;
             const compKey = accountKey(accountId);
-            const data = await withTimeCounter(`${type}:serialize`, async () => {
-                return serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage }));
-            });
+            const data = serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage }));
             await setData(batch)(compKey, blockHash, blockHeight, data);
             if (keepFromBlockHeight) {
                 await cleanOlderData(compKey, keepFromBlockHeight);
