@@ -105,10 +105,15 @@ yargs(process.argv.slice(2))
                 .option('history-length', {
                     describe: 'How many latest blocks of history to keep. Unlimited by default.',
                     number: true
+                })
+                .option('limit', {
+                    describe: 'How many blocks to fetch before stopping. Unlimited by default.',
+                    number: true
                 }),
             async argv => {
 
-        const { startBlockHeight, bucketName, regionName, endpoint, batchSize, historyLength } = argv;
+        const { startBlockHeight, bucketName, regionName, endpoint, batchSize, historyLength, limit } = argv;
+        let blocksProcessed = 0;
 
         for await (let streamerMessage of stream({
             startBlockHeight: startBlockHeight || await storageClient.getLatestBlockHeight() || 0,
@@ -118,6 +123,11 @@ yargs(process.argv.slice(2))
             blocksPreloadPoolSize: batchSize
         })) {
             await handleStreamerMessage(streamerMessage, { historyLength });
+            blocksProcessed++;
+            if (limit && blocksProcessed >= limit) {
+                // TODO: Make break work
+                break;
+            }
         }
     })
     .parse();
