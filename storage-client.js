@@ -30,6 +30,11 @@ function getRedisClient() {
         zrem: promisify(redisClient.zrem).bind(redisClient),
         sendCommand: promisify(redisClient.sendCommand).bind(redisClient),
         scan: promisify(redisClient.scan).bind(redisClient),
+        batch: () => {
+            const batch = redisClient.batch();
+            batch.exec = promisify(batch.exec).bind(batch);
+            return batch;
+        }
     };
 }
 
@@ -103,9 +108,10 @@ const getData = redisClient => async (compKey, blockHash) => {
 const setData = redisClient => async (compKey, blockHash, blockHeight, data) => {
     compKey = Buffer.from(compKey);
     await redisClient
-        .set(dataKey(compKey, blockHash), data);
-    await redisClient
-        .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
+        .batch()
+        .set(dataKey(compKey, blockHash), data)
+        .zadd(dataBlockHashKey(compKey), blockHeight, blockHash)
+        .exec();
 };
 
 const deleteData = redisClient => async (compKey, blockHash, blockHeight) => {
