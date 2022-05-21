@@ -105,18 +105,16 @@ const getData = redisClient => async (compKey, blockHash) => {
     return await redisClient.get(dataKey(compKey, blockHash));
 };
 
-const setData = redisClient => async (compKey, blockHash, blockHeight, data) => {
+const setData = batch => (compKey, blockHash, blockHeight, data) => {
     compKey = Buffer.from(compKey);
-    await redisClient
-        .batch()
+    batch
         .set(dataKey(compKey, blockHash), data)
-        .zadd(dataBlockHashKey(compKey), blockHeight, blockHash)
-        .exec();
+        .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
 };
 
-const deleteData = redisClient => async (compKey, blockHash, blockHeight) => {
+const deleteData = batch => async (compKey, blockHash, blockHeight) => {
     compKey = Buffer.from(compKey);
-    await redisClient
+    batch
         .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
 };
 
@@ -158,6 +156,14 @@ const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, 
     };
 };
 
+const redisBatch = async (fn) => {
+    await withRedis({ name: 'batch' }, redisClient => async () => {
+        const batch = redisClient.batch();
+        await fn(batch);
+        await batch.exec();
+    })();
+}
+
 const closeRedis = () => new Promise((resolve, reject) => redisClient.quit(e => e ? reject(e) : resolve()));
 
 module.exports = {
@@ -167,9 +173,10 @@ module.exports = {
     getData: withRedisAndCache({ name: 'getData' }, getData),
     scanDataKeys: withRedisAndCache({ name: 'scanDataKeys' }, scanDataKeys),
     setLatestBlockHeight: withRedis({ name: 'setLatestBlockHeight' }, setLatestBlockHeight),
-    setData: withRedis({ name: 'setData' }, setData),
-    deleteData: withRedis({ name: 'deleteData' }, deleteData),
     cleanOlderData: withRedis({ name: 'cleanOlderData' }, cleanOlderData),
     scanAllKeys: withRedis({ name: 'scanAllKeys' }, scanAllKeys),
+    setData,
+    deleteData,
+    redisBatch,
     closeRedis,
 }

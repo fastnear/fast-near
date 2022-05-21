@@ -1,7 +1,7 @@
 const { stream } = require('near-lake-framework');
 const bs58 = require('bs58');
 const { serialize } = require('borsh');
-const { setLatestBlockHeight, setData, deleteData, cleanOlderData } = require('../storage-client');
+const { setLatestBlockHeight, setData, deleteData, cleanOlderData, redisBatch, closeRedis } = require('../storage-client');
 const { accountKey, dataKey, codeKey } = require('../storage-keys');
 const { Account, BORSH_SCHEMA } = require('../data-model');
 
@@ -19,14 +19,16 @@ async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
 
     for (let { stateChanges } of streamerMessage.shards) {
         for (let { type, change } of stateChanges) {
-            await handleChange({ blockHash, blockHeight, type, change, keepFromBlockHeight });
+            await redisBatch(async batch => {
+                await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight });
+            });
         }
     }
 
     await setLatestBlockHeight(blockHeight);
 }
 
-async function handleChange({ blockHash, blockHeight, type, change, keepFromBlockHeight }) {
+async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight }) {
     switch (type) {
         case 'account_update': {
             const { accountId, amount, locked, codeHash, storageUsage } = change;
@@ -34,7 +36,7 @@ async function handleChange({ blockHash, blockHeight, type, change, keepFromBloc
             const data = await withTimeCounter(`${type}:serialize`, async () => {
                 return serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage }));
             });
-            await setData(compKey, blockHash, blockHeight, data);
+            await setData(batch)(compKey, blockHash, blockHeight, data);
             if (keepFromBlockHeight) {
                 await cleanOlderData(compKey, keepFromBlockHeight);
             }
@@ -43,7 +45,7 @@ async function handleChange({ blockHash, blockHeight, type, change, keepFromBloc
         case 'account_deletion': {
             const { accountId } = change;
             const compKey = accountKey(accountId);
-            await deleteData(compKey, blockHash, blockHeight);
+            await deleteData(batch)(compKey, blockHash, blockHeight);
             if (keepFromBlockHeight) {
                 await cleanOlderData(compKey, keepFromBlockHeight);
             }
@@ -53,7 +55,7 @@ async function handleChange({ blockHash, blockHeight, type, change, keepFromBloc
             const { accountId, keyBase64, valueBase64 } = change;
             const storageKey = Buffer.from(keyBase64, 'base64');
             const compKey = dataKey(accountId, storageKey);
-            await setData(compKey, blockHash, blockHeight, Buffer.from(valueBase64, 'base64'));
+            await setData(batch)(compKey, blockHash, blockHeight, Buffer.from(valueBase64, 'base64'));
             if (keepFromBlockHeight) {
                 await cleanOlderData(compKey, keepFromBlockHeight);
             }
@@ -63,7 +65,7 @@ async function handleChange({ blockHash, blockHeight, type, change, keepFromBloc
             const { accountId, keyBase64 } = change;
             const storageKey = Buffer.from(keyBase64, 'base64');
             const compKey = dataKey(accountId, storageKey);
-            await deleteData(compKey, blockHash, blockHeight);
+            await deleteData(batch)(compKey, blockHash, blockHeight);
             if (keepFromBlockHeight) {
                 await cleanOlderData(compKey, keepFromBlockHeight);
             }
@@ -72,7 +74,7 @@ async function handleChange({ blockHash, blockHeight, type, change, keepFromBloc
         case 'contract_code_update': {
             const { accountId, codeBase64 } = change;
             const compKey = codeKey(accountId);
-            await setData(compKey, blockHash, blockHeight, Buffer.from(codeBase64, 'base64'));
+            await setData(batch)(compKey, blockHash, blockHeight, Buffer.from(codeBase64, 'base64'));
             if (keepFromBlockHeight) {
                 await cleanOlderData(compKey, keepFromBlockHeight);
             }
@@ -81,7 +83,7 @@ async function handleChange({ blockHash, blockHeight, type, change, keepFromBloc
         case 'contract_code_deletion': {
             const { accountId } = change;
             const compKey = codeKey(accountId);
-            await deleteData(compKey, blockHash, blockHeight);
+            await deleteData(batch)(compKey, blockHash, blockHeight);
             if (keepFromBlockHeight) {
                 await cleanOlderData(compKey, keepFromBlockHeight);
             }
@@ -138,9 +140,11 @@ yargs(process.argv.slice(2))
             resetCounters();
             blocksProcessed++;
             if (limit && blocksProcessed >= limit) {
-                // TODO: Make break work
                 break;
             }
         }
+
+        // TODO: Check what else is blocking exit
+        await closeRedis();
     })
     .parse();
