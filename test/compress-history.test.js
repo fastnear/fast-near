@@ -7,7 +7,7 @@ process.env.FAST_NEAR_REDIS_URL = process.env.FAST_NEAR_REDIS_URL || `redis://lo
 const test = require('tape');
 
 const bs58 = require('bs58');
-const { setLatestBlockHeight, setData, getData, closeRedis } = require('../storage-client');
+const { setLatestBlockHeight, setData, getData, closeRedis, redisBatch } = require('../storage-client');
 const { accountKey } = require('../storage-keys');
 const compressHistory = require('../scripts/compress-history');
 
@@ -28,7 +28,9 @@ const BLOCKS = [
 ];
 
 test('single account, single entry', async t => {
-    await setData(accountKey(TEST_ACCOUNT), BLOCKS[0].hash, BLOCKS[0].index, BLOCKS[0].data);
+    await redisBatch(async batch => {
+        await setData(batch)(accountKey(TEST_ACCOUNT), BLOCKS[0].hash, BLOCKS[0].index, BLOCKS[0].data);
+    });
     await setLatestBlockHeight(BLOCKS[0].index);
     await compressHistory();
 
@@ -37,9 +39,11 @@ test('single account, single entry', async t => {
 });
 
 test('single account, multiple entry', async t => {
-    for (let i = 0; i < BLOCKS.length; i++) {
-        await setData(accountKey(TEST_ACCOUNT), BLOCKS[i].hash, BLOCKS[i].index, BLOCKS[i].data);
-    }
+    await redisBatch(async batch => {
+        for (let i = 0; i < BLOCKS.length; i++) {
+            await setData(batch)(accountKey(TEST_ACCOUNT), BLOCKS[i].hash, BLOCKS[i].index, BLOCKS[i].data);
+        }
+    });
     await setLatestBlockHeight(BLOCKS[2].index);
     await compressHistory();
 
