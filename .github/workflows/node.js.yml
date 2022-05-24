@@ -26,5 +26,6 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'yarn'
+    - uses: pustovitDmytro/redis-github-action@v1.0.1
     - run: yarn
     - run: yarn test
