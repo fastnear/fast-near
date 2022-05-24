@@ -8,6 +8,7 @@ const debug = require('debug')(`worker:${threadId}`);
 
 const { FastNEARError } = require('./error');
 const prettyBuffer = require('./pretty-buffer');
+const { dataKey } = require('./storage-keys');
 
 const MAX_U64 = 18446744073709551615n;
 
@@ -37,7 +38,7 @@ const imports = (ctx) => {
 
     function storageRead(key_len, key_ptr) {
         const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
-        const compKey = Buffer.concat([Buffer.from(`${ctx.contractId}:`), storageKey]);
+        const compKey = dataKey(ctx.contractId, storageKey);
         debug('storage_read', ctx.contractId, prettyBuffer(storageKey));
 
         parentPort.postMessage({
@@ -73,7 +74,9 @@ const imports = (ctx) => {
             block_index: () => {
                 return BigInt(ctx.blockHeight);
             },
-            block_timestamp: notImplemented('block_timestamp'),
+            block_timestamp: () => {
+                return BigInt(ctx.blockTimestamp);
+            },
             epoch_height: notImplemented('epoch_height'),
             storage_usage: notImplemented('storage_usage'),
 
@@ -173,10 +176,11 @@ const imports = (ctx) => {
     }
 };
 
-async function runWASM({ blockHeight, wasmModule, contractId, methodName, methodArgs }) {
+async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs }) {
     debug('runWASM', contractId, methodName, prettyBuffer(Buffer.from(methodArgs)));
     const ctx = {
         blockHeight,
+        blockTimestamp,
         contractId,
         methodArgs,
         logs: []

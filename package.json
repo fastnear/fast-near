@@ -9,15 +9,19 @@
     "koa": "^2.13.4",
     "koa-router": "^10.1.1",
     "lru-cache": "^6.0.0",
+    "near-lake-framework": "vgrichina/near-lake-framework-js#140a70",
     "node-fetch": "2",
     "raw-body": "^2.4.2",
-    "redis": "^3.1.2"
+    "redis": "^3.1.2",
+    "yargs": "^17.5.0"
   },
   "scripts": {
     "dev": "nodemon app",
-    "start": "node app"
+    "start": "node app",
+    "test": "tape test/*"
   },
   "devDependencies": {
-    "nodemon": "^2.0.14"
+    "nodemon": "^2.0.14",
+    "tape": "^5.5.3"
   }
 }

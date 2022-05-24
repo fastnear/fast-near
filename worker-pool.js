@@ -85,19 +85,19 @@ class WorkerPool extends EventEmitter {
         this.emit(kWorkerFreedEvent);
     }
 
-    runContract(blockHeight, wasmModule, contractId, methodName, methodArgs) {
+    runContract(blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs) {
         return new Promise((resolve, reject) => { 
             if (this.freeWorkers.length === 0) {
                 // No free threads, wait until a worker thread becomes free.
                 // TODO: Throw (for rate limiting) if there are too many queued callbacks
                 this.once(kWorkerFreedEvent,
-                    () => this.runContract(blockHeight, wasmModule, contractId, methodName, methodArgs).then(resolve).catch(reject));
+                    () => this.runContract(blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs).then(resolve).catch(reject));
                 return;
             }
 
             const worker = this.freeWorkers.pop();
-            worker[kTaskInfo] = { resolve, reject, blockHeight, contractId, methodName };
-            worker.postMessage({ wasmModule, blockHeight, contractId, methodName, methodArgs });
+            worker[kTaskInfo] = { resolve, reject, blockHeight, blockTimestamp, contractId, methodName };
+            worker.postMessage({ wasmModule, blockHeight, blockTimestamp, contractId, methodName, methodArgs });
             worker[kTaskInfo].timeoutHandle = setTimeout(() => {
                 if (worker[kTaskInfo]) {
                     worker[kTaskInfo].didTimeout = true;
