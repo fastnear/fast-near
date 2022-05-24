@@ -176,10 +176,11 @@ const imports = (ctx) => {
     }
 };
 
-async function runWASM({ blockHeight, wasmModule, contractId, methodName, methodArgs }) {
+async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs }) {
     debug('runWASM', contractId, methodName, prettyBuffer(Buffer.from(methodArgs)));
     const ctx = {
         blockHeight,
+        blockTimestamp,
         contractId,
         methodArgs,
         logs: []
