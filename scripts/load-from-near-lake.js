@@ -1,7 +1,7 @@
 const { stream } = require('near-lake-framework');
 const bs58 = require('bs58');
 const { serialize } = require('borsh');
-const { setLatestBlockHeight, setData, deleteData, cleanOlderData, redisBatch, closeRedis } = require('../storage-client');
+const { setLatestBlockHeight, setData, deleteData, cleanOlderData, redisBatch, closeRedis, setBlockTimestamp } = require('../storage-client');
 const { accountKey, dataKey, codeKey } = require('../storage-keys');
 const { Account, BORSH_SCHEMA } = require('../data-model');
 
@@ -27,6 +27,7 @@ async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
         });
     }
 
+    await setBlockTimestamp(blockHeight, timestamp);
     await setLatestBlockHeight(blockHeight);
 }
 

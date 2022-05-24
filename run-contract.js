@@ -28,9 +28,11 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
     }
 
     blockHeight = await resolveBlockHeight(blockHeight);
-    debug('blockHeight', blockHeight)
+    debug('blockHeight', blockHeight);
+    const blockTimestamp = await storageClient.getBlockTimestamp(blockHeight);
+    debug('blockTimestamp', blockTimestamp);
 
-    debug('find contract code')
+    debug('find contract code');
     const contractCodeKey = codeKey(contractId);
     const contractBlockHash = await storageClient.getLatestDataBlockHash(contractCodeKey, blockHeight);
     if (!contractBlockHash) {
@@ -59,9 +61,9 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
     }
 
     debug('worker start');
-    const { result, logs } = await workerPool.runContract(blockHeight, wasmModule, contractId, methodName, methodArgs);
+    const { result, logs } = await workerPool.runContract(blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs);
     debug('worker done');
-    return { result, logs, blockHeight: blockHeight };
+    return { result, logs, blockHeight, blockTimestamp };
 }
 
 module.exports = runContract;

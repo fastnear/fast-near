@@ -74,7 +74,9 @@ const imports = (ctx) => {
             block_index: () => {
                 return BigInt(ctx.blockHeight);
             },
-            block_timestamp: notImplemented('block_timestamp'),
+            block_timestamp: () => {
+                return BigInt(ctx.blockTimestamp);
+            },
             epoch_height: notImplemented('epoch_height'),
             storage_usage: notImplemented('storage_usage'),
 

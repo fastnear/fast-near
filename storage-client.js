@@ -87,6 +87,14 @@ const setLatestBlockHeight = redisClient => async (blockHeight) => {
     return await redisClient.set('latest_block_height', blockHeight.toString());
 }
 
+const getBlockTimestamp = redisClient => async (blockHeight) => {
+    return await redisClient.get(`t:${blockHeight}`);
+}
+
+const setBlockTimestamp = redisClient => async (blockHeight, blockTimestamp) => {
+    return await redisClient.set(`t:${blockHeight}`, blockTimestamp);
+}
+
 function dataBlockHashKey(compKey) {
     return Buffer.concat([Buffer.from('h:'), compKey]);
 }
@@ -175,10 +183,12 @@ const closeRedis = () => new Promise((resolve, reject) => redisClient.quit(e => 
 module.exports = {
     // TODO: Rely on function name instead?
     getLatestBlockHeight: withRedisAndCache({ name: 'getLatestBlockHeight', cachedExpires: true }, getLatestBlockHeight),
+    getBlockTimestamp: withRedisAndCache({ name: 'getBlockTimestamp' }, getBlockTimestamp),
     getLatestDataBlockHash: withRedisAndCache({ name: 'getLatestDataBlockHash' }, getLatestDataBlockHash),
     getData: withRedisAndCache({ name: 'getData' }, getData),
     scanDataKeys: withRedisAndCache({ name: 'scanDataKeys' }, scanDataKeys),
     setLatestBlockHeight: withRedis({ name: 'setLatestBlockHeight' }, setLatestBlockHeight),
+    setBlockTimestamp: withRedis({ name: 'setBlockTimestamp' }, setBlockTimestamp),
     scanAllKeys: withRedis({ name: 'scanAllKeys' }, scanAllKeys),
     setData,
     deleteData,
