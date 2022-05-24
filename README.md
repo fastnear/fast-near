@@ -12,6 +12,17 @@ docker build -t fastrpc .
 docker run -d -e FAST_NEAR_REDIS_URL=<redis_ip> -e FAST_NEAR_NODE_URL=<rpc_endpoint> fastrpc 
 ```
 
+## Pulling data into Redis
+
+To load from NEAR Lake (use `--help` to learn more about options):
+
+```
+node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --history-length 1
+```
+
+See also https://github.com/vgrichina/near-state-indexer for Rust implementation running proper nearcore node.
+
+
 ## Call view method
 
 ### POST
