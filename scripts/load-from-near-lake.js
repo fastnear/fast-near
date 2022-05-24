@@ -11,11 +11,13 @@ let totalMessages = 0;
 let timeStarted = Date.now();
 
 async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
-    const { height: blockHeight, hash: blockHashB58 } = streamerMessage.block.header;
+    const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
     const keepFromBlockHeight = historyLength && blockHeight - historyLength;
     totalMessages++;
-    console.log(`Block #${blockHeight} Shards: ${streamerMessage.shards.length} Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`);
+    console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
+        `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
+        `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
 
     for (let { stateChanges } of streamerMessage.shards) {
         await redisBatch(async batch => {
