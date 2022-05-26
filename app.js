@@ -7,8 +7,10 @@ const router = new Router();
 const getRawBody = require('raw-body');
 const cors = require('@koa/cors');
 
+const resolveBlockHeightUtil = require('./resolve-block-height');
 const runContract = require('./run-contract');
 const storageClient = require('./storage-client');
+const { codeKey } = require('./storage-keys');
 
 function isJSON(buffer) {
     try {
@@ -54,11 +56,18 @@ const parseBodyArgs = async (ctx, next) => {
     await next();
 }
 
-const runViewMethod = async ctx => {
-    const { accountId, methodName } = ctx.params;
-
+const resolveBlockHeight = async (ctx, next) => {
     // TODO: Evaluate some alternate scheme, e.g. use URL prefix like /height/<block_height>/account/
     const { near_block_height: blockHeight } = ctx.query;
+
+    ctx.blockHeight = await resolveBlockHeightUtil(blockHeight);
+
+    await next();
+}
+
+const runViewMethod = async ctx => {
+    const { accountId, methodName } = ctx.params;
+    const { blockHeight } = ctx;
 
     try {
         const { result, logs } = await runContract(accountId, methodName, ctx.methodArgs, blockHeight);
@@ -79,8 +88,8 @@ const runViewMethod = async ctx => {
     }
 }
 
-router.get('/account/:accountId/view/:methodName', parseQueryArgs, runViewMethod);
-router.post('/account/:accountId/view/:methodName', parseBodyArgs, runViewMethod);
+router.get('/account/:accountId/view/:methodName', resolveBlockHeight, parseQueryArgs, runViewMethod);
+router.post('/account/:accountId/view/:methodName', resolveBlockHeight, parseBodyArgs, runViewMethod);
 
 const MAX_LIMIT = 100;
 router.get('/account/:accountId/data/:keyPattern', async ctx => {
@@ -98,6 +107,24 @@ router.get('/account/:accountId/data/:keyPattern', async ctx => {
             .map(([key, value]) => [Buffer.from(key).toString(encoding), Buffer.from(value).toString(encoding)]),
         iterator: newIterator
     };
+});
+
+router.get('/account/:accountId/contract', resolveBlockHeight, async ctx => {
+    const { accountId } = ctx.params;
+
+    const blockHash = await storageClient.getLatestDataBlockHash(codeKey(accountId), ctx.blockHeight);
+    if (!blockHash) {
+        ctx.throw(404);
+    }
+
+    const data = await storageClient.getData(codeKey(accountId), blockHash);
+    if (!data) {
+        ctx.throw(404);
+    }
+
+    ctx.type = 'wasm';
+    ctx.res.setHeader('content-disposition', `attachment; filename="${accountId}.wasm"`);
+    ctx.body = data;
 });
 
 const MAX_BLOCK_LAG_TIME_MS = 20000;
