@@ -123,7 +123,7 @@ router.get('/account/:accountId/contract', resolveBlockHeight, async ctx => {
     }
 
     ctx.type = 'wasm';
-    ctx.res.setHeader('content-disposition', `attachment; filename="${accountId}.wasm"`);
+    ctx.res.setHeader('Content-Disposition', `attachment; filename="${accountId}.wasm"`);
     ctx.body = data;
 });
 
