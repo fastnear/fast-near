@@ -82,5 +82,22 @@ curl 'https://fastrpc.mainnet.near.org/account/lands.near/view/getChunk?x.json=0
 [https://fastrpc.mainnet.near.org/account/lands.near/view/getChunk?x.json=0&y.json=0](https://fastrpc.mainnet.near.org/account/lands.near/view/getChunk?x.json=0&y.json=0)
 
 
+## Download contract WASM code
 
+### GET
+
+URL format:
+
+```
+https://fastrpc.mainnet.near.org/account/<account_id>/contract
+```
+
+#### Example
+
+
+```
+curl 'https://fastrpc.mainnet.near.org/account/vlad.tkn.near/contract'
+```
+
+[https://fastrpc.mainnet.near.org/account/vlad.tkn.near/contract](https://fastrpc.mainnet.near.org/account/vlad.tkn.near/contract)
 
