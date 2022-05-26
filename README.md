@@ -9,7 +9,7 @@ FAST_NEAR_REDIS_URL=<redis_ip> FAST_NEAR_NODE_URL=<rpc_endpoint> yarn start
 
 ```
 docker build -t fastrpc .
-docker run -d -e FAST_NEAR_REDIS_URL=<redis_ip> -e FAST_NEAR_NODE_URL=<rpc_endpoint> fastrpc 
+docker run -d -e FAST_NEAR_REDIS_URL=<redis_ip> -e FAST_NEAR_NODE_URL=<rpc_endpoint> fastrpc
 ```
 
 ## Pulling data into Redis
@@ -33,13 +33,13 @@ You can post either JSON or binary body, it's passed raw as input to given metho
 URL format:
 
 ```
-https://fastrpc.mainnet.near.org/account/<contract_account_id>/view/<method_name>
+https://rpc.web4.near.page/account/<contract_account_id>/view/<method_name>
 ```
 
 #### Examples
 
 ```
-http post https://fastrpc.mainnet.near.org/account/vlad.tkn.near/view/ft_balance_of account_id=vlad.near
+http post https://rpc.web4.near.page/account/vlad.tkn.near/view/ft_balance_of account_id=vlad.near
 ```
 
 ### GET
@@ -49,7 +49,7 @@ Parameters are passed as part of URL query.
 URL format:
 
 ```
-https://fastrpc.mainnet.near.org/account/<contract_account_id>/view/<method_name>?<arg_name>=<string_arg_value>&<arg_name.json>=<json_arg_value>
+https://rpc.web4.near.page/account/<contract_account_id>/view/<method_name>?<arg_name>=<string_arg_value>&<arg_name.json>=<json_arg_value>
 ```
 
 #### Examples
@@ -57,29 +57,29 @@ https://fastrpc.mainnet.near.org/account/<contract_account_id>/view/<method_name
 ##### String parameters:
 
 ```
-curl 'https://fastrpc.mainnet.near.org/account/vlad.tkn.near/view/ft_balance_of?account_id=vlad.near'
+curl 'https://rpc.web4.near.page/account/vlad.tkn.near/view/ft_balance_of?account_id=vlad.near'
 ```
 
-[https://fastrpc.mainnet.near.org/account/vlad.tkn.near/view/ft_balance_of?account_id=vlad.near](https://fastrpc.mainnet.near.org/account/vlad.tkn.near/view/ft_balance_of?account_id=vlad.near)
+[https://rpc.web4.near.page/account/vlad.tkn.near/view/ft_balance_of?account_id=vlad.near](https://rpc.web4.near.page/account/vlad.tkn.near/view/ft_balance_of?account_id=vlad.near)
 
 
 ##### JSON parameters:
 
 ```
-curl --globoff 'https://fastrpc.mainnet.near.org/account/lands.near/view/web4_get?request.json={"path":"/"}'
+curl --globoff 'https://rpc.web4.near.page/account/lands.near/view/web4_get?request.json={"path":"/"}'
 ```
 
-[https://fastrpc.mainnet.near.org/account/lands.near/view/web4_get?request.json={"path":"/"}](https://fastrpc.mainnet.near.org/account/lands.near/view/web4_get?request.json={"path":"/"})
+[https://rpc.web4.near.page/account/lands.near/view/web4_get?request.json={"path":"/"}](https://rpc.web4.near.page/account/lands.near/view/web4_get?request.json={"path":"/"})
 
 
 ##### Number parameters (passed as JSON):
 
 
 ```
-curl 'https://fastrpc.mainnet.near.org/account/lands.near/view/getChunk?x.json=0&y.json=0'
+curl 'https://rpc.web4.near.page/account/lands.near/view/getChunk?x.json=0&y.json=0'
 ```
 
-[https://fastrpc.mainnet.near.org/account/lands.near/view/getChunk?x.json=0&y.json=0](https://fastrpc.mainnet.near.org/account/lands.near/view/getChunk?x.json=0&y.json=0)
+[https://rpc.web4.near.page/account/lands.near/view/getChunk?x.json=0&y.json=0](https://rpc.web4.near.page/account/lands.near/view/getChunk?x.json=0&y.json=0)
 
 
 ## Download contract WASM code
@@ -89,15 +89,15 @@ curl 'https://fastrpc.mainnet.near.org/account/lands.near/view/getChunk?x.json=0
 URL format:
 
 ```
-https://fastrpc.mainnet.near.org/account/<account_id>/contract
+https://rpc.web4.near.page/account/<account_id>/contract
 ```
 
 #### Example
 
 
 ```
-curl 'https://fastrpc.mainnet.near.org/account/vlad.tkn.near/contract'
+curl 'https://rpc.web4.near.page/account/vlad.tkn.near/contract'
 ```
 
-[https://fastrpc.mainnet.near.org/account/vlad.tkn.near/contract](https://fastrpc.mainnet.near.org/account/vlad.tkn.near/contract)
+[https://rpc.web4.near.page/account/vlad.tkn.near/contract](https://rpc.web4.near.page/account/vlad.tkn.near/contract)
 
