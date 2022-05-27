@@ -13,7 +13,6 @@ async function resolveBlockHeight(blockHeight) {
     if (parseInt(blockHeight, 10) < parseInt(START_BLOCK_HEIGHT, 10)) {
         throw new FastNEARError('blockHeightTooLow', `Block height not found: ${blockHeight}`);
     }
-    console.log(`Block height ${blockHeight}`);
 
     return blockHeight;
 }
