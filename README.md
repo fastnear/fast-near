@@ -117,6 +117,9 @@ Some of the planned and already implemented components. Is not exhaustive list.
     - [x] Call view methods
     - [x] View contract WASM
     - [ ] View account
+    - [ ] View contract state
+    - [ ] View account access keys
+    - [ ] View transaction results
     - [ ] Submit transaction
 - JSON-RPC API
     - [x] Call view methods
