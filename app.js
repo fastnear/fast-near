@@ -8,7 +8,7 @@ const getRawBody = require('raw-body');
 const cors = require('@koa/cors');
 
 const resolveBlockHeightUtil = require('./resolve-block-height');
-const runContract = require('./run-contract');
+const { runContract } = require('./run-contract');
 const storageClient = require('./storage-client');
 const { codeKey } = require('./storage-keys');
 

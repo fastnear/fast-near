@@ -16,6 +16,7 @@ class WorkerPool extends EventEmitter {
         this.workers = [];
         this.freeWorkers = [];
         this.storageClient = storageClient;
+        this.running = true;
 
         for (let i = 0; i < numThreads; i++) {
             this.addNewWorker();
@@ -68,6 +69,10 @@ class WorkerPool extends EventEmitter {
             worker.emit('error', new Error(`Worker stopped with exit code ${code}`));
         });
         worker.on('error', (err) => {
+            if (!this.running) {
+                return;
+            }
+
             if (worker[kTaskInfo]) {
                 const { contractId, methodName, didTimeout, reject } = worker[kTaskInfo]
                 if (didTimeout) {
@@ -108,9 +113,11 @@ class WorkerPool extends EventEmitter {
     }
 
     close() {
+        this.running = false;
         for (const worker of this.workers) {
             worker.terminate();
         }
+        this.workers = [];
     }
 }
 

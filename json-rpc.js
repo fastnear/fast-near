@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 const getRawBody = require('raw-body');
 
-const runContract  = require('./run-contract');
+const { runContract }  = require('./run-contract');
 const storageClient = require('./storage-client');
 const { FastNEARError } = require('./error');
 

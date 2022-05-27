@@ -64,7 +64,17 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
     return { result, logs, blockHeight, blockTimestamp };
 }
 
-module.exports = runContract;
+async function closeWorkerPool() {
+    if (workerPool) {
+        await workerPool.close();
+        workerPool = null;
+    }
+}
+
+module.exports = {
+    runContract,
+    closeWorkerPool,
+};
 
 // TODO: Extract tests
 // (async function() {

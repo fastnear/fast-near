@@ -10,8 +10,10 @@ const test = require('tape');
 const bs58 = require('bs58');
 const { setLatestBlockHeight, setData, getData, closeRedis, redisBatch } = require('../storage-client');
 const { accountKey } = require('../storage-keys');
+const { closeWorkerPool } = require('../run-contract');
 
 test.onFinish(async () => {
+    await closeWorkerPool();
     console.log('Killing Redis');
     redisProcess.kill();
     await closeRedis();
@@ -20,6 +22,8 @@ test.onFinish(async () => {
 const { handleStreamerMessage } = require('../scripts/load-from-near-lake');
 const app = require('../app');
 const request = require('supertest')(app.callback());
+
+const fs = require('fs');
 
 const STREAMER_MESSAGE = {
     block: {
@@ -34,7 +38,7 @@ const STREAMER_MESSAGE = {
             type: 'contract_code_update',
             change: {
                 accountId: 'test.near',
-                codeBase64: Buffer.from([]).toString('base64'),
+                codeBase64: fs.readFileSync('test/data/test_contract_rs.wasm').toString('base64'),
             }
         }]
     }],
@@ -51,6 +55,18 @@ test('/healthz (synced)', async t => {
     t.isEqual(response.status, 204);
 });
 
-test('call view method', async () => {
-    // TODO
+test('call view method (no such method)', async t => {
+    await handleStreamerMessage(STREAMER_MESSAGE);
+    const response = await request.get('/account/test.near/view/no-such-method');
+    t.isEqual(response.status, 404);
+});
+
+test('call view method', async t => {
+    await handleStreamerMessage(STREAMER_MESSAGE);
+    const response = await request
+        .post('/account/test.near/view/fibonacci')
+        .responseType('blob')
+        .send(Buffer.from([7]))
+    t.isEqual(response.status, 200);
+    t.isEquivalent(response.body, Buffer.from([13, 0, 0, 0, 0, 0, 0, 0,]));
 });
