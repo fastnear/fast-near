@@ -2143,9 +2143,10 @@ ms@^2.1.1:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.3.tgz#574c8138ce1d2b5861f0b44579dbadd60c6615b2"
   integrity sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==
 
-near-lake-framework@vgrichina/near-lake-framework-js#140a70:
-  version "1.0.2"
-  resolved "https://codeload.github.com/vgrichina/near-lake-framework-js/tar.gz/140a7084009932223b2a8e5dc6f7c5504e8e8882"
+near-lake-framework@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/near-lake-framework/-/near-lake-framework-1.0.3.tgz#edd9d54448d81fcfa83b7bb592cf4aab5798e2ea"
+  integrity sha512-B/xpNyiLtnWhaZbsrtGlx++j+YK7GIyRyyBAEx+haH4ul3mg8hx6O9hvU0EjEYwsGD13nz00B/WNKpa1GpYoxw==
   dependencies:
     "@aws-sdk/client-s3" "^3.32.0"
 
