@@ -27,8 +27,6 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
         debug('workerPool done');
     }
 
-    blockHeight = await resolveBlockHeight(blockHeight);
-    debug('blockHeight', blockHeight);
     const blockTimestamp = await storageClient.getBlockTimestamp(blockHeight);
     debug('blockTimestamp', blockTimestamp);
 
