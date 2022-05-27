@@ -61,31 +61,25 @@ test('call view method (no such method)', async t => {
     t.isEqual(response.status, 404);
 });
 
-test('call view method /fibonacci', async t => {
-    await handleStreamerMessage(STREAMER_MESSAGE);
-    const response = await request
-        .post('/account/test.near/view/fibonacci')
-        .responseType('blob')
-        .send(Buffer.from([7]))
-    t.isEqual(response.status, 200);
-    t.isEquivalent(response.body, Buffer.from([13, 0, 0, 0, 0, 0, 0, 0,]));
-});
+function testViewMethodSuccess(methodName, expectedOutput, input = null) {
+    test(`call view method ${methodName}`, async t => {
+        const url = `/account/test.near/view/${methodName}`;
+        let response;
+        if (input) {
+            response = await request
+                .post(url)
+                .responseType('blob')
+                .send(Buffer.from(input));
+        } else {
+            response = await request
+                .get(url)
+                .responseType('blob')
+        }
+        t.isEqual(response.status, 200);
+        t.isEquivalent(response.body, Buffer.from(expectedOutput));
+    });
+}
 
-test('call view method /ext_account_id', async t => {
-    await handleStreamerMessage(STREAMER_MESSAGE);
-    const response = await request
-        .get('/account/test.near/view/ext_account_id')
-        .responseType('blob')
-    t.isEqual(response.status, 200);
-    t.isEquivalent(response.body, Buffer.from('test.near'));
-});
-
-test('call view method /ext_block_index', async t => {
-    await handleStreamerMessage(STREAMER_MESSAGE);
-    const response = await request
-        .get('/account/test.near/view/ext_block_index')
-        .responseType('blob')
-    t.isEqual(response.status, 200);
-    t.isEquivalent(response.body, Buffer.from([1, 0, 0, 0, 0, 0, 0, 0,]));
-});
-
+testViewMethodSuccess('fibonacci', [13, 0, 0, 0, 0, 0, 0, 0,], [7]);
+testViewMethodSuccess('ext_account_id', 'test.near');
+testViewMethodSuccess('ext_block_index', [1, 0, 0, 0, 0, 0, 0, 0,]);
