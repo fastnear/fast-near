@@ -101,17 +101,24 @@ const imports = (ctx) => {
             },
             panic: () => {
                 const message = `explicit guest panic`
-                debug(message);
+                debug('panic', message);
                 throw new FastNEARError('panic', message);
             },
             panic_utf8: (len, ptr) => {
                 const message = `${Buffer.from(new Uint8Array(ctx.memory.buffer, Number(ptr), Number(len))).toString('utf8')}`;
-                debug(message);
+                debug('panic', message);
                 throw new FastNEARError('panic', message);
             },
             abort: (msg_ptr, filename_ptr, line, col) => {
-                const message = `${readUTF16CStr(msg_ptr)} ${readUTF16CStr(filename_ptr)}:${line}:${col}`
-                debug(message);
+                const msg = readUTF16CStr(msg_ptr);
+                const filename = readUTF16CStr(filename_ptr);
+                const message = `${msg} ${filename}:${line}:${col}`
+                debug('abort', msg_ptr, filename_ptr, line, col, message);
+                if (!msg || !filename) {
+                    // TODO: Check when exactly this gets thrown in nearcore, as it's weird choice for empty C string
+                    // TODO: Check what happens with actual invalid UTF-16
+                    throw new FastNEARError('abort', 'String encoding is bad UTF-16 sequence.');
+                }
                 throw new FastNEARError('abort', message);
             },
             log_utf8: (len, ptr) => {

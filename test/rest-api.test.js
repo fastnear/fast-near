@@ -68,7 +68,7 @@ test('call view method (no such method)', async t => {
     t.isEqual(response.status, 404);
 });
 
-function testViewMethodSuccess(methodName, expectedOutput, input = null) {
+function testViewMethod(methodName, expectedStatus, expectedOutput, input = null) {
     test(`call view method ${methodName}`, async t => {
         const url = `/account/test.near/view/${methodName}`;
         let response;
@@ -82,12 +82,23 @@ function testViewMethodSuccess(methodName, expectedOutput, input = null) {
                 .get(url)
                 .responseType('blob')
         }
-        t.isEqual(response.status, 200);
-        t.isEquivalent(response.body, Buffer.from(expectedOutput));
+        t.isEqual(response.status, expectedStatus);
+        if (typeof expectedOutput === 'string') {
+            t.isEqual(response.body.toString('utf8'), expectedOutput);
+        } else {
+            t.isEquivalent(response.body, Buffer.from(expectedOutput));
+        }
     });
 }
 
-testViewMethodSuccess('fibonacci', [13, 0, 0, 0, 0, 0, 0, 0,], [7]);
-testViewMethodSuccess('ext_account_id', 'test.near');
-testViewMethodSuccess('ext_block_index', [1, 0, 0, 0, 0, 0, 0, 0,]);
-testViewMethodSuccess('read_value', 'test-val', '8charkey');
+testViewMethod('fibonacci', 200, [13, 0, 0, 0, 0, 0, 0, 0,], [7]);
+testViewMethod('ext_account_id', 200, 'test.near');
+testViewMethod('ext_block_index', 200, [1, 0, 0, 0, 0, 0, 0, 0,]);
+testViewMethod('read_value', 200, 'test-val', '8charkey');
+// TODO: Propagate logs somehow?
+// testViewMethod('log_something', 200, '');
+testViewMethod('loop_forever', 400, 'Error: test.near.loop_forever execution timed out');
+testViewMethod('abort_with_zero', 400, 'Error: String encoding is bad UTF-16 sequence.');
+testViewMethod('panic_with_message', 400, 'Error: WAT?');
+// TODO: Propagate logs somehow?
+// testViewMethod('panic_after_logging', 400, '');
