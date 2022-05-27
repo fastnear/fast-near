@@ -17,7 +17,7 @@ async function compressHistory() {
 
 module.exports = compressHistory;
 
-if (!module.parent) {
+if (require.main === module) {
     compressHistory().catch(e => {
         console.error(e);
         process.exit(1);

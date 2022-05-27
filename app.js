@@ -153,7 +153,11 @@ app
     .use(router.routes())
     .use(router.allowedMethods());
 
-const HOST = process.env.HOST|| '0.0.0.0';
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, HOST);
-console.log('Listening on http://%s:%d/', HOST, PORT);
+module.exports = app;
+
+if (require.main === module) {
+    const HOST = process.env.HOST|| '0.0.0.0';
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, HOST);
+    console.log('Listening on http://%s:%d/', HOST, PORT);
+}
