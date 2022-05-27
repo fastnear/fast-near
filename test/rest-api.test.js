@@ -96,9 +96,9 @@ testViewMethod('ext_account_id', 200, 'test.near');
 testViewMethod('ext_block_index', 200, [1, 0, 0, 0, 0, 0, 0, 0,]);
 testViewMethod('read_value', 200, 'test-val', '8charkey');
 // TODO: Propagate logs somehow?
-// testViewMethod('log_something', 200, '');
+testViewMethod('log_something', 200, '');
 testViewMethod('loop_forever', 400, 'Error: test.near.loop_forever execution timed out');
 testViewMethod('abort_with_zero', 400, 'Error: String encoding is bad UTF-16 sequence.');
 testViewMethod('panic_with_message', 400, 'Error: WAT?');
 // TODO: Propagate logs somehow?
-// testViewMethod('panic_after_logging', 400, '');
+testViewMethod('panic_after_logging', 400, 'Error: WAT?');

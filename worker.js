@@ -190,7 +190,8 @@ async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, me
         blockTimestamp,
         contractId,
         methodArgs,
-        logs: []
+        logs: [],
+        result: Buffer.from([]),
     };
     debug('module instantiate');
     const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx));

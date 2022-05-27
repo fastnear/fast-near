@@ -43,7 +43,7 @@ class WorkerPool extends EventEmitter {
                 return reject(error);
             }
 
-            if (result) {
+            if (!methodName) {
                 return resolve({ result, logs });
             }
 
