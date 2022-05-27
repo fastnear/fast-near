@@ -101,3 +101,38 @@ curl 'https://rpc.web4.near.page/account/vlad.tkn.near/contract'
 
 [https://rpc.web4.near.page/account/vlad.tkn.near/contract](https://rpc.web4.near.page/account/vlad.tkn.near/contract)
 
+
+## Roadmap
+
+Some of the planned and already implemented components. Is not exhaustive list.
+
+- Loading data
+    - [x] Allow loading from NEAR Data Lake
+    - [x] Compress history to given time window
+    - [ ] Update near-state-indexer to load latest format in Redis
+    - [ ] Update nearcore to load latest format in Redis
+    - [ ] Load account keys
+    - [ ] Load recent transactions results
+- REST API
+    - [x] Call view methods
+    - [x] View contract WASM
+    - [ ] View account
+    - [ ] Submit transaction
+- JSON-RPC API
+    - [x] Call view methods
+    - [x] View account
+    - [x] Proxy to another node if not implemented / hitting archival
+    - [ ] Decide whether needs to be supported (e.g. Pagoda can allocate grant)
+- NEAR P2P Protocol
+    - [x] Basic data structures
+    - [x] POC downloading blocks with transactions
+    - [ ] Submit transaction
+    - [ ] Load and execute transactions
+- WASM Runtime
+    - [x] Basic view method support
+    - [ ] Implement missing imports for view methods
+    - [ ] State change method support
+- Tests
+    - [x] Test compress-history
+    - [ ] Test view calls
+    - [ ] Integration test with loading near-lake mainnet data
