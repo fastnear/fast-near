@@ -18,7 +18,7 @@
   "scripts": {
     "dev": "nodemon app",
     "start": "node app",
-    "test": "tape test/*"
+    "test": "tape test/*.test.js"
   },
   "devDependencies": {
     "nodemon": "^2.0.14",
