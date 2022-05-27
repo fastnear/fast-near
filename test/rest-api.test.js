@@ -61,7 +61,7 @@ test('call view method (no such method)', async t => {
     t.isEqual(response.status, 404);
 });
 
-test('call view method', async t => {
+test('call view method /fibonacci', async t => {
     await handleStreamerMessage(STREAMER_MESSAGE);
     const response = await request
         .post('/account/test.near/view/fibonacci')
@@ -70,3 +70,22 @@ test('call view method', async t => {
     t.isEqual(response.status, 200);
     t.isEquivalent(response.body, Buffer.from([13, 0, 0, 0, 0, 0, 0, 0,]));
 });
+
+test('call view method /ext_account_id', async t => {
+    await handleStreamerMessage(STREAMER_MESSAGE);
+    const response = await request
+        .get('/account/test.near/view/ext_account_id')
+        .responseType('blob')
+    t.isEqual(response.status, 200);
+    t.isEquivalent(response.body, Buffer.from('test.near'));
+});
+
+test('call view method /ext_block_index', async t => {
+    await handleStreamerMessage(STREAMER_MESSAGE);
+    const response = await request
+        .get('/account/test.near/view/ext_block_index')
+        .responseType('blob')
+    t.isEqual(response.status, 200);
+    t.isEquivalent(response.body, Buffer.from([1, 0, 0, 0, 0, 0, 0, 0,]));
+});
+
