@@ -62,12 +62,6 @@ test('/healthz (synced)', async t => {
     t.isEqual(response.status, 204);
 });
 
-test('call view method (no such method)', async t => {
-    await handleStreamerMessage(STREAMER_MESSAGE);
-    const response = await request.get('/account/test.near/view/no-such-method');
-    t.isEqual(response.status, 404);
-});
-
 function testViewMethod(methodName, expectedStatus, expectedOutput, input = null) {
     test(`call view method ${methodName}`, async t => {
         const url = `/account/test.near/view/${methodName}`;
@@ -91,6 +85,7 @@ function testViewMethod(methodName, expectedStatus, expectedOutput, input = null
     });
 }
 
+testViewMethod('no-such-method', 404, 'method no-such-method not found');
 testViewMethod('fibonacci', 200, [13, 0, 0, 0, 0, 0, 0, 0,], [7]);
 testViewMethod('ext_account_id', 200, 'test.near');
 testViewMethod('ext_block_index', 200, [1, 0, 0, 0, 0, 0, 0, 0,]);
