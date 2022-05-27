@@ -40,6 +40,13 @@ const STREAMER_MESSAGE = {
                 accountId: 'test.near',
                 codeBase64: fs.readFileSync('test/data/test_contract_rs.wasm').toString('base64'),
             }
+        }, {
+            type: 'data_update',
+            change: {
+                accountId: 'test.near',
+                keyBase64: Buffer.from('8charkey').toString('base64'),
+                valueBase64: Buffer.from('test-value').toString('base64'),
+            }
         }]
     }],
 }
@@ -83,3 +90,4 @@ function testViewMethodSuccess(methodName, expectedOutput, input = null) {
 testViewMethodSuccess('fibonacci', [13, 0, 0, 0, 0, 0, 0, 0,], [7]);
 testViewMethodSuccess('ext_account_id', 'test.near');
 testViewMethodSuccess('ext_block_index', [1, 0, 0, 0, 0, 0, 0, 0,]);
+testViewMethodSuccess('read_value', 'test-val', '8charkey');
