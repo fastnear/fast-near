@@ -29,7 +29,7 @@ jobs:
     - name: Install Redis
       uses: pustovitDmytro/redis-github-action@v1.0.1
     - run: yarn
-    - run: yarn coverage
+    - run: FAST_NEAR_CONTRACT_TIMEOUT_MS=5000 yarn coverage
     - name: Generate code coverage report 
       run: npx nyc report --reporter json-summary --report-dir nyc-coverage-report --exclude-after-remap false
     - name: Report code coverage
