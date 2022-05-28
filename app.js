@@ -101,7 +101,7 @@ router.get('/account/:accountId/data/:keyPattern', async ctx => {
     };
 });
 
-router.get('/account/:accountId/state', resolveBlockHeight, async ctx => {
+router.get('/account/:accountId', resolveBlockHeight, async ctx => {
     const { accountId } = ctx.params;
 
     // TODO: Refactor with JSON-RPC version?

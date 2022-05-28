@@ -164,7 +164,7 @@ testRequest('call view method with JSON in query args',
 testRequest('call view method with JSON in POST',
     '/account/lands.near/view/getChunk', 200, LANDS_CHUNK, { x: 0, y: 0 });
 
-testRequest('view account state', '/account/test.near/state',
+testRequest('view account', '/account/test.near',
     200, {
         amount: '4936189930936415601114966690',
         codeHash: '11111111111111111111111111111111',
