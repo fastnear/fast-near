@@ -76,7 +76,7 @@ class WorkerPool extends EventEmitter {
             if (worker[kTaskInfo]) {
                 const { contractId, methodName, didTimeout, reject } = worker[kTaskInfo]
                 if (didTimeout) {
-                    err = new Error(`${contractId}.${methodName} execution timed out`);
+                    err = new FastNEARError('executionTimedOut', `${contractId}.${methodName} execution timed out`);
                 }
                 reject(err)
             } else {

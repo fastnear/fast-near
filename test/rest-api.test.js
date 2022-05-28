@@ -107,7 +107,7 @@ testViewMethod('ext_block_index', 200, [1, 0, 0, 0, 0, 0, 0, 0,]);
 testViewMethod('read_value', 200, 'test-val', '8charkey');
 // TODO: Propagate logs somehow?
 testViewMethod('log_something', 200, '');
-testViewMethod('loop_forever', 400, 'Error: test.near.loop_forever execution timed out');
+testViewMethod('loop_forever', 400, 'executionTimedOut: test.near.loop_forever execution timed out');
 testViewMethod('abort_with_zero', 400, 'abort: String encoding is bad UTF-16 sequence.');
 testViewMethod('panic_with_message', 400, 'panic: WAT?');
 // TODO: Propagate logs somehow?
