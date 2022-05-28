@@ -89,6 +89,29 @@ const STREAMER_MESSAGE = {
     }],
 }
 
+const TEST_DELETION_STREAMER_MESSAGE = {
+    block: {
+        header: {
+            height: 2,
+            hash: 'DYY4cspC6cfMX29pZVokbB8avMQGcuFmKp1TKX4RH1M4',
+            timestamp: Math.floor(Date.now() * 1000000) + 1000
+        }
+    },
+    shards: [{
+        stateChanges: [{
+            type: 'account_deletion',
+            change: {
+                accountId: 'no-code.near',
+            }
+        }, {
+            type: 'contract_code_deletion',
+            change: {
+                accountId: 'test.near',
+            }
+        }]
+    }],
+}
+
 test('/healthz (unsynced)', async t => {
     t.teardown(clearDatabase);
 
@@ -106,10 +129,10 @@ test('/healthz (synced)', async t => {
 
 const isObject = obj => obj !== null && !Array.isArray(obj) && typeof obj === 'object';
 
-function testRequest(testName, url, expectedStatus, expectedOutput, input = null) {
+function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, initFn) {
     test(testName, async t => {
         t.teardown(clearDatabase);
-        await handleStreamerMessage(STREAMER_MESSAGE);
+        await initFn();
 
         let response;
         if (input) {
@@ -125,12 +148,25 @@ function testRequest(testName, url, expectedStatus, expectedOutput, input = null
         t.isEqual(response.status, expectedStatus);
         if (typeof expectedOutput === 'string') {
             t.isEqual(response.body.toString('utf8'), expectedOutput);
-        } if (isObject(expectedOutput) && !Buffer.isBuffer(expectedOutput)) {
+        } else if (isObject(expectedOutput) && !Buffer.isBuffer(expectedOutput)) {
             t.isEqual(response.headers['content-type'], 'application/json; charset=utf-8');
             t.isEquivalent(JSON.parse(response.body.toString('utf8')), expectedOutput);
         } else {
             t.isEquivalent(response.body, Buffer.from(expectedOutput));
         }
+    });
+}
+
+function testRequest(testName, url, expectedStatus, expectedOutput, input = null) {
+    testRequestImpl(testName, url, expectedStatus, expectedOutput, input, async () => {
+        await handleStreamerMessage(STREAMER_MESSAGE);
+    });
+}
+
+function testRequestAfterDeletion(testName, url, expectedStatus, expectedOutput, input = null) {
+    testRequestImpl(`after deletion ${testName}`, url, expectedStatus, expectedOutput, input, async () => {
+        await handleStreamerMessage(STREAMER_MESSAGE);
+        await handleStreamerMessage(TEST_DELETION_STREAMER_MESSAGE);
     });
 }
 
@@ -155,7 +191,7 @@ testViewMethod('panic_after_logging', 400, 'panic: WAT?');
 testRequest('call view method (no such account)',
     '/account/no-such-account.near/view/someMethod', 404,'accountNotFound: Account not found: no-such-account.near at 1 block height');
 
-testRequest('call view method (no such account)',
+testRequest('call view method (no code)',
     '/account/no-code.near/view/someMethod', 404, 'codeNotFound: Cannot find contract code: no-code.near 1');
 
 testRequest('call view method with JSON in query args',
@@ -174,3 +210,9 @@ testRequest('view account', '/account/test.near',
 
 testRequest('download contract code',
     '/account/test.near/contract', 200, TEST_CONTRACT_CODE);
+
+testRequestAfterDeletion('call view method (no such account)',
+    '/account/no-code.near/view/someMethod', 404,'accountNotFound: Account not found: no-code.near at 2 block height');
+
+testRequestAfterDeletion('call view method (no code)',
+    '/account/test.near/view/ext_account_id', 404, 'codeNotFound: Cannot find contract code: test.near 2');

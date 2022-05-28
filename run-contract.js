@@ -33,13 +33,28 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
     debug('find contract code');
     const contractCodeKey = codeKey(contractId);
     const contractBlockHash = await storageClient.getLatestDataBlockHash(contractCodeKey, blockHeight);
-    if (!contractBlockHash) {
-        const accountBlockHash = await storageClient.getLatestDataBlockHash(accountKey(contractId), blockHeight);
+    const accountDataKey = accountKey(contractId);
+
+    const checkAccountExists = async () => {
+        debug('load account data')
+        const accountBlockHash = await storageClient.getLatestDataBlockHash(accountDataKey, blockHeight);
+        debug('accountBlockHash', accountBlockHash);
         if (!accountBlockHash) {
             throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
         }
+
+        const accountData = await storageClient.getData(accountDataKey, accountBlockHash);
+        debug('accountData', accountData);
+        if (!accountData) {
+            throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
+        }
+    };
+
+    if (!contractBlockHash) {
+        await checkAccountExists();
         throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
     }
+
     // TODO: Have cache based on code hash instead?
     const cacheKey = `${contractId}:${contractBlockHash.toString('hex')}}`;
     let wasmModule = contractCache.get(cacheKey);
@@ -50,6 +65,10 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
 
         debug('blockHash', contractBlockHash);
         const wasmData = await storageClient.getData(contractCodeKey, contractBlockHash);
+        if (!wasmData) {
+            await checkAccountExists();
+            throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
+        }
         debug('wasmData.length', wasmData.length);
 
         debug('wasm compile');
