@@ -64,8 +64,8 @@ const runViewMethod = async ctx => {
         const resultBuffer = Buffer.from(result);
         if (isJSON(resultBuffer)) {
             ctx.type = 'json';
-            ctx.body = resultBuffer;
         }
+        ctx.body = resultBuffer;
     } catch (e) {
         const message = e.toString();
         if (/TypeError.* is not a function/.test(message)) {
