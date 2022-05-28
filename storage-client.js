@@ -176,7 +176,12 @@ const redisBatch = async (fn) => {
         await fn(batch);
         await batch.exec();
     })();
-}
+};
+
+const clearDatabase = redisClient => async () => {
+    console.log('clearDatabase');
+    await redisClient.sendCommand('FLUSHDB');
+};
 
 const closeRedis = () => new Promise((resolve, reject) => redisClient.quit(e => e ? reject(e) : resolve()));
 
@@ -195,4 +200,5 @@ module.exports = {
     cleanOlderData,
     redisBatch,
     closeRedis,
-}
+    clearDatabase: withRedis({ name: 'clearDatabase' }, clearDatabase),
+};

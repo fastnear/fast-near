@@ -1,20 +1,15 @@
-const { spawn } = require('child_process');
-
-const TEST_REDIS_PORT = 7123;
-const redisProcess = spawn('redis-server', ['--save', '', '--port', TEST_REDIS_PORT]);
-process.env.FAST_NEAR_REDIS_URL = process.env.FAST_NEAR_REDIS_URL || `redis://localhost:${TEST_REDIS_PORT}`;
+const redis = require('./utils/redis');
+redis.startIfNeeded();
 
 const test = require('tape');
 
 const bs58 = require('bs58');
-const { setLatestBlockHeight, setData, getData, closeRedis, redisBatch } = require('../storage-client');
+const { setLatestBlockHeight, setData, getData, redisBatch, clearDatabase } = require('../storage-client');
 const { accountKey } = require('../storage-keys');
 const compressHistory = require('../scripts/compress-history');
 
 test.onFinish(async () => {
-    console.log('Killing Redis');
-    redisProcess.kill();
-    await closeRedis();
+    await redis.shutdown();
 });
 
 const TEST_ACCOUNT = 'test.near';
@@ -28,6 +23,7 @@ const BLOCKS = [
 ];
 
 test('single account, single entry', async t => {
+    t.teardown(clearDatabase);
     await redisBatch(async batch => {
         await setData(batch)(accountKey(TEST_ACCOUNT), BLOCKS[0].hash, BLOCKS[0].index, BLOCKS[0].data);
     });
@@ -39,6 +35,7 @@ test('single account, single entry', async t => {
 });
 
 test('single account, multiple entry', async t => {
+    t.teardown(clearDatabase);
     await redisBatch(async batch => {
         for (let i = 0; i < BLOCKS.length; i++) {
             await setData(batch)(accountKey(TEST_ACCOUNT), BLOCKS[i].hash, BLOCKS[i].index, BLOCKS[i].data);
