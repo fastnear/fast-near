@@ -179,8 +179,8 @@ const redisBatch = async (fn) => {
 };
 
 const clearDatabase = redisClient => async () => {
-    console.log('clearDatabase');
     await redisClient.sendCommand('FLUSHDB');
+    redisCache.reset();
 };
 
 const closeRedis = () => new Promise((resolve, reject) => redisClient.quit(e => e ? reject(e) : resolve()));

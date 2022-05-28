@@ -8,7 +8,11 @@ const { closeRedis } = require('../../storage-client');
 
 let redisProcess;
 function startIfNeeded() {
-    if (!fs.existsSync(TEST_REDIS_PID_FILE)) {
+    if (!redisProcess) {
+        if (fs.existsSync(TEST_REDIS_PID_FILE)) {
+            throw new Error(`Looks like Redis is already running, see ${TEST_REDIS_PID_FILE}`);
+        }
+
         console.log('Starting Redis')
         redisProcess = spawn('redis-server', [
             '--save', '',
@@ -19,7 +23,6 @@ function startIfNeeded() {
 }
 
 async function shutdown() {
-    console.log('Shutting down');
     if (redisProcess) {
         console.log('Killing Redis');
         redisProcess.kill();
