@@ -1,3 +1,5 @@
+[![Coverage Status](https://coveralls.io/repos/github/vgrichina/fast-near/badge.svg?branch=main)](https://coveralls.io/github/vgrichina/fast-near?branch=main)
+
 ## Build and run via yarn:
 
 ```
