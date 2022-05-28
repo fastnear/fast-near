@@ -14,6 +14,7 @@ const app = require('../app');
 const request = require('supertest')(app.callback());
 
 const fs = require('fs');
+const CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
 
 const STREAMER_MESSAGE = {
     block: {
@@ -46,7 +47,7 @@ const STREAMER_MESSAGE = {
             type: 'contract_code_update',
             change: {
                 accountId: 'test.near',
-                codeBase64: fs.readFileSync('test/data/test_contract_rs.wasm').toString('base64'),
+                codeBase64: CONTRACT_CODE.toString('base64'),
             }
         }, {
             type: 'data_update',
@@ -95,7 +96,7 @@ function testRequest(testName, url, expectedStatus, expectedOutput, input = null
         t.isEqual(response.status, expectedStatus);
         if (typeof expectedOutput === 'string') {
             t.isEqual(response.body.toString('utf8'), expectedOutput);
-        } if (isObject(expectedOutput)) {
+        } if (isObject(expectedOutput) && !Buffer.isBuffer(expectedOutput)) {
             t.isEquivalent(JSON.parse(response.body.toString('utf8')), expectedOutput);
         } else {
             t.isEquivalent(response.body, Buffer.from(expectedOutput));
@@ -122,12 +123,10 @@ testViewMethod('panic_with_message', 400, 'panic: WAT?');
 testViewMethod('panic_after_logging', 400, 'panic: WAT?');
 
 testRequest('call view method (no such account)',
-    '/account/no-such-account.near/view/someMethod',
-    404,'accountNotFound: Account not found: no-such-account.near at 1 block height');
+    '/account/no-such-account.near/view/someMethod', 404,'accountNotFound: Account not found: no-such-account.near at 1 block height');
 
 testRequest('call view method (no such account)',
-    '/account/no-code.near/view/someMethod',
-    404, 'codeNotFound: Cannot find contract code: no-code.near 1');
+    '/account/no-code.near/view/someMethod', 404, 'codeNotFound: Cannot find contract code: no-code.near 1');
 
 testRequest('view account state', '/account/test.near/state',
     200, {
@@ -136,3 +135,6 @@ testRequest('view account state', '/account/test.near/state',
         locked: '0',
         storageUsage: 20797,
     });
+
+testRequest('download contract code',
+    '/account/test.near/contract', 200, CONTRACT_CODE);
