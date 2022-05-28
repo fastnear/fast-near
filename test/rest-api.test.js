@@ -167,9 +167,9 @@ testRequest('call view method with JSON in POST',
 testRequest('view account', '/account/test.near',
     200, {
         amount: '4936189930936415601114966690',
-        codeHash: '11111111111111111111111111111111',
+        code_hash: '11111111111111111111111111111111',
         locked: '0',
-        storageUsage: 20797,
+        storage_usage: 20797,
     });
 
 testRequest('download contract code',

@@ -119,8 +119,8 @@ router.get('/account/:accountId', resolveBlockHeight, async ctx => {
     ctx.body = {
         amount: amount.toString(),
         locked: locked.toString(),
-        codeHash: bs58.encode(code_hash),
-        storageUsage: parseInt(storage_usage.toString()),
+        code_hash: bs58.encode(code_hash),
+        storage_usage: parseInt(storage_usage.toString()),
     };
 });
 
