@@ -8,27 +8,13 @@ const getRawBody = require('raw-body');
 const cors = require('@koa/cors');
 
 const resolveBlockHeightUtil = require('./resolve-block-height');
+const isJSON = require('./utils/is-json');
 const { runContract } = require('./run-contract');
 const storageClient = require('./storage-client');
 const { codeKey, accountKey } = require('./storage-keys');
 const { deserialize } = require('borsh');
 const bs58 = require('bs58');
 const { BORSH_SCHEMA, Account } = require('./data-model');
-
-function isJSON(buffer) {
-    try {
-        const MAX_WHITESPACE = 1000;
-        const startSlice = buffer.slice(0, MAX_WHITESPACE + 1).toString('utf8').trim();
-        if (startSlice.startsWith('[') || startSlice.startsWith('[')) {
-            JSON.parse(buffer.toString('utf8'));
-        }
-    } catch (e) {
-        // Ignore error, means it's not valid JSON
-        return false;
-    }
-
-    return true;
-}
 
 const parseQueryArgs = async (ctx, next) => {
     // TODO: Refactor/merge with web4?
