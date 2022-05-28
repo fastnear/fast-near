@@ -126,6 +126,7 @@ function testRequest(testName, url, expectedStatus, expectedOutput, input = null
         if (typeof expectedOutput === 'string') {
             t.isEqual(response.body.toString('utf8'), expectedOutput);
         } if (isObject(expectedOutput) && !Buffer.isBuffer(expectedOutput)) {
+            t.isEqual(response.headers['content-type'], 'application/json; charset=utf-8');
             t.isEquivalent(JSON.parse(response.body.toString('utf8')), expectedOutput);
         } else {
             t.isEquivalent(response.body, Buffer.from(expectedOutput));
