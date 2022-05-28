@@ -74,12 +74,13 @@ test('/healthz (synced)', async t => {
     t.isEqual(response.status, 204);
 });
 
-function testViewMethod(methodName, expectedStatus, expectedOutput, input = null) {
-    test(`call view method ${methodName}`, async t => {
+const isObject = obj => obj !== null && !Array.isArray(obj) && typeof obj === 'object';
+
+function testRequest(testName, url, expectedStatus, expectedOutput, input = null) {
+    test(testName, async t => {
         t.teardown(clearDatabase);
         await handleStreamerMessage(STREAMER_MESSAGE);
 
-        const url = `/account/test.near/view/${methodName}`;
         let response;
         if (input) {
             response = await request
@@ -94,10 +95,17 @@ function testViewMethod(methodName, expectedStatus, expectedOutput, input = null
         t.isEqual(response.status, expectedStatus);
         if (typeof expectedOutput === 'string') {
             t.isEqual(response.body.toString('utf8'), expectedOutput);
+        } if (isObject(expectedOutput)) {
+            t.isEquivalent(JSON.parse(response.body.toString('utf8')), expectedOutput);
         } else {
             t.isEquivalent(response.body, Buffer.from(expectedOutput));
         }
     });
+}
+
+function testViewMethod(methodName, expectedStatus, expectedOutput, input = null) {
+    const url = `/account/test.near/view/${methodName}`;
+    testRequest(`call view method ${methodName}`, url, expectedStatus, expectedOutput, input);
 }
 
 testViewMethod('no-such-method', 404, 'method no-such-method not found');
@@ -113,36 +121,18 @@ testViewMethod('panic_with_message', 400, 'panic: WAT?');
 // TODO: Propagate logs somehow?
 testViewMethod('panic_after_logging', 400, 'panic: WAT?');
 
-test('call view method (no such account)', async t => {
-    t.teardown(clearDatabase);
-    await handleStreamerMessage(STREAMER_MESSAGE);
+testRequest('call view method (no such account)',
+    '/account/no-such-account.near/view/someMethod',
+    404,'accountNotFound: Account not found: no-such-account.near at 1 block height');
 
-    const response = await request.get('/account/no-such-account.near/view/someMethod')
-        .responseType('blob');
-    t.isEqual(response.status, 404);
-    t.isEqual(response.body.toString('utf8'), 'accountNotFound: Account not found: no-such-account.near at 1 block height');
-});
+testRequest('call view method (no such account)',
+    '/account/no-code.near/view/someMethod',
+    404, 'codeNotFound: Cannot find contract code: no-code.near 1');
 
-test('call view method (no code)', async t => {
-    t.teardown(clearDatabase);
-    await handleStreamerMessage(STREAMER_MESSAGE);
-
-    const response = await request.get('/account/no-code.near/view/someMethod')
-        .responseType('blob');
-    t.isEqual(response.status, 404);
-    t.isEqual(response.body.toString('utf8'), 'codeNotFound: Cannot find contract code: no-code.near 1');
-});
-
-test('view account state', async t => {
-    t.teardown(clearDatabase);
-    await handleStreamerMessage(STREAMER_MESSAGE);
-
-    const response = await request.get('/account/test.near/state');
-    t.isEqual(response.status, 200);
-    t.isEquivalent(response.body, {
+testRequest('view account state', '/account/test.near/state',
+    200, {
         amount: '4936189930936415601114966690',
         codeHash: '11111111111111111111111111111111',
         locked: '0',
         storageUsage: 20797,
     });
-});
