@@ -18,9 +18,10 @@
   "scripts": {
     "dev": "nodemon app",
     "start": "node app",
-    "test": "tape test/*.test.js"
+    "test": "tape test/*.test.js | colortape"
   },
   "devDependencies": {
+    "colortape": "^0.1.2",
     "nodemon": "^2.0.14",
     "supertest": "^6.2.3",
     "tape": "^5.5.3"
