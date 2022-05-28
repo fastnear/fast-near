@@ -10,7 +10,10 @@ const cors = require('@koa/cors');
 const resolveBlockHeightUtil = require('./resolve-block-height');
 const { runContract } = require('./run-contract');
 const storageClient = require('./storage-client');
-const { codeKey } = require('./storage-keys');
+const { codeKey, accountKey } = require('./storage-keys');
+const { deserialize } = require('borsh');
+const bs58 = require('bs58');
+const { BORSH_SCHEMA, Account } = require('./data-model');
 
 function isJSON(buffer) {
     try {
@@ -106,6 +109,29 @@ router.get('/account/:accountId/data/:keyPattern', async ctx => {
             .filter(([_, value]) => value !== null)
             .map(([key, value]) => [Buffer.from(key).toString(encoding), Buffer.from(value).toString(encoding)]),
         iterator: newIterator
+    };
+});
+
+router.get('/account/:accountId/state', resolveBlockHeight, async ctx => {
+    const { accountId } = ctx.params;
+
+    // TODO: Refactor with JSON-RPC version?
+    const blockHash = await storageClient.getLatestDataBlockHash(accountKey(accountId), ctx.blockHeight);
+    if (!blockHash) {
+        ctx.throw(404);
+    }
+
+    const data = await storageClient.getData(accountKey(accountId), blockHash);
+    if (!data) {
+        ctx.throw(404);
+    }
+
+    const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, data);
+    ctx.body = {
+        amount: amount.toString(),
+        locked: locked.toString(),
+        codeHash: bs58.encode(code_hash),
+        storageUsage: parseInt(storage_usage.toString()),
     };
 });
 

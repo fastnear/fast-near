@@ -25,6 +25,15 @@ const STREAMER_MESSAGE = {
     },
     shards: [{
         stateChanges: [{
+            type: 'account_update',
+            change: {
+                accountId: 'test.near',
+                amount: '4936189930936415601114966690',
+                codeHash: '11111111111111111111111111111111',
+                locked: '0',
+                storageUsage: 20797,
+            }
+        }, {
             type: 'contract_code_update',
             change: {
                 accountId: 'test.near',
@@ -94,3 +103,17 @@ testViewMethod('abort_with_zero', 400, 'Error: String encoding is bad UTF-16 seq
 testViewMethod('panic_with_message', 400, 'Error: WAT?');
 // TODO: Propagate logs somehow?
 testViewMethod('panic_after_logging', 400, 'Error: WAT?');
+
+test('view account state', async t => {
+    t.teardown(clearDatabase);
+    await handleStreamerMessage(STREAMER_MESSAGE);
+
+    const response = await request.get('/account/test.near/state');
+    t.isEqual(response.status, 200);
+    t.isEquivalent(response.body, {
+        amount: '4936189930936415601114966690',
+        codeHash: '11111111111111111111111111111111',
+        locked: '0',
+        storageUsage: 20797,
+    });
+});
