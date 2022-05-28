@@ -14,7 +14,8 @@ const app = require('../app');
 const request = require('supertest')(app.callback());
 
 const fs = require('fs');
-const CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
+const TEST_CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
+const LANDS_CONTRACT_CODE = fs.readFileSync('test/data/lands.near.wasm');
 
 const STREAMER_MESSAGE = {
     block: {
@@ -47,7 +48,7 @@ const STREAMER_MESSAGE = {
             type: 'contract_code_update',
             change: {
                 accountId: 'test.near',
-                codeBase64: CONTRACT_CODE.toString('base64'),
+                codeBase64: TEST_CONTRACT_CODE.toString('base64'),
             }
         }, {
             type: 'data_update',
@@ -55,6 +56,12 @@ const STREAMER_MESSAGE = {
                 accountId: 'test.near',
                 keyBase64: Buffer.from('8charkey').toString('base64'),
                 valueBase64: Buffer.from('test-value').toString('base64'),
+            }
+        }, {
+            type: 'contract_code_update',
+            change: {
+                accountId: 'lands.near',
+                codeBase64: LANDS_CONTRACT_CODE.toString('base64'),
             }
         }]
     }],
@@ -87,7 +94,7 @@ function testRequest(testName, url, expectedStatus, expectedOutput, input = null
             response = await request
                 .post(url)
                 .responseType('blob')
-                .send(Buffer.from(input));
+                .send(isObject(input) ? input : Buffer.from(input));
         } else {
             response = await request
                 .get(url)
@@ -128,6 +135,29 @@ testRequest('call view method (no such account)',
 testRequest('call view method (no such account)',
     '/account/no-code.near/view/someMethod', 404, 'codeNotFound: Cannot find contract code: no-code.near 1');
 
+testRequest('call view method with JSON in query args',
+    '/account/lands.near/view/getChunk?x.json=0&y.json=0', 200, {
+        nonce: 0,
+        tiles: [
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ],
+            [ '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1' ]
+        ]
+    });
+
 testRequest('view account state', '/account/test.near/state',
     200, {
         amount: '4936189930936415601114966690',
@@ -137,4 +167,4 @@ testRequest('view account state', '/account/test.near/state',
     });
 
 testRequest('download contract code',
-    '/account/test.near/contract', 200, CONTRACT_CODE);
+    '/account/test.near/contract', 200, TEST_CONTRACT_CODE);
