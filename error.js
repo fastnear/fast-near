@@ -7,6 +7,10 @@ class FastNEARError extends Error {
         this.code = code;
         this.data = data;
     }
+
+    toString() {
+        return `${this.code}: ${this.message}`;
+    }
 } 
 
 module.exports = { FastNEARError };

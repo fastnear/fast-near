@@ -27,6 +27,15 @@ const STREAMER_MESSAGE = {
         stateChanges: [{
             type: 'account_update',
             change: {
+                accountId: 'no-code.near',
+                amount: '4936189930936415601114966690',
+                codeHash: '11111111111111111111111111111111',
+                locked: '0',
+                storageUsage: 20797,
+            }
+        }, {
+            type: 'account_update',
+            change: {
                 accountId: 'test.near',
                 amount: '4936189930936415601114966690',
                 codeHash: '11111111111111111111111111111111',
@@ -99,10 +108,30 @@ testViewMethod('read_value', 200, 'test-val', '8charkey');
 // TODO: Propagate logs somehow?
 testViewMethod('log_something', 200, '');
 testViewMethod('loop_forever', 400, 'Error: test.near.loop_forever execution timed out');
-testViewMethod('abort_with_zero', 400, 'Error: String encoding is bad UTF-16 sequence.');
-testViewMethod('panic_with_message', 400, 'Error: WAT?');
+testViewMethod('abort_with_zero', 400, 'abort: String encoding is bad UTF-16 sequence.');
+testViewMethod('panic_with_message', 400, 'panic: WAT?');
 // TODO: Propagate logs somehow?
-testViewMethod('panic_after_logging', 400, 'Error: WAT?');
+testViewMethod('panic_after_logging', 400, 'panic: WAT?');
+
+test('call view method (no such account)', async t => {
+    t.teardown(clearDatabase);
+    await handleStreamerMessage(STREAMER_MESSAGE);
+
+    const response = await request.get('/account/no-such-account.near/view/someMethod')
+        .responseType('blob');
+    t.isEqual(response.status, 404);
+    t.isEqual(response.body.toString('utf8'), 'accountNotFound: Account not found: no-such-account.near at 1 block height');
+});
+
+test('call view method (no code)', async t => {
+    t.teardown(clearDatabase);
+    await handleStreamerMessage(STREAMER_MESSAGE);
+
+    const response = await request.get('/account/no-code.near/view/someMethod')
+        .responseType('blob');
+    t.isEqual(response.status, 404);
+    t.isEqual(response.body.toString('utf8'), 'codeNotFound: Cannot find contract code: no-code.near 1');
+});
 
 test('view account state', async t => {
     t.teardown(clearDatabase);
