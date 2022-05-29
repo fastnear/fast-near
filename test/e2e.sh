@@ -12,4 +12,4 @@ node app &
 npx near-cli state aurora --nodeUrl http://localhost:3000
 
 # Kill child processes
-pkill -P $$
+pkill -SIGINT -P $$
