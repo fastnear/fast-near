@@ -32,62 +32,53 @@ async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
 }
 
 async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight }) {
+    const handleUpdate = async (compKey, data) => {
+        await setData(batch)(compKey, blockHash, blockHeight, data);
+        if (keepFromBlockHeight) {
+            await cleanOlderData(batch)(compKey, keepFromBlockHeight);
+        }
+    }
+
+    const handleDeletion = async (compKey) => {
+        await deleteData(batch)(compKey, blockHash, blockHeight);
+        if (keepFromBlockHeight) {
+            await cleanOlderData(batch)(compKey, keepFromBlockHeight);
+        }
+    }
+
     switch (type) {
         case 'account_update': {
             const { accountId, amount, locked, codeHash, storageUsage } = change;
-            const compKey = accountKey(accountId);
-            const data = serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage }));
-            await setData(batch)(compKey, blockHash, blockHeight, data);
-            if (keepFromBlockHeight) {
-                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
-            }
+            await handleUpdate(accountKey(accountId),
+                serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage })));
             break;
         }
         case 'account_deletion': {
+            // TODO: Check if account_deletion comes together with contract_code_deletion
             const { accountId } = change;
-            const compKey = accountKey(accountId);
-            await deleteData(batch)(compKey, blockHash, blockHeight);
-            if (keepFromBlockHeight) {
-                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
-            }
+            await handleDeletion(accountKey(accountId));
             break;
         }
         case 'data_update': {
             const { accountId, keyBase64, valueBase64 } = change;
             const storageKey = Buffer.from(keyBase64, 'base64');
-            const compKey = dataKey(accountId, storageKey);
-            await setData(batch)(compKey, blockHash, blockHeight, Buffer.from(valueBase64, 'base64'));
-            if (keepFromBlockHeight) {
-                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
-            }
+            await handleUpdate(dataKey(accountId, storageKey), Buffer.from(valueBase64, 'base64'));
             break;
         }
         case 'data_deletion': {
             const { accountId, keyBase64 } = change;
             const storageKey = Buffer.from(keyBase64, 'base64');
-            const compKey = dataKey(accountId, storageKey);
-            await deleteData(batch)(compKey, blockHash, blockHeight);
-            if (keepFromBlockHeight) {
-                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
-            }
+            await handleDeletion(dataKey(accountId, storageKey));
             break;
         }
         case 'contract_code_update': {
             const { accountId, codeBase64 } = change;
-            const compKey = codeKey(accountId);
-            await setData(batch)(compKey, blockHash, blockHeight, Buffer.from(codeBase64, 'base64'));
-            if (keepFromBlockHeight) {
-                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
-            }
+            await handleUpdate(codeKey(accountId), Buffer.from(codeBase64, 'base64'));
             break;
         }
         case 'contract_code_deletion': {
             const { accountId } = change;
-            const compKey = codeKey(accountId);
-            await deleteData(batch)(compKey, blockHash, blockHeight);
-            if (keepFromBlockHeight) {
-                await cleanOlderData(batch)(compKey, keepFromBlockHeight);
-            }
+            await handleDeletion(codeKey(accountId));
             break;
         }
     }
