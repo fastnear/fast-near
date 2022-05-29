@@ -32,7 +32,6 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
 
     debug('find contract code');
     const contractCodeKey = codeKey(contractId);
-    const contractBlockHash = await storageClient.getLatestDataBlockHash(contractCodeKey, blockHeight);
     const accountDataKey = accountKey(contractId);
 
     const checkAccountExists = async () => {
@@ -50,6 +49,7 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
         }
     };
 
+    const contractBlockHash = await storageClient.getLatestDataBlockHash(contractCodeKey, blockHeight);
     if (!contractBlockHash) {
         await checkAccountExists();
         throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);

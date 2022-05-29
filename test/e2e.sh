@@ -7,9 +7,12 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --his
 # Try compressing history
 node scripts/compress-history.js
 
-# Use near-cli for basic JSON-RPC tests
+# Start server
 node app &
-npx near-cli state aurora --nodeUrl http://localhost:3000
 
-# Kill child processes
-pkill -SIGINT -P $$
+# Kill child processes on exit
+trap "pkill -SIGINT -P $$" EXIT
+
+# Use near-cli for basic JSON-RPC tests
+npx near-cli state aurora --nodeUrl http://localhost:3000
+(npx near-cli view aurora no-code-here {} --nodeUrl http://localhost:3000 || false) 2>&1 | grep -q CodeDoesNotExist
