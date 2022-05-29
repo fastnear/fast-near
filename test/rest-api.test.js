@@ -199,9 +199,16 @@ function testRequest(testName, url, expectedStatus, expectedOutput, input = null
 }
 
 function testRequestAfterDeletion(testName, url, expectedStatus, expectedOutput, input = null) {
-    testRequestImpl(`after deletion ${testName}`, url, expectedStatus, expectedOutput, input, async () => {
+    testRequestImpl(`after deletion: ${testName}`, url, expectedStatus, expectedOutput, input, async () => {
         await handleStreamerMessage(STREAMER_MESSAGE);
         await handleStreamerMessage(TEST_DELETION_STREAMER_MESSAGE);
+    });
+}
+
+function testRequestWithCompressHistory(testName, url, expectedStatus, expectedOutput, input = null) {
+    testRequestImpl(`after compression: ${testName}`, url, expectedStatus, expectedOutput, input, async () => {
+        await handleStreamerMessage(STREAMER_MESSAGE, { historyLength: 1 });
+        await handleStreamerMessage(TEST_DELETION_STREAMER_MESSAGE, { historyLength: 1 });
     });
 }
 
@@ -253,4 +260,14 @@ testRequestAfterDeletion('call view method (no code)',
     '/account/test.near/view/ext_account_id', 404, 'codeNotFound: Cannot find contract code: test.near 2');
 
 testRequestAfterDeletion('call view method with JSON in POST',
+    '/account/lands.near/view/getChunk', 200, LANDS_CHUNK_DEFAULT, { x: 0, y: 0 });
+
+// NOTE: After history compression should match regular tests, but at block index 2
+testRequestWithCompressHistory('call view method (no such account)',
+    '/account/no-code.near/view/someMethod', 404,'accountNotFound: Account not found: no-code.near at 2 block height');
+
+testRequestWithCompressHistory('call view method (no code)',
+    '/account/test.near/view/ext_account_id', 404, 'codeNotFound: Cannot find contract code: test.near 2');
+
+testRequestWithCompressHistory('call view method with JSON in POST',
     '/account/lands.near/view/getChunk', 200, LANDS_CHUNK_DEFAULT, { x: 0, y: 0 });
