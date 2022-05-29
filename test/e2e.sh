@@ -10,4 +10,6 @@ node scripts/compress-history.js
 # Use near-cli for basic JSON-RPC tests
 yarn dev &
 npx near-cli state aurora --nodeUrl http://localhost:3000
-kill %-
+
+# Kill child processes
+pkill -P $$
