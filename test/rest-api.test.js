@@ -17,7 +17,29 @@ const fs = require('fs');
 const TEST_CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
 const LANDS_CONTRACT_CODE = fs.readFileSync('test/data/lands.near.wasm');
 
-const LANDS_CHUNK = {
+const LANDS_CHUNK_MODIFIED = {
+    nonce: 0,
+    tiles: [
+        ['1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
+        ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']
+    ]
+};
+
+const LANDS_CHUNK_DEFAULT = {
     nonce: 0,
     tiles: [
         ['-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1'],
@@ -85,6 +107,13 @@ const STREAMER_MESSAGE = {
                 accountId: 'lands.near',
                 codeBase64: LANDS_CONTRACT_CODE.toString('base64'),
             }
+        }, {
+            type: 'data_update',
+            change: {
+                accountId: 'lands.near',
+                keyBase64: Buffer.from('chunk:0:0').toString('base64'),
+                valueBase64: Buffer.from(JSON.stringify(LANDS_CHUNK_MODIFIED)).toString('base64'),
+            }
         }]
     }],
 }
@@ -107,6 +136,12 @@ const TEST_DELETION_STREAMER_MESSAGE = {
             type: 'contract_code_deletion',
             change: {
                 accountId: 'test.near',
+            }
+        }, {
+            type: 'data_deletion',
+            change: {
+                accountId: 'lands.near',
+                keyBase64: Buffer.from('chunk:0:0').toString('base64'),
             }
         }]
     }],
@@ -195,10 +230,10 @@ testRequest('call view method (no code)',
     '/account/no-code.near/view/someMethod', 404, 'codeNotFound: Cannot find contract code: no-code.near 1');
 
 testRequest('call view method with JSON in query args',
-    '/account/lands.near/view/getChunk?x.json=0&y.json=0', 200, LANDS_CHUNK);
+    '/account/lands.near/view/getChunk?x.json=0&y.json=0', 200, LANDS_CHUNK_MODIFIED);
 
 testRequest('call view method with JSON in POST',
-    '/account/lands.near/view/getChunk', 200, LANDS_CHUNK, { x: 0, y: 0 });
+    '/account/lands.near/view/getChunk', 200, LANDS_CHUNK_MODIFIED, { x: 0, y: 0 });
 
 testRequest('view account', '/account/test.near',
     200, {
@@ -216,3 +251,6 @@ testRequestAfterDeletion('call view method (no such account)',
 
 testRequestAfterDeletion('call view method (no code)',
     '/account/test.near/view/ext_account_id', 404, 'codeNotFound: Cannot find contract code: test.near 2');
+
+testRequestAfterDeletion('call view method with JSON in POST',
+    '/account/lands.near/view/getChunk', 200, LANDS_CHUNK_DEFAULT, { x: 0, y: 0 });
