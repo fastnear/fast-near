@@ -8,7 +8,7 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --his
 node scripts/compress-history.js
 
 # Use near-cli for basic JSON-RPC tests
-yarn dev &
+node app &
 npx near-cli state aurora --nodeUrl http://localhost:3000
 
 # Kill child processes
