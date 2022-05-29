@@ -242,6 +242,9 @@ testRequest('call view method with JSON in query args',
 testRequest('call view method with JSON in POST',
     '/account/lands.near/view/getChunk', 200, LANDS_CHUNK_MODIFIED, { x: 0, y: 0 });
 
+testRequest('call view method with JSON in POST: missing key storage_read',
+    '/account/lands.near/view/getChunk', 200, LANDS_CHUNK_DEFAULT, { x: 1, y: 1 });
+
 testRequest('view account', '/account/test.near',
     200, {
         amount: '4936189930936415601114966690',
