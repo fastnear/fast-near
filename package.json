@@ -19,7 +19,9 @@
     "dev": "nodemon app",
     "start": "node app",
     "test": "tape test/*.test.js | colortape",
-    "coverage": "npx nyc yarn test"
+    "test:e2e": "test/e2e.sh",
+    "test:all": "yarn test && yarn test:e2e",
+    "coverage": "npx nyc yarn test:all"
   },
   "devDependencies": {
     "colortape": "^0.1.2",
