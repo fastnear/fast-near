@@ -14,5 +14,7 @@ node app &
 trap "pkill -SIGINT -P $$" EXIT
 
 # Use near-cli for basic JSON-RPC tests
+export NODE_ENV=mainnet
 npx near-cli state aurora --nodeUrl http://localhost:3000
 (npx near-cli view aurora no-code-here {} --nodeUrl http://localhost:3000 || false) 2>&1 | grep -q CodeDoesNotExist
+(npx near-cli view no-such-account some-method {} --nodeUrl http://localhost:3000 || false) 2>&1 | grep -q "Account no-such-account is not found in mainnet"

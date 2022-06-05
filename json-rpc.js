@@ -47,7 +47,7 @@ const legacyError = ({ id, message }) => {
     return {
         jsonrpc: '2.0',
         // TODO: Structured error in addition to legacy?
-        result: {
+        error: {
             code: -32000,
             data: message,
             message: "Server error",
