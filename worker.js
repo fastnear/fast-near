@@ -142,6 +142,7 @@ const imports = (ctx) => {
             promise_batch_action_create_account: prohibitedInView('promise_batch_action_create_account'),
             promise_batch_action_deploy_contract: prohibitedInView('promise_batch_action_deploy_contract'),
             promise_batch_action_function_call: prohibitedInView('promise_batch_action_function_call'),
+            promise_batch_action_function_call_weight: prohibitedInView('promise_batch_action_function_call_weight'),
             promise_batch_action_transfer: prohibitedInView('promise_batch_action_transfer'),
             promise_batch_action_stake: prohibitedInView('promise_batch_action_stake'),
             promise_batch_action_add_key_with_full_access: prohibitedInView('promise_batch_action_add_key_with_full_access'),
