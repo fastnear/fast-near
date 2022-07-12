@@ -1,4 +1,9 @@
 {
+  "name": "fast-near",
+  "version": "0.0.1",
+  "description": "Fastest RPC for NEAR Protocol",
+  "repository": "https://github.com/vgrichina/fast-near",
+  "license": "MIT",
   "dependencies": {
     "@koa/cors": "^3.1.0",
     "@noble/ed25519": "^1.3.0",
