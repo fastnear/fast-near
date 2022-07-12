@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+const app = require('../app');
+
+process.on('SIGINT', function() {
+    process.exit();
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT);
+console.log('Listening on http://localhost:%d/', PORT);

@@ -8,7 +8,7 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --his
 node scripts/compress-history.js
 
 # Start server
-node app &
+bin/fast-near &
 
 # Kill child processes on exit
 trap "pkill -SIGINT -P $$" EXIT

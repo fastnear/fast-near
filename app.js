@@ -169,14 +169,3 @@ app
     .use(router.allowedMethods());
 
 module.exports = app;
-
-if (require.main === module) {
-    process.on('SIGINT', function() {
-        process.exit()
-    });
-
-    const HOST = process.env.HOST|| '0.0.0.0';
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, HOST);
-    console.log('Listening on http://%s:%d/', HOST, PORT);
-}
