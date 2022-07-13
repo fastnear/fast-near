@@ -1,5 +1,11 @@
 [![Coverage Status](https://coveralls.io/repos/github/vgrichina/fast-near/badge.svg?branch=main)](https://coveralls.io/github/vgrichina/fast-near?branch=main)
 
+## Run directly from npm:
+
+```
+FAST_NEAR_REDIS_URL=<redis_ip> FAST_NEAR_NODE_URL=<rpc_endpoint> npx fast-near
+```
+
 ## Build and run via yarn:
 
 ```
