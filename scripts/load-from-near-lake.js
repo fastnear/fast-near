@@ -2,7 +2,7 @@ const { stream } = require('near-lake-framework');
 const bs58 = require('bs58');
 const { serialize } = require('borsh');
 const { setLatestBlockHeight, setData, deleteData, cleanOlderData, redisBatch, closeRedis, setBlockTimestamp } = require('../storage-client');
-const { accountKey, dataKey, codeKey } = require('../storage-keys');
+const { accountKey, dataKey, codeKey, DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey } = require('../storage-keys');
 const { Account, BORSH_SCHEMA } = require('../data-model');
 
 const { withTimeCounter, getCounters, resetCounters} = require('../counters');
@@ -32,53 +32,53 @@ async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
 }
 
 async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight }) {
-    const handleUpdate = async (compKey, data) => {
-        await setData(batch)(compKey, blockHash, blockHeight, data);
+    const handleUpdate = async (scope, accountId, dataKey, data) => {
+        await setData(batch)(scope, accountId, dataKey, blockHash, blockHeight, data);
         if (keepFromBlockHeight) {
-            await cleanOlderData(batch)(compKey, keepFromBlockHeight);
+            await cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
-    const handleDeletion = async (compKey) => {
-        await deleteData(batch)(compKey, blockHash, blockHeight);
+    const handleDeletion = async (scope, accountId, dataKey) => {
+        await deleteData(batch)(scope, accountId, dataKey, blockHash, blockHeight);
         if (keepFromBlockHeight) {
-            await cleanOlderData(batch)(compKey, keepFromBlockHeight);
+            await cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
     switch (type) {
         case 'account_update': {
             const { accountId, amount, locked, codeHash, storageUsage } = change;
-            await handleUpdate(accountKey(accountId),
+            await handleUpdate(ACCOUNT_SCOPE, accountId, null,
                 serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage })));
             break;
         }
         case 'account_deletion': {
             // TODO: Check if account_deletion comes together with contract_code_deletion
             const { accountId } = change;
-            await handleDeletion(accountKey(accountId));
+            await handleDeletion(ACCOUNT_SCOPE, accountId, null);
             break;
         }
         case 'data_update': {
             const { accountId, keyBase64, valueBase64 } = change;
             const storageKey = Buffer.from(keyBase64, 'base64');
-            await handleUpdate(dataKey(accountId, storageKey), Buffer.from(valueBase64, 'base64'));
+            await handleUpdate(DATA_SCOPE, accountId, storageKey, Buffer.from(valueBase64, 'base64'));
             break;
         }
         case 'data_deletion': {
             const { accountId, keyBase64 } = change;
             const storageKey = Buffer.from(keyBase64, 'base64');
-            await handleDeletion(dataKey(accountId, storageKey));
+            await handleDeletion(DATA_SCOPE, accountId, storageKey);
             break;
         }
         case 'contract_code_update': {
             const { accountId, codeBase64 } = change;
-            await handleUpdate(codeKey(accountId), Buffer.from(codeBase64, 'base64'));
+            await handleUpdate(CODE_SCOPE, accountId, null, Buffer.from(codeBase64, 'base64'));
             break;
         }
         case 'contract_code_deletion': {
             const { accountId } = change;
-            await handleDeletion(codeKey(accountId));
+            await handleDeletion(CODE_SCOPE, accountId, null);
             break;
         }
     }

@@ -23,6 +23,7 @@ function getRedisClient() {
     return {
         get: promisify(redisClient.get).bind(redisClient),
         set: promisify(redisClient.set).bind(redisClient),
+        hset: promisify(redisClient.hset).bind(redisClient),
         del: promisify(redisClient.del).bind(redisClient),
         zadd: promisify(redisClient.zadd).bind(redisClient),
         zrem: promisify(redisClient.zrem).bind(redisClient),
@@ -39,6 +40,7 @@ function getRedisClient() {
 
 const prettyBuffer = require('./pretty-buffer');
 const { withTimeCounter } = require('./counters');
+const { compositeKey, allKeysKey } = require('./storage-keys');
 
 const prettyArgs = args => args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
 
@@ -65,7 +67,7 @@ const withRedisAndCache = ({ name, cachedExpires }, fn) => async (...args) => {
         }
         debug(name, 'local cache miss', cacheKey);
 
-        const redisClient = getRedisClient();   
+        const redisClient = getRedisClient();
         const resultPromise = fn(redisClient)(...args);
         // TODO: Protect from size-bombing cache?
         redisCache.set(cacheKey, resultPromise, cachedExpires && BLOCK_INDEX_CACHE_TIME);
@@ -113,17 +115,25 @@ const getData = redisClient => async (compKey, blockHash) => {
     return await redisClient.get(dataKey(compKey, blockHash));
 };
 
-const setData = batch => (compKey, blockHash, blockHeight, data) => {
-    compKey = Buffer.from(compKey);
+const setData = batch => (scope, accountId, storageKey, blockHash, blockHeight, data) => {
+    const compKey = compositeKey(scope, accountId, storageKey);
     batch
         .set(dataKey(compKey, blockHash), data)
         .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
+
+    if (storageKey) {
+        // TODO: Check if Rust version also uses blockHeight or blockHash? blockHeight is smaller so a bit better
+        batch.hset(allKeysKey(scope, accountId), storageKey, blockHeight);
+    }
 };
 
-const deleteData = batch => async (compKey, blockHash, blockHeight) => {
-    compKey = Buffer.from(compKey);
+const deleteData = batch => async (scope, accountId, storageKey, blockHash, blockHeight) => {
+    const compKey = compositeKey(scope, accountId, storageKey);
     batch
         .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
+    if (storageKey) {
+        batch.hset(allKeysKey(scope, accountId), storageKey, blockHeight);
+    }
 };
 
 const cleanOlderData = batch => async (compKey, blockHeight) => {
@@ -159,7 +169,7 @@ const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, 
     let step = 0;
     let data = [];
     do {
-        const [newIterator, keys] = await redisClient.scan(iterator, 'MATCH', Buffer.from(`data:${contractId}:${keyPattern}`), 'COUNT', SCAN_COUNT); 
+        const [newIterator, keys] = await redisClient.scan(iterator, 'MATCH', Buffer.from(`data:${contractId}:${keyPattern}`), 'COUNT', SCAN_COUNT);
         console.log('keys', keys, newIterator)
         const newData = await Promise.all(keys.map(async key => {
         const compKey = Buffer.from(key).slice('data:'.length);
