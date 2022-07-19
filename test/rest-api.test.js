@@ -253,6 +253,14 @@ testRequest('view account', '/account/test.near',
         storage_usage: 20797,
     });
 
+testRequest('view contract data', '/account/test.near/data/*',
+    200, {
+        data: [
+            [ 'r:8charkey', 'test-value' ],
+        ],
+        iterator: '0',
+    });
+
 testRequest('download contract code',
     '/account/test.near/contract', 200, TEST_CONTRACT_CODE);
 

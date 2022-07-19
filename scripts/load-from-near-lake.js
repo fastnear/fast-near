@@ -2,7 +2,7 @@ const { stream } = require('near-lake-framework');
 const bs58 = require('bs58');
 const { serialize } = require('borsh');
 const { setLatestBlockHeight, setData, deleteData, cleanOlderData, redisBatch, closeRedis, setBlockTimestamp } = require('../storage-client');
-const { accountKey, dataKey, codeKey, DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey } = require('../storage-keys');
+const { DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey } = require('../storage-keys');
 const { Account, BORSH_SCHEMA } = require('../data-model');
 
 const { withTimeCounter, getCounters, resetCounters} = require('../counters');

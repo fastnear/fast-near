@@ -40,7 +40,7 @@ function getRedisClient() {
 
 const prettyBuffer = require('./pretty-buffer');
 const { withTimeCounter } = require('./counters');
-const { compositeKey, allKeysKey } = require('./storage-keys');
+const { compositeKey, allKeysKey, DATA_SCOPE } = require('./storage-keys');
 
 const prettyArgs = args => args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
 
@@ -169,22 +169,22 @@ const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, 
     let step = 0;
     let data = [];
     do {
-        const [newIterator, keys] = await redisClient.scan(iterator, 'MATCH', Buffer.from(`data:${contractId}:${keyPattern}`), 'COUNT', SCAN_COUNT);
-        console.log('keys', keys, newIterator)
+        const [newIterator, keys] = await redisClient.scan(iterator, 'MATCH', Buffer.from(`h:${DATA_SCOPE}:${contractId}:${keyPattern}`), 'COUNT', SCAN_COUNT);
+        console.log('keys', keys.map(k => k.toString('utf8')), newIterator.toString('utf8'))
         const newData = await Promise.all(keys.map(async key => {
-        const compKey = Buffer.from(key).slice('data:'.length);
-        const storageKey = compKey.slice(contractId.length + 1);
-        const blockHash = await module.exports.getLatestDataBlockHash(compKey, blockHeight);
-        if (!blockHash) {
-            return [storageKey, null];
-        }
-        return [storageKey, await module.exports.getData(compKey, blockHash)];
-    }));
+            const compKey = Buffer.from(key).slice(`h:`.length);
+            const storageKey = compKey.slice(contractId.length + 1);
+            const blockHash = await module.exports.getLatestDataBlockHash(compKey, blockHeight);
+            if (!blockHash) {
+                return [storageKey, null];
+            }
+            return [storageKey, await module.exports.getData(compKey, blockHash)];
+        }));
         iterator = newIterator;
         data = data.concat(newData);
         step++;
-        console.log('step', step, 'iterator', iterator);
-    } while (step < MAX_SCAN_STEPS && data.length < limit);
+        console.log('step', step, 'iterator', iterator.toString('utf8'));
+    } while (step < MAX_SCAN_STEPS && data.length < limit && iterator.toString('utf8') != '0');
     return {
         iterator: Buffer.from(iterator).toString('utf8'),
         data
