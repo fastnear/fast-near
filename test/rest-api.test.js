@@ -256,7 +256,7 @@ testRequest('view account', '/account/test.near',
 testRequest('view contract data', '/account/test.near/data/*',
     200, {
         data: [
-            [ 'r:8charkey', 'test-value' ],
+            [ '8charkey', 'test-value' ],
         ],
         iterator: '0',
     });

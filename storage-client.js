@@ -29,6 +29,7 @@ function getRedisClient() {
         zrem: promisify(redisClient.zrem).bind(redisClient),
         sendCommand: promisify(redisClient.sendCommand).bind(redisClient),
         scan: promisify(redisClient.scan).bind(redisClient),
+        hscan: promisify(redisClient.hscan).bind(redisClient),
         batch() {
             const batch = redisClient.batch();
             batch.exec = promisify(batch.exec).bind(batch);
@@ -162,18 +163,16 @@ const scanAllKeys = redisClient => async (iterator) => {
 }
 
 const MAX_SCAN_STEPS = 10;
-const SCAN_COUNT = 100000;
+const SCAN_COUNT = 1000;
 // TODO: Does this work ok with caching???
 const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, iterator, limit) => {
-    // TODO: Looks like SCAN requires ways too many iterations to find matching keys?
     let step = 0;
     let data = [];
     do {
-        const [newIterator, keys] = await redisClient.scan(iterator, 'MATCH', Buffer.from(`h:${DATA_SCOPE}:${contractId}:${keyPattern}`), 'COUNT', SCAN_COUNT);
+        const [newIterator, keys] = await redisClient.hscan(Buffer.from(`k:${DATA_SCOPE}:${contractId}`), iterator, 'MATCH', keyPattern, 'COUNT', SCAN_COUNT);
         console.log('keys', keys.map(k => k.toString('utf8')), newIterator.toString('utf8'))
-        const newData = await Promise.all(keys.map(async key => {
-            const compKey = Buffer.from(key).slice(`h:`.length);
-            const storageKey = compKey.slice(contractId.length + 1);
+        const newData = await Promise.all(keys.map(async storageKey => {
+            const compKey = Buffer.concat([Buffer.from(`${DATA_SCOPE}:${contractId}:`), storageKey]);
             const blockHash = await module.exports.getLatestDataBlockHash(compKey, blockHeight);
             if (!blockHash) {
                 return [storageKey, null];
