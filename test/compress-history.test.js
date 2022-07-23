@@ -5,7 +5,7 @@ const test = require('tape');
 
 const bs58 = require('bs58');
 const { setLatestBlockHeight, setData, getData, redisBatch, clearDatabase } = require('../storage-client');
-const { accountKey } = require('../storage-keys');
+const { accountKey, ACCOUNT_SCOPE } = require('../storage-keys');
 const compressHistory = require('../scripts/compress-history');
 
 test.onFinish(async () => {
@@ -25,7 +25,7 @@ const BLOCKS = [
 test('single account, single entry', async t => {
     t.teardown(clearDatabase);
     await redisBatch(async batch => {
-        await setData(batch)(accountKey(TEST_ACCOUNT), BLOCKS[0].hash, BLOCKS[0].index, BLOCKS[0].data);
+        await setData(batch)(ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[0].hash, BLOCKS[0].index, BLOCKS[0].data);
     });
     await setLatestBlockHeight(BLOCKS[0].index);
     await compressHistory();
@@ -38,7 +38,7 @@ test('single account, multiple entry', async t => {
     t.teardown(clearDatabase);
     await redisBatch(async batch => {
         for (let i = 0; i < BLOCKS.length; i++) {
-            await setData(batch)(accountKey(TEST_ACCOUNT), BLOCKS[i].hash, BLOCKS[i].index, BLOCKS[i].data);
+            await setData(batch)(ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[i].hash, BLOCKS[i].index, BLOCKS[i].data);
         }
     });
     await setLatestBlockHeight(BLOCKS[2].index);

@@ -11,8 +11,6 @@ let redisCache = new LRU({
 const BLOCK_INDEX_CACHE_TIME = 500;
 const REDIS_URL = process.env.FAST_NEAR_REDIS_URL || 'redis://localhost:6379';
 
-const SCAN_COUNT = 100000;
-
 let redisClient;
 function getRedisClient() {
     if (!redisClient) {
@@ -25,11 +23,13 @@ function getRedisClient() {
     return {
         get: promisify(redisClient.get).bind(redisClient),
         set: promisify(redisClient.set).bind(redisClient),
+        hset: promisify(redisClient.hset).bind(redisClient),
         del: promisify(redisClient.del).bind(redisClient),
         zadd: promisify(redisClient.zadd).bind(redisClient),
         zrem: promisify(redisClient.zrem).bind(redisClient),
         sendCommand: promisify(redisClient.sendCommand).bind(redisClient),
         scan: promisify(redisClient.scan).bind(redisClient),
+        hscan: promisify(redisClient.hscan).bind(redisClient),
         batch() {
             const batch = redisClient.batch();
             batch.exec = promisify(batch.exec).bind(batch);
@@ -41,6 +41,7 @@ function getRedisClient() {
 
 const prettyBuffer = require('./pretty-buffer');
 const { withTimeCounter } = require('./counters');
+const { compositeKey, allKeysKey, DATA_SCOPE } = require('./storage-keys');
 
 const prettyArgs = args => args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
 
@@ -115,17 +116,25 @@ const getData = redisClient => async (compKey, blockHash) => {
     return await redisClient.get(dataKey(compKey, blockHash));
 };
 
-const setData = batch => (compKey, blockHash, blockHeight, data) => {
-    compKey = Buffer.from(compKey);
+const setData = batch => (scope, accountId, storageKey, blockHash, blockHeight, data) => {
+    const compKey = compositeKey(scope, accountId, storageKey);
     batch
         .set(dataKey(compKey, blockHash), data)
         .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
+
+    if (storageKey) {
+        // TODO: Check if Rust version also uses blockHeight or blockHash? blockHeight is smaller so a bit better
+        batch.hset(allKeysKey(scope, accountId), storageKey, blockHeight);
+    }
 };
 
-const deleteData = batch => async (compKey, blockHash, blockHeight) => {
-    compKey = Buffer.from(compKey);
+const deleteData = batch => async (scope, accountId, storageKey, blockHash, blockHeight) => {
+    const compKey = compositeKey(scope, accountId, storageKey);
     batch
         .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
+    if (storageKey) {
+        batch.hset(allKeysKey(scope, accountId), storageKey, blockHeight);
+    }
 };
 
 const cleanOlderData = batch => async (compKey, blockHeight) => {
@@ -153,19 +162,30 @@ const scanAllKeys = redisClient => async (iterator) => {
     )];
 }
 
+const MAX_SCAN_STEPS = 10;
+const SCAN_COUNT = 1000;
+// TODO: Does this work ok with caching???
 const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, iterator, limit) => {
-    const [newIterator, keys] = await redisClient.scan(iterator, 'MATCH', Buffer.from(`data:${contractId}:${keyPattern}`), 'COUNT', limit);
-    const data = await Promise.all(keys.map(async key => {
-        const compKey = Buffer.from(key).slice('data:'.length);
-        const storageKey = compKey.slice(contractId.length + 1);
-        const blockHash = await module.exports.getLatestDataBlockHash(compKey, blockHeight);
-        if (!blockHash) {
-            return [storageKey, null];
-        }
-        return [storageKey, await module.exports.getData(compKey, blockHash)];
-    }));
+    let step = 0;
+    let data = [];
+    do {
+        const [newIterator, keys] = await redisClient.hscan(Buffer.from(`k:${DATA_SCOPE}:${contractId}`), iterator, 'MATCH', keyPattern, 'COUNT', SCAN_COUNT);
+        console.log('keys', keys.map(k => k.toString('utf8')), newIterator.toString('utf8'))
+        const newData = await Promise.all(keys.map(async storageKey => {
+            const compKey = Buffer.concat([Buffer.from(`${DATA_SCOPE}:${contractId}:`), storageKey]);
+            const blockHash = await module.exports.getLatestDataBlockHash(compKey, blockHeight);
+            if (!blockHash) {
+                return [storageKey, null];
+            }
+            return [storageKey, await module.exports.getData(compKey, blockHash)];
+        }));
+        iterator = newIterator;
+        data = data.concat(newData);
+        step++;
+        console.log('step', step, 'iterator', iterator.toString('utf8'));
+    } while (step < MAX_SCAN_STEPS && data.length < limit && iterator.toString('utf8') != '0');
     return {
-        iterator: Buffer.from(newIterator).toString('utf8'),
+        iterator: Buffer.from(iterator).toString('utf8'),
         data
     };
 };
