@@ -162,8 +162,6 @@ test('/healthz (synced)', async t => {
     t.isEqual(response.status, 204);
 });
 
-const isObject = obj => obj !== null && !Array.isArray(obj) && typeof obj === 'object';
-
 function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, initFn) {
     test(testName, async t => {
         t.teardown(clearDatabase);
@@ -174,7 +172,7 @@ function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, i
             response = await request
                 .post(url)
                 .responseType('blob')
-                .send(isObject(input) ? input : Buffer.from(input));
+                .send(input);
         } else {
             response = await request
                 .get(url)
@@ -183,11 +181,11 @@ function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, i
         t.isEqual(response.status, expectedStatus);
         if (typeof expectedOutput === 'string') {
             t.isEqual(response.body.toString('utf8'), expectedOutput);
-        } else if (isObject(expectedOutput) && !Buffer.isBuffer(expectedOutput)) {
+        } else if (Buffer.isBuffer(expectedOutput)) {
+            t.isEquivalent(response.body, Buffer.from(expectedOutput));
+        } else {
             t.isEqual(response.headers['content-type'], 'application/json; charset=utf-8');
             t.isEquivalent(JSON.parse(response.body.toString('utf8')), expectedOutput);
-        } else {
-            t.isEquivalent(response.body, Buffer.from(expectedOutput));
         }
     });
 }
@@ -218,9 +216,9 @@ function testViewMethod(methodName, expectedStatus, expectedOutput, input = null
 }
 
 testViewMethod('no-such-method', 404, 'method no-such-method not found');
-testViewMethod('fibonacci', 200, [13, 0, 0, 0, 0, 0, 0, 0,], [7]);
+testViewMethod('fibonacci', 200, Buffer.from([13, 0, 0, 0, 0, 0, 0, 0,]), Buffer.from([7]));
 testViewMethod('ext_account_id', 200, 'test.near');
-testViewMethod('ext_block_index', 200, [1, 0, 0, 0, 0, 0, 0, 0,]);
+testViewMethod('ext_block_index', 200, Buffer.from([1, 0, 0, 0, 0, 0, 0, 0,]));
 testViewMethod('read_value', 200, 'test-val', '8charkey');
 // TODO: Propagate logs somehow?
 testViewMethod('log_something', 200, '');
@@ -263,6 +261,9 @@ testRequest('view contract data', '/account/test.near/data/*',
 
 testRequest('download contract code',
     '/account/test.near/contract', 200, TEST_CONTRACT_CODE);
+
+testRequest('list contract methods',
+    '/account/test.near/contract/methods', 200, ['abort_with_zero', 'benchmark_storage_10kib', 'benchmark_storage_8b', 'call_promise', 'delete_strings', 'ext_account_balance', 'ext_account_id', 'ext_attached_deposit', 'ext_block_index', 'ext_block_timestamp', 'ext_predecessor_account_id', 'ext_prepaid_gas', 'ext_random_seed', 'ext_sha256', 'ext_signer_id', 'ext_signer_pk', 'ext_storage_usage', 'ext_used_gas', 'ext_validator_stake', 'ext_validator_total_stake', 'fibonacci', 'insert_strings', 'internal_recurse', 'log_something', 'log_u64', 'loop_forever', 'out_of_memory', 'panic_after_logging', 'panic_with_message', 'pass_through', 'read_value', 'recurse', 'run_test', 'run_test_with_storage_change', 'sum_n', 'sum_with_input', 'write_block_height', 'write_key_value', 'write_random_value']);
 
 testRequestAfterDeletion('call view method (no such account)',
     '/account/no-code.near/view/someMethod', 404,'accountNotFound: Account not found: no-code.near at 2 block height');

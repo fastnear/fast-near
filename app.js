@@ -9,7 +9,7 @@ const cors = require('@koa/cors');
 
 const resolveBlockHeightUtil = require('./resolve-block-height');
 const isJSON = require('./utils/is-json');
-const { runContract } = require('./run-contract');
+const { runContract, getWasmModule } = require('./run-contract');
 const storageClient = require('./storage-client');
 const { codeKey, accountKey } = require('./storage-keys');
 const { deserialize } = require('borsh');
@@ -140,6 +140,13 @@ router.get('/account/:accountId/contract', resolveBlockHeight, async ctx => {
     ctx.type = 'wasm';
     ctx.res.setHeader('Content-Disposition', `attachment; filename="${accountId}.wasm"`);
     ctx.body = data;
+});
+
+router.get('/account/:accountId/contract/methods', resolveBlockHeight, async ctx => {
+    const { accountId } = ctx.params;
+
+    const wasmModule = await getWasmModule(accountId, ctx.blockHeight);
+    ctx.body = WebAssembly.Module.exports(wasmModule).filter(({ kind }) => kind === 'function').map(({ name }) => name).sort();
 });
 
 const MAX_BLOCK_LAG_TIME_MS = 20000;

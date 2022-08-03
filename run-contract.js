@@ -13,22 +13,9 @@ let contractCache = new LRU({
 
 let workerPool;
 
-async function runContract(contractId, methodName, methodArgs, blockHeight) {
-    const debug = require('debug')(`host:${contractId}:${methodName}`);
-    debug('runContract', contractId, methodName, methodArgs, blockHeight);
-
-    if (!Buffer.isBuffer(methodArgs)) {
-        methodArgs = Buffer.from(JSON.stringify(methodArgs));
-    }
-
-    if (!workerPool) {
-        debug('workerPool');
-        workerPool = new WorkerPool(WORKER_COUNT, storageClient);
-        debug('workerPool done');
-    }
-
-    const blockTimestamp = await storageClient.getBlockTimestamp(blockHeight);
-    debug('blockTimestamp', blockTimestamp);
+async function getWasmModule(contractId, blockHeight) {
+    const debug = require('debug')(`host:${contractId}`);
+    debug('getWasmModule', contractId, blockHeight);
 
     debug('find contract code');
     const contractCodeKey = codeKey(contractId);
@@ -77,6 +64,28 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
         debug('wasm compile done');
     }
 
+    return wasmModule;
+}
+
+async function runContract(contractId, methodName, methodArgs, blockHeight) {
+    const debug = require('debug')(`host:${contractId}`);
+    debug('runContract', contractId, methodName, methodArgs, blockHeight);
+
+    if (!Buffer.isBuffer(methodArgs)) {
+        methodArgs = Buffer.from(JSON.stringify(methodArgs));
+    }
+
+    if (!workerPool) {
+        debug('workerPool');
+        workerPool = new WorkerPool(WORKER_COUNT, storageClient);
+        debug('workerPool done');
+    }
+
+    const blockTimestamp = await storageClient.getBlockTimestamp(blockHeight);
+    debug('blockTimestamp', blockTimestamp);
+
+    const wasmModule = await getWasmModule(contractId, blockHeight);
+
     debug('worker start');
     const { result, logs } = await workerPool.runContract(blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs);
     debug('worker done');
@@ -91,6 +100,7 @@ async function closeWorkerPool() {
 }
 
 module.exports = {
+    getWasmModule,
     runContract,
     closeWorkerPool,
 };
