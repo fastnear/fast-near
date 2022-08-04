@@ -137,15 +137,16 @@ Some of the planned and already implemented components. Is not exhaustive list.
 - Loading data
     - [x] Allow loading from NEAR Data Lake
     - [x] Compress history to given time window
-    - [ ] Update near-state-indexer to load latest format in Redis
-    - [ ] Update nearcore to load latest format in Redis
-    - [ ] Load account keys
+    - [x] Update near-state-indexer to load latest format in Redis
+    - [x] Update nearcore to load latest format in Redis
+    - [x] Load account keys
     - [ ] Load recent transactions results
 - REST API
     - [x] Call view methods
     - [x] View contract WASM
-    - [ ] View account
-    - [ ] View contract state
+    - [x] View contract methods
+    - [x] View account
+    - [x] View contract state
     - [ ] View account access keys
     - [ ] View transaction results
     - [ ] Submit transaction
@@ -165,5 +166,7 @@ Some of the planned and already implemented components. Is not exhaustive list.
     - [ ] State change method support
 - Tests
     - [x] Test compress-history
-    - [ ] Test view calls
-    - [ ] Integration test with loading near-lake mainnet data
+    - [x] Test view calls
+    - [x] Integration test with loading near-lake mainnet data
+    = [ ] Full coverage of runtime methods
+    - [ ] More robust integration tests
