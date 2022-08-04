@@ -110,6 +110,26 @@ curl 'https://rpc.web4.near.page/account/vlad.tkn.near/contract'
 [https://rpc.web4.near.page/account/vlad.tkn.near/contract](https://rpc.web4.near.page/account/vlad.tkn.near/contract)
 
 
+## Get contract methods list
+
+### GET
+
+URL format:
+
+```
+https://rpc.web4.near.page/account/<account_id>/contract/methods
+```
+
+#### Example
+
+
+```
+curl 'https://rpc.web4.near.page/account/lands.near/contract/methods'
+```
+
+[https://rpc.web4.near.page/account/lands.near/contract/methods](https://rpc.web4.near.page/account/lands.near/contract/methods)
+
+
 ## Roadmap
 
 Some of the planned and already implemented components. Is not exhaustive list.
