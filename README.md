@@ -168,5 +168,5 @@ Some of the planned and already implemented components. Is not exhaustive list.
     - [x] Test compress-history
     - [x] Test view calls
     - [x] Integration test with loading near-lake mainnet data
-    = [ ] Full coverage of runtime methods
+    - [ ] Full coverage of runtime methods
     - [ ] More robust integration tests
