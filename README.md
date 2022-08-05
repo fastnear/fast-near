@@ -1,5 +1,25 @@
 [![Coverage Status](https://coveralls.io/repos/github/vgrichina/fast-near/badge.svg?branch=main)](https://coveralls.io/github/vgrichina/fast-near?branch=main)
 
+# What is fast-near?
+
+fast-near aims to provide the fastest RPC implementation for @NEARProtocol using in-memory storage in Redis.
+
+It is optimized for view call performance and ease of deploy and scaling. 
+
+# Why
+
+`nearcore` RPC performance isn't good enough for novel use cases like https://web4.near.page.
+
+fast-near achives better performance through using
+- in-memory storage using Redis
+- client-side caching to save on Redis I/O
+- V8 WebAssembly implementation
+- disabled gas metering (timeout works fine for view calls)
+- simpler REST API (no JSON wrapper if passing large binaries, etc)
+- good compatibility with caching at HTTP layer (using Nginx, etc)
+
+# How to
+
 ## Run directly from npm:
 
 ```
