@@ -6,6 +6,8 @@ fast-near aims to provide the fastest RPC implementation for @NEARProtocol using
 
 It is optimized for view call performance and ease of deploy and scaling. 
 
+It currently doesn't sync with network on it's own, data needs to be fed into Redis either from [NEAR Lake](https://github.com/near/near-lake-indexer) or from https://github.com/vgrichina/near-state-indexer.
+
 # Why
 
 `nearcore` RPC performance isn't good enough for novel use cases like https://web4.near.page.
