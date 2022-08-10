@@ -183,10 +183,8 @@ router.get('/account/:accountId/key/:publicKey', resolveBlockHeight, async ctx =
     }
     ctx.body = {
         public_key: publicKey,
-        access_key: {
-            nonce: nonce.toString(),
-            ...permission
-        }
+        nonce: nonce.toString(),
+        ...permission
     };
 });
 

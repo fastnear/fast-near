@@ -280,22 +280,18 @@ testRequest('view account', '/account/test.near',
 testRequest('view account access key (function call)', '/account/test.near/key/ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr',
     200, {
         public_key: 'ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr',
-        access_key: {
-            nonce: '1',
-            type: 'FunctionCall',
-            allowance: '246045981327662300000000',
-            method_names: [],
-            receiver_id: 'berry-or-not.near'
-        }
+        nonce: '1',
+        type: 'FunctionCall',
+        allowance: '246045981327662300000000',
+        method_names: [],
+        receiver_id: 'berry-or-not.near'
     });
 
 testRequest('view account access key (full access)', '/account/test.near/key/ed25519:GXHHscwTBRCBGRSjJc4nKZ4LKKnL2D5UDx5m78ps1KA4',
     200, {
         public_key: 'ed25519:GXHHscwTBRCBGRSjJc4nKZ4LKKnL2D5UDx5m78ps1KA4',
-        access_key: {
-            nonce: '123',
-            type: 'FullAccess',
-        }
+        nonce: '123',
+        type: 'FullAccess',
     });
 
 testRequest('view contract data', '/account/test.near/data/*',
