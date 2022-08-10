@@ -74,15 +74,13 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
         case 'access_key_update': {
             const { accountId, publicKey: publicKeyStr, accessKey: {
                 nonce,
-                permission: {
-                    FunctionCall,
-                    FullAccess
-                }
+                permission 
             } } = change;
             const accessKey = new AccessKey({ nonce, permission: new AccessKeyPermission(
-                FunctionCall && { functionCall: FunctionCall && new FunctionCallPermission(FunctionCall) ||
-                FullAccess && { fullAccess: new FullAccessPermission() }
-            })});
+                permission == 'FullAccess'
+                    ? { fullAccess: new FullAccessPermission() }
+                    : { functionCall: new FunctionCallPermission(permission.FunctionCall) }
+            )});
             const storageKey = serialize(BORSH_SCHEMA, PublicKey.fromString(publicKeyStr));
             await handleUpdate(ACCESS_KEY_SCOPE, accountId, storageKey, serialize(BORSH_SCHEMA, accessKey));
             break;

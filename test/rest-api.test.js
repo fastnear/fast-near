@@ -130,6 +130,16 @@ const STREAMER_MESSAGE = {
                     }
                 }
             }
+        }, {
+            type: 'access_key_update',
+            change: {
+                accountId: 'test.near',
+                publicKey: 'ed25519:GXHHscwTBRCBGRSjJc4nKZ4LKKnL2D5UDx5m78ps1KA4',
+                accessKey: {
+                    nonce: 123,
+                    permission: 'FullAccess'
+                }
+            }
         }]
     }],
 }
@@ -267,7 +277,7 @@ testRequest('view account', '/account/test.near',
         storage_usage: 20797,
     });
 
-testRequest('view account access key', '/account/test.near/key/ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr',
+testRequest('view account access key (function call)', '/account/test.near/key/ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr',
     200, {
         public_key: 'ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr',
         access_key: {
@@ -276,6 +286,15 @@ testRequest('view account access key', '/account/test.near/key/ed25519:JBHUrhF61
             allowance: '246045981327662300000000',
             method_names: [],
             receiver_id: 'berry-or-not.near'
+        }
+    });
+
+testRequest('view account access key (full access)', '/account/test.near/key/ed25519:GXHHscwTBRCBGRSjJc4nKZ4LKKnL2D5UDx5m78ps1KA4',
+    200, {
+        public_key: 'ed25519:GXHHscwTBRCBGRSjJc4nKZ4LKKnL2D5UDx5m78ps1KA4',
+        access_key: {
+            nonce: '123',
+            type: 'FullAccess',
         }
     });
 
