@@ -2,8 +2,8 @@ const { stream } = require('near-lake-framework');
 const bs58 = require('bs58');
 const { serialize } = require('borsh');
 const { setLatestBlockHeight, setData, deleteData, cleanOlderData, redisBatch, closeRedis, setBlockTimestamp } = require('../storage-client');
-const { DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey } = require('../storage-keys');
-const { Account, BORSH_SCHEMA } = require('../data-model');
+const { DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
+const { Account, BORSH_SCHEMA, AccessKey, PublicKey, FunctionCallPermission, AccessKeyPermission, FullAccessPermission } = require('../data-model');
 
 const { withTimeCounter, getCounters, resetCounters} = require('../counters');
 
@@ -69,6 +69,28 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
             const { accountId, keyBase64 } = change;
             const storageKey = Buffer.from(keyBase64, 'base64');
             await handleDeletion(DATA_SCOPE, accountId, storageKey);
+            break;
+        }
+        case 'access_key_update': {
+            const { accountId, publicKey: publicKeyStr, accessKey: {
+                nonce,
+                permission: {
+                    FunctionCall,
+                    FullAccess
+                }
+            } } = change;
+            const accessKey = new AccessKey({ nonce, permission: new AccessKeyPermission(
+                FunctionCall && { functionCall: FunctionCall && new FunctionCallPermission(FunctionCall) ||
+                FullAccess && { fullAccess: new FullAccessPermission() }
+            })});
+            const storageKey = serialize(BORSH_SCHEMA, PublicKey.fromString(publicKeyStr));
+            await handleUpdate(ACCESS_KEY_SCOPE, accountId, storageKey, serialize(BORSH_SCHEMA, accessKey));
+            break;
+        }
+        case 'access_key_deletion': {
+            const { accountId, publicKey: publicKeyStr } = change;
+            const storageKey = serialize(BORSH_SCHEMA, PublicKey.fromString(publicKeyStr));
+            await handleDeletion(ACCESS_KEY_SCOPE, accountId, storageKey);
             break;
         }
         case 'contract_code_update': {

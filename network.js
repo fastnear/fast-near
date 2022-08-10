@@ -1,25 +1,8 @@
 const assert = require('assert');
 const { serialize, deserialize } = require('borsh');
-
-class BaseMessage {
-    constructor(args) {
-        Object.assign(this, args);
-    }
-}
-
-class Enum {
-    constructor(args) {
-        assert(Object.keys(args).length == 1, 'enum can only have one key');
-        Object.assign(this, args);
-    }
-
-    get enum() {
-        return Object.keys(this)[0];
-    }
-}
+const { BaseMessage, Enum, PublicKey } = require('./data-model');
 
 class Handshake extends BaseMessage {}
-class PublicKey extends BaseMessage {}
 class EdgeInfo extends BaseMessage {}
 class EdgeInfoToSign extends BaseMessage {}
 class Signature extends BaseMessage {}
@@ -672,6 +655,7 @@ const bs58 = require('bs58');
 const net = require('net');
 const EventEmitter = require('events');
 const { Buffer } = require('buffer');
+const { BaseMessage } = require('./data-model');
 
 const sendMessage = (socket, message) => {
     const messageData = serialize(BORSH_SCHEMA, message);

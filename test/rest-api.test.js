@@ -114,6 +114,22 @@ const STREAMER_MESSAGE = {
                 keyBase64: Buffer.from('chunk:0:0').toString('base64'),
                 valueBase64: Buffer.from(JSON.stringify(LANDS_CHUNK_MODIFIED)).toString('base64'),
             }
+        }, {
+            type: 'access_key_update',
+            change: {
+                accountId: 'test.near',
+                publicKey: 'ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr',
+                accessKey: {
+                    nonce: 1,
+                    permission: {
+                        FunctionCall: {
+                            allowance: '246045981327662300000000',
+                            methodNames: [],
+                            receiverId: 'berry-or-not.near'
+                        }
+                    }
+                }
+            }
         }]
     }],
 }
@@ -249,6 +265,18 @@ testRequest('view account', '/account/test.near',
         code_hash: '11111111111111111111111111111111',
         locked: '0',
         storage_usage: 20797,
+    });
+
+testRequest('view account access key', '/account/test.near/key/ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr',
+    200, {
+        public_key: 'ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr',
+        access_key: {
+            nonce: '1',
+            type: 'FunctionCall',
+            allowance: '246045981327662300000000',
+            method_names: [],
+            receiver_id: 'berry-or-not.near'
+        }
     });
 
 testRequest('view contract data', '/account/test.near/data/*',
