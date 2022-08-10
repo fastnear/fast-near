@@ -117,6 +117,7 @@ const getData = redisClient => async (compKey, blockHash) => {
 };
 
 const setData = batch => (scope, accountId, storageKey, blockHash, blockHeight, data) => {
+    debug('setData', ...prettyArgs([scope, accountId, storageKey, blockHash, blockHeight]));
     const compKey = compositeKey(scope, accountId, storageKey);
     batch
         .set(dataKey(compKey, blockHash), data)
