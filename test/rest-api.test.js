@@ -140,6 +140,16 @@ const STREAMER_MESSAGE = {
                     permission: 'FullAccess'
                 }
             }
+        }, {
+            type: 'access_key_update',
+            change: {
+                accountId: 'test.near',
+                publicKey: 'secp256k1:4dDYgTqZ7gdJHgq2HGfAkBPLHyAsrpjP56j6gWzAxoEwGZfwspqCCGWhhyTng9a1NbAnAu77v37bs15WLTSyZf6Q',
+                accessKey: {
+                    nonce: 7,
+                    permission: 'FullAccess'
+                }
+            }
         }]
     }],
 }
