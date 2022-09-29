@@ -20,6 +20,8 @@ fast-near achives better performance through using
 - simpler REST API (no JSON wrapper if passing large binaries, etc)
 - good compatibility with caching at HTTP layer (using Nginx, etc)
 
+fast-near is also a good fit if you want to run RPC node serving limited subset of accounts (e.g. supporting your app exclusively) on a smaller hardware. This works well if data is sourced from [NEAR Lake](https://github.com/near/near-lake-indexer).
+
 # How to
 
 ## Run directly from npm:
@@ -164,13 +166,17 @@ Some of the planned and already implemented components. Is not exhaustive list.
     - [x] Update nearcore to load latest format in Redis
     - [x] Load account keys
     - [ ] Load recent transactions results
+    - [ ] Delegate to another fast-near REST API instance if given account data not present 
+    - [ ] Delegate to another nearcore JSON-RPC instance if given account data not present?
+
 - REST API
     - [x] Call view methods
     - [x] View contract WASM
     - [x] View contract methods
     - [x] View account
     - [x] View contract state
-    - [ ] View account access keys
+    - [x] View account access key
+    - [ ] View account access keys list
     - [ ] View transaction results
     - [ ] Submit transaction
 - JSON-RPC API
