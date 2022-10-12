@@ -165,10 +165,11 @@ Some of the planned and already implemented components. Is not exhaustive list.
     - [x] Update near-state-indexer to load latest format in Redis
     - [x] Update nearcore to load latest format in Redis
     - [x] Load account keys
+    - [ ] Filter accounts when loading
     - [ ] Load recent transactions results
+    - [ ] Manage lowest known block height dynamically
     - [ ] Delegate to another fast-near REST API instance if given account data not present 
     - [ ] Delegate to another nearcore JSON-RPC instance if given account data not present?
-
 - REST API
     - [x] Call view methods
     - [x] View contract WASM
@@ -193,6 +194,12 @@ Some of the planned and already implemented components. Is not exhaustive list.
     - [x] Basic view method support
     - [ ] Implement missing imports for view methods
     - [ ] State change method support
+- Storage
+    - [x] Redis
+    - [ ] Abstract storage API
+    - [ ] Choose some SSD-optimized key value store?
+    - [ ] Load storage selectively from another fast-near instance
+    - [ ] Browser-based storage
 - Tests
     - [x] Test compress-history
     - [x] Test view calls
