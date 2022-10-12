@@ -54,6 +54,21 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --his
 
 See also https://github.com/vgrichina/near-state-indexer for Rust implementation running proper nearcore node.
 
+# CLI options
+
+## Environment variables
+
+- `PORT` - port to listen on (default: `3000`)
+- `FAST_NEAR_REDIS_URL` - Redis URL (default: `redis://localhost:6379`)
+- `FAST_NEAR_NODE_URL` - NEAR RPC endpoint (default: `https://rpc.mainnet.near.org`). This is only used as a fallback for JSON-RPC endpoint.
+- `FAST_NEAR_ARCHIVAL_NODE_URL` - NEAR RPC endpoint for archival node (default: `https://rpc.mainnet.internal.near.org`). This is only used as a fallback for JSON-RPC endpoint for data unavailable in Redis or on non-archival RPC.
+- `FAST_NEAR_ALWAYS_PROXY` - Always proxy JSON-RPC requests to `FAST_NEAR_NODE_URL` (default: `false`).
+- `FAST_NEAR_START_BLOCK_HEIGHT` - Minimum block height expected to be present in Redis (default: `0`).
+- `FAST_NEAR_WORKER_COUNT` - Number of workers to use for execution of WASM code. (default: `4`).
+- `FAST_NEAR_CONTRACT_TIMEOUT_MS` - Timeout for contract execution in milliseconds (default: `1000`).
+
+
+
 # HTTP API
 
 ## Call view method
