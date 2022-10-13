@@ -52,7 +52,23 @@ To load from NEAR Lake (use `--help` to learn more about options):
 node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --history-length 1
 ```
 
-See also https://github.com/vgrichina/near-state-indexer for Rust implementation running proper nearcore node.
+## Load data only for your app's smart contracts
+
+To load data for `app1.near`, `app2.near` and all subaccounts of `superapp.near`:
+
+```
+node scripts/load-from-near-lake.js near-lake-data-mainnet --include app1.near --include app2.near --include '*.superapp.near'
+```
+
+## Exclude some undesired accounts
+
+To load data for all accounts except `aurora` and `sweat` subaccounts:
+
+```
+node scripts/load-from-near-lake.js near-lake-data-mainnet --exclude aurora.* --exclude sweat.*
+```
+
+See also https://github.com/vgrichina/near-state-indexer for Rust implementation running full nearcore node.
 
 # CLI options
 
@@ -66,8 +82,6 @@ See also https://github.com/vgrichina/near-state-indexer for Rust implementation
 - `FAST_NEAR_START_BLOCK_HEIGHT` - Minimum block height expected to be present in Redis (default: `0`).
 - `FAST_NEAR_WORKER_COUNT` - Number of workers to use for execution of WASM code. (default: `4`).
 - `FAST_NEAR_CONTRACT_TIMEOUT_MS` - Timeout for contract execution in milliseconds (default: `1000`).
-
-
 
 # HTTP API
 
@@ -180,7 +194,7 @@ Some of the planned and already implemented components. Is not exhaustive list.
     - [x] Update near-state-indexer to load latest format in Redis
     - [x] Update nearcore to load latest format in Redis
     - [x] Load account keys
-    - [ ] Filter accounts when loading
+    - [x] Filter accounts when loading
     - [ ] Load recent transactions results
     - [ ] Manage lowest known block height dynamically
     - [ ] Delegate to another fast-near REST API instance if given account data not present 

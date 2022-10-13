@@ -1,4 +1,5 @@
 const { stream } = require('near-lake-framework');
+const minimatch = require('minimatch');
 const bs58 = require('bs58');
 const { serialize } = require('borsh');
 const { setLatestBlockHeight, setData, deleteData, cleanOlderData, redisBatch, closeRedis, setBlockTimestamp } = require('../storage-client');
@@ -10,7 +11,7 @@ const { withTimeCounter, getCounters, resetCounters} = require('../counters');
 let totalMessages = 0;
 let timeStarted = Date.now();
 
-async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
+async function handleStreamerMessage(streamerMessage, { historyLength, include, exclude } = {}) {
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
     const keepFromBlockHeight = historyLength && blockHeight - historyLength;
@@ -22,7 +23,7 @@ async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
     for (let { stateChanges } of streamerMessage.shards) {
         await redisBatch(async batch => {
             for (let { type, change } of stateChanges) {
-                await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight });
+                await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
             }
         });
     }
@@ -31,7 +32,7 @@ async function handleStreamerMessage(streamerMessage, { historyLength } = {}) {
     await setLatestBlockHeight(blockHeight);
 }
 
-async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight }) {
+async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
     const handleUpdate = async (scope, accountId, dataKey, data) => {
         await setData(batch)(scope, accountId, dataKey, blockHash, blockHeight, data);
         if (keepFromBlockHeight) {
@@ -46,33 +47,40 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
         }
     }
 
+    const { accountId } = change;
+    if (include && include.find(pattern => !minimatch(accountId, pattern))) {
+        return;
+    }
+    if (exclude && exclude.find(pattern => minimatch(accountId, pattern))) {
+        return;
+    }
+
     switch (type) {
         case 'account_update': {
-            const { accountId, amount, locked, codeHash, storageUsage } = change;
+            const { amount, locked, codeHash, storageUsage } = change;
             await handleUpdate(ACCOUNT_SCOPE, accountId, null,
                 serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage })));
             break;
         }
         case 'account_deletion': {
             // TODO: Check if account_deletion comes together with contract_code_deletion
-            const { accountId } = change;
             await handleDeletion(ACCOUNT_SCOPE, accountId, null);
             break;
         }
         case 'data_update': {
-            const { accountId, keyBase64, valueBase64 } = change;
+            const { keyBase64, valueBase64 } = change;
             const storageKey = Buffer.from(keyBase64, 'base64');
             await handleUpdate(DATA_SCOPE, accountId, storageKey, Buffer.from(valueBase64, 'base64'));
             break;
         }
         case 'data_deletion': {
-            const { accountId, keyBase64 } = change;
+            const { keyBase64 } = change;
             const storageKey = Buffer.from(keyBase64, 'base64');
             await handleDeletion(DATA_SCOPE, accountId, storageKey);
             break;
         }
         case 'access_key_update': {
-            const { accountId, publicKey: publicKeyStr, accessKey: {
+            const { publicKey: publicKeyStr, accessKey: {
                 nonce,
                 permission 
             } } = change;
@@ -86,18 +94,17 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
             break;
         }
         case 'access_key_deletion': {
-            const { accountId, publicKey: publicKeyStr } = change;
+            const { publicKey: publicKeyStr } = change;
             const storageKey = serialize(BORSH_SCHEMA, PublicKey.fromString(publicKeyStr));
             await handleDeletion(ACCESS_KEY_SCOPE, accountId, storageKey);
             break;
         }
         case 'contract_code_update': {
-            const { accountId, codeBase64 } = change;
+            const { codeBase64 } = change;
             await handleUpdate(CODE_SCOPE, accountId, null, Buffer.from(codeBase64, 'base64'));
             break;
         }
         case 'contract_code_deletion': {
-            const { accountId } = change;
             await handleDeletion(CODE_SCOPE, accountId, null);
             break;
         }
@@ -124,6 +131,8 @@ if (require.main === module) {
                     .describe('bucket-name', 'S3 bucket name')
                     .describe('region-name', 'S3 region name')
                     .describe('endpoint', 'S3-compatible storage URL')
+                    .describe('include', 'include only accounts matching this glob pattern. Can be specified multiple times.')
+                    .describe('exclude', 'exclude accounts matching this glob pattern. Can be specified multiple times.')
                     .option('batch-size', {
                         describe: 'how many blocks to try fetch in parallel',
                         number: true,
