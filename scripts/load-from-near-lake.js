@@ -131,8 +131,14 @@ if (require.main === module) {
                     .describe('bucket-name', 'S3 bucket name')
                     .describe('region-name', 'S3 region name')
                     .describe('endpoint', 'S3-compatible storage URL')
-                    .describe('include', 'include only accounts matching this glob pattern. Can be specified multiple times.')
-                    .describe('exclude', 'exclude accounts matching this glob pattern. Can be specified multiple times.')
+                    .option('include', {
+                        describe: 'include only accounts matching this glob pattern. Can be specified multiple times.',
+                        array: true
+                    })
+                    .option('exclude', {
+                        describe: 'exclude accounts matching this glob pattern. Can be specified multiple times.',
+                        array: true
+                    })
                     .option('batch-size', {
                         describe: 'how many blocks to try fetch in parallel',
                         number: true,
@@ -148,7 +154,18 @@ if (require.main === module) {
                     }),
                 async argv => {
 
-            const { startBlockHeight, bucketName, regionName, endpoint, batchSize, historyLength, limit } = argv;
+            const {
+                startBlockHeight,
+                bucketName,
+                regionName,
+                endpoint,
+                batchSize,
+                historyLength,
+                limit,
+                include,
+                exclude
+            } = argv;
+
             let blocksProcessed = 0;
 
             for await (let streamerMessage of stream({
@@ -159,7 +176,7 @@ if (require.main === module) {
                 blocksPreloadPoolSize: batchSize
             })) {
                 await withTimeCounter('handleStreamerMessage', async () => {
-                    await handleStreamerMessage(streamerMessage, { historyLength });
+                    await handleStreamerMessage(streamerMessage, { historyLength, include, exclude });
                 });
 
                 console.log('counters', getCounters());
