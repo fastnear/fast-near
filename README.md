@@ -143,6 +143,45 @@ curl 'https://rpc.web4.near.page/account/lands.near/view/getChunk?x.json=0&y.jso
 
 [https://rpc.web4.near.page/account/lands.near/view/getChunk?x.json=0&y.json=0](https://rpc.web4.near.page/account/lands.near/view/getChunk?x.json=0&y.json=0)
 
+## Get account info
+
+### GET
+
+URL format:
+
+```
+https://rpc.web4.near.page/account/<account_id>
+```
+
+#### Example
+
+
+```
+curl 'https://rpc.web4.near.page/account/vlad.near'
+```
+
+[https://rpc.web4.near.page/account/vlad.near](https://rpc.web4.near.page/account/vlad.near)
+
+
+## Get access key info
+
+### GET
+
+URL format:
+
+```
+https://rpc.web4.near.page/account/<account_id>/key/<public_key>
+```
+
+#### Example
+
+
+```
+curl 'https://rpc.web4.near.page/account/vlad.near/key/ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr'
+```
+
+[https://rpc.web4.near.page/account/vlad.near/key/ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr](https://rpc.web4.near.page/account/vlad.near/key/ed25519:JBHUrhF61wfScUxqGGRmfdJTQYg8MzRr5H8pqMMjqygr)
+
 
 ## Download contract WASM code
 
