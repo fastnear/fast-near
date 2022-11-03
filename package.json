@@ -40,6 +40,7 @@
   },
   "devDependencies": {
     "colortape": "^0.1.2",
+    "near-cli": "^3.4.2",
     "nodemon": "^2.0.14",
     "supertest": "^6.2.3",
     "tape": "^5.5.3"
