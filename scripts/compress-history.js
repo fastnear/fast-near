@@ -1,14 +1,14 @@
-const { getLatestBlockHeight, cleanOlderData, scanAllKeys, redisBatch } = require("../storage-client");
+const storageClient = require("../storage-client");
 
 async function compressHistory() {
-    const blockHeight = await getLatestBlockHeight();
+    const blockHeight = await storageClient.getLatestBlockHeight();
     let iterator;
     do {
-        const [newIterator, keys] = await scanAllKeys(iterator); 
-        await redisBatch(async batch => {
+        const [newIterator, keys] = await storageClient.scanAllKeys(iterator); 
+        await storageClient.redisBatch(async batch => {
             for (const key of keys) {
                 console.log('compress', JSON.stringify(key.toString('utf8')));
-                await cleanOlderData(batch)(key, blockHeight);
+                await storageClient.cleanOlderData(batch)(key, blockHeight);
             }
         });
         iterator = newIterator;

@@ -2,7 +2,7 @@ const { stream } = require('near-lake-framework');
 const minimatch = require('minimatch');
 const bs58 = require('bs58');
 const { serialize } = require('borsh');
-const { setLatestBlockHeight, setData, deleteData, cleanOlderData, redisBatch, closeRedis, setBlockTimestamp } = require('../storage-client');
+const storageClient = require("../storage-client");
 const { DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
 const { Account, BORSH_SCHEMA, AccessKey, PublicKey, FunctionCallPermission, AccessKeyPermission, FullAccessPermission } = require('../data-model');
 
@@ -21,29 +21,29 @@ async function handleStreamerMessage(streamerMessage, { historyLength, include, 
         `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
 
     for (let { stateChanges } of streamerMessage.shards) {
-        await redisBatch(async batch => {
+        await storageClient.redisBatch(async batch => {
             for (let { type, change } of stateChanges) {
                 await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
             }
         });
     }
 
-    await setBlockTimestamp(blockHeight, timestamp);
-    await setLatestBlockHeight(blockHeight);
+    await storageClient.setBlockTimestamp(blockHeight, timestamp);
+    await storageClient.setLatestBlockHeight(blockHeight);
 }
 
 async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
     const handleUpdate = async (scope, accountId, dataKey, data) => {
-        await setData(batch)(scope, accountId, dataKey, blockHash, blockHeight, data);
+        await storageClient.setData(batch)(scope, accountId, dataKey, blockHash, blockHeight, data);
         if (keepFromBlockHeight) {
-            await cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
+            await storageClient.cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
     const handleDeletion = async (scope, accountId, dataKey) => {
-        await deleteData(batch)(scope, accountId, dataKey, blockHash, blockHeight);
+        await storageClient.deleteData(batch)(scope, accountId, dataKey, blockHash, blockHeight);
         if (keepFromBlockHeight) {
-            await cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
+            await storageClient.cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
@@ -119,7 +119,6 @@ if (require.main === module) {
     const DEFAULT_BATCH_SIZE = 20;
 
     const yargs = require('yargs/yargs');
-    const storageClient = require("../storage-client");
     yargs(process.argv.slice(2))
         .command(['s3 [bucket-name] [start-block-height] [region-name] [endpoint]', '$0'],
                 'loads data from NEAR Lake S3 into Redis DB',
@@ -188,7 +187,7 @@ if (require.main === module) {
             }
 
             // TODO: Check what else is blocking exit
-            await closeRedis();
+            await storageClient.closeRedis();
         })
         .parse();
 }
