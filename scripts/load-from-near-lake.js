@@ -84,7 +84,8 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
                 nonce,
                 permission 
             } } = change;
-            const accessKey = new AccessKey({ nonce, permission: new AccessKeyPermission(
+            // NOTE: nonce.toString() is a hack to make stuff work, near-lake shouldn't use number for u64 values as it results in data loss
+            const accessKey = new AccessKey({ nonce: nonce.toString(), permission: new AccessKeyPermission(
                 permission == 'FullAccess'
                     ? { fullAccess: new FullAccessPermission() }
                     : { functionCall: new FunctionCallPermission(permission.FunctionCall) }
