@@ -1,6 +1,8 @@
 const { stream } = require('near-lake-framework');
 const minimatch = require('minimatch');
 const bs58 = require('bs58');
+const fetch = require('node-fetch');
+const FormData = require('form-data');
 const { serialize } = require('borsh');
 const storageClient = require("../storage-client");
 const { DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
@@ -13,23 +15,57 @@ let timeStarted = Date.now();
 
 async function handleStreamerMessage(streamerMessage, { historyLength, include, exclude } = {}) {
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
-    const blockHash = bs58.decode(blockHashB58);
-    const keepFromBlockHeight = historyLength && blockHeight - historyLength;
-    totalMessages++;
-    console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
-        `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
-        `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
+    // const blockHash = bs58.decode(blockHashB58);
+    // const keepFromBlockHeight = historyLength && blockHeight - historyLength;
+    // totalMessages++;
+    // console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
+    //     `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
+    //     `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
 
-    for (let { stateChanges } of streamerMessage.shards) {
-        await storageClient.redisBatch(async batch => {
-            for (let { type, change } of stateChanges) {
-                await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
-            }
-        });
+    // for (let { stateChanges } of streamerMessage.shards) {
+    //     await storageClient.redisBatch(async batch => {
+    //         for (let { type, change } of stateChanges) {
+    //             await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
+    //         }
+    //     });
+    // }
+
+    // await storageClient.setBlockTimestamp(blockHeight, timestamp);
+    // await storageClient.setLatestBlockHeight(blockHeight);
+
+
+    const ESTUARY_TOKEN = process.env.ESTUARY_TOKEN;
+
+    const streamerMessageData = Buffer.from(JSON.stringify(streamerMessage));
+
+    const zlib = require('zlib');
+    const gzip = zlib.createGzip();
+    const compressed = await new Promise((resolve, reject) => {
+        const chunks = [];
+        gzip.on('data', (chunk) => chunks.push(chunk));
+        gzip.on('end', () => resolve(Buffer.concat(chunks)));
+        gzip.on('error', reject);
+        gzip.write(streamerMessageData);
+        gzip.end();
+    });
+
+    const formData = new FormData();
+    formData.append('data', compressed, `${blockHashB58}.json.gz`);
+    const res = await fetch('https://upload.estuary.tech/content/add', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${ESTUARY_TOKEN}`,
+        },
+        body: formData
+    });
+
+    if (!res.ok) {
+        console.log('Error uploading to Estuary:', res.status, await res.json());
+        process.exit(1);
     }
 
-    await storageClient.setBlockTimestamp(blockHeight, timestamp);
-    await storageClient.setLatestBlockHeight(blockHeight);
+    const { cid } = await res.json();
+    console.log(blockHeight, cid);
 }
 
 async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
@@ -179,7 +215,7 @@ if (require.main === module) {
                     await handleStreamerMessage(streamerMessage, { historyLength, include, exclude });
                 });
 
-                console.log('counters', getCounters());
+                // console.log('counters', getCounters());
                 resetCounters();
                 blocksProcessed++;
                 if (limit && blocksProcessed >= limit) {
