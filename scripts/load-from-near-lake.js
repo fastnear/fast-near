@@ -10,6 +10,9 @@ const { Account, BORSH_SCHEMA, AccessKey, PublicKey, FunctionCallPermission, Acc
 
 const { withTimeCounter, getCounters, resetCounters} = require('../counters');
 
+const MAX_PARALLEL_UPLOADS = 30;
+const uploadQueue = [];
+
 let totalMessages = 0;
 let timeStarted = Date.now();
 
@@ -17,7 +20,7 @@ async function handleStreamerMessage(streamerMessage, { historyLength, include, 
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     // const blockHash = bs58.decode(blockHashB58);
     // const keepFromBlockHeight = historyLength && blockHeight - historyLength;
-    // totalMessages++;
+    totalMessages++;
     // console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
     //     `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
     //     `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
@@ -34,38 +37,46 @@ async function handleStreamerMessage(streamerMessage, { historyLength, include, 
     // await storageClient.setLatestBlockHeight(blockHeight);
 
 
-    const ESTUARY_TOKEN = process.env.ESTUARY_TOKEN;
-
-    const streamerMessageData = Buffer.from(JSON.stringify(streamerMessage));
-
-    const zlib = require('zlib');
-    const gzip = zlib.createGzip();
-    const compressed = await new Promise((resolve, reject) => {
-        const chunks = [];
-        gzip.on('data', (chunk) => chunks.push(chunk));
-        gzip.on('end', () => resolve(Buffer.concat(chunks)));
-        gzip.on('error', reject);
-        gzip.write(streamerMessageData);
-        gzip.end();
-    });
-
-    const formData = new FormData();
-    formData.append('data', compressed, `${blockHashB58}.json.gz`);
-    const res = await fetch('https://upload.estuary.tech/content/add', {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${ESTUARY_TOKEN}`,
-        },
-        body: formData
-    });
-
-    if (!res.ok) {
-        console.log('Error uploading to Estuary:', res.status, await res.json());
-        process.exit(1);
+    if (uploadQueue.length >= MAX_PARALLEL_UPLOADS) {
+        await Promise.race(uploadQueue);
     }
 
-    const { cid } = await res.json();
-    console.log(blockHeight, cid);
+    const promise = (async () => {
+        const ESTUARY_TOKEN = process.env.ESTUARY_TOKEN;
+
+        const streamerMessageData = Buffer.from(JSON.stringify(streamerMessage));
+
+        const zlib = require('zlib');
+        const gzip = zlib.createGzip();
+        const compressed = await new Promise((resolve, reject) => {
+            const chunks = [];
+            gzip.on('data', (chunk) => chunks.push(chunk));
+            gzip.on('end', () => resolve(Buffer.concat(chunks)));
+            gzip.on('error', reject);
+            gzip.write(streamerMessageData);
+            gzip.end();
+        });
+
+        const formData = new FormData();
+        formData.append('data', compressed, `${blockHashB58}.json.gz`);
+        const res = await fetch('https://upload.estuary.tech/content/add', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${ESTUARY_TOKEN}`,
+            },
+            body: formData
+        });
+
+        if (!res.ok) {
+            console.log('Error uploading to Estuary:', res.status, await res.json());
+            process.exit(1);
+        }
+
+        const { cid } = await res.json();
+        console.log(blockHeight, cid);
+    })();
+    uploadQueue.push(promise);
+    promise.then(() => uploadQueue.splice(uploadQueue.indexOf(promise), 1));
 }
 
 async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
