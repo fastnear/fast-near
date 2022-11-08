@@ -18,26 +18,46 @@ let timeStarted = Date.now();
 
 const NUM_RETRIES = 10;
 const RETRY_TIMEOUT = 5000;
-async function handleStreamerMessage(streamerMessage, { historyLength, include, exclude } = {}) {
-    const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
-    // const blockHash = bs58.decode(blockHashB58);
-    // const keepFromBlockHeight = historyLength && blockHeight - historyLength;
+async function handleStreamerMessage(streamerMessage, options = {}) {
+    const { height: blockHeight, timestamp } = streamerMessage.block.header;
     totalMessages++;
-    // console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
-    //     `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
-    //     `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
+    console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
+        `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
+        `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
+    
+    const pipeline = [
+        // dumpChangesToRedis,
+        scheduleUploadToEstuary
+    ];
 
-    // for (let { stateChanges } of streamerMessage.shards) {
-    //     await storageClient.redisBatch(async batch => {
-    //         for (let { type, change } of stateChanges) {
-    //             await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
-    //         }
-    //     });
-    // }
+    for (let fn of pipeline) {
+        await fn(streamerMessage, options);
+    }
+}
 
-    // await storageClient.setBlockTimestamp(blockHeight, timestamp);
-    // await storageClient.setLatestBlockHeight(blockHeight);
+async function dumpChangesToRedis(streamerMessage, { historyLength, include, exclude } = {}) {
+    const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
+    const blockHash = bs58.decode(blockHashB58);
+    const keepFromBlockHeight = historyLength && blockHeight - historyLength;
+    totalMessages++;
+    console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
+        `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
+        `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
 
+    for (let { stateChanges } of streamerMessage.shards) {
+        await storageClient.redisBatch(async batch => {
+            for (let { type, change } of stateChanges) {
+                await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
+            }
+        });
+    }
+
+    await storageClient.setBlockTimestamp(blockHeight, timestamp);
+    await storageClient.setLatestBlockHeight(blockHeight);
+}
+
+async function scheduleUploadToEstuary(streamerMessage) {
+    const { height: blockHeight, hash: blockHashB58 } = streamerMessage.block.header;
 
     if (uploadQueue.length >= MAX_PARALLEL_UPLOADS) {
         await Promise.race(uploadQueue);
