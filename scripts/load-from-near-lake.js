@@ -16,6 +16,8 @@ const uploadQueue = [];
 let totalMessages = 0;
 let timeStarted = Date.now();
 
+const NUM_RETRIES = 10;
+const RETRY_TIMEOUT = 5000;
 async function handleStreamerMessage(streamerMessage, { historyLength, include, exclude } = {}) {
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     // const blockHash = bs58.decode(blockHashB58);
@@ -41,7 +43,7 @@ async function handleStreamerMessage(streamerMessage, { historyLength, include, 
         await Promise.race(uploadQueue);
     }
 
-    const promise = (async () => {
+    const upload = async () => {
         const ESTUARY_TOKEN = process.env.ESTUARY_TOKEN;
 
         const streamerMessageData = Buffer.from(JSON.stringify(streamerMessage));
@@ -56,27 +58,38 @@ async function handleStreamerMessage(streamerMessage, { historyLength, include, 
             gzip.write(streamerMessageData);
             gzip.end();
         });
+        
 
-        const formData = new FormData();
-        formData.append('data', compressed, `${blockHashB58}.json.gz`);
-        const res = await fetch('https://upload.estuary.tech/content/add', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${ESTUARY_TOKEN}`,
-            },
-            body: formData
-        });
+        for (let i = 0; i < NUM_RETRIES; i++) {
+            const formData = new FormData();
+            formData.append('data', compressed, `${blockHashB58}.json.gz`);
+            const res = await fetch('https://upload.estuary.tech/content/add', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${ESTUARY_TOKEN}`,
+                },
+                body: formData
+            });
 
-        if (!res.ok) {
-            console.log('Error uploading to Estuary:', res.status, await res.json());
-            process.exit(1);
+            if (!res.ok) {
+                console.log('Error uploading to Estuary:', res.status, await res.json());
+                await new Promise(resolve => setTimeout(resolve, RETRY_TIMEOUT));
+            } else {
+                const { cid } = await res.json();
+                console.log(blockHeight, cid);
+                return;
+            }
         }
+        throw new Error('Too many retries');
+    }
 
-        const { cid } = await res.json();
-        console.log(blockHeight, cid);
-    })();
+    const promise = upload();
     uploadQueue.push(promise);
-    promise.then(() => uploadQueue.splice(uploadQueue.indexOf(promise), 1));
+    promise
+        .catch(e => {
+            console.log('Error uploading', e);
+            process.exit(1); })
+        .then(() => uploadQueue.splice(uploadQueue.indexOf(promise), 1));
 }
 
 async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
