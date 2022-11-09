@@ -26,8 +26,9 @@ async function handleStreamerMessage(streamerMessage, options = {}) {
         `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
     
     const pipeline = [
+        dumpReceiptsToQuestDB,
         // dumpChangesToRedis,
-        scheduleUploadToEstuary
+        // scheduleUploadToEstuary,
     ];
 
     for (let fn of pipeline) {
@@ -35,14 +36,81 @@ async function handleStreamerMessage(streamerMessage, options = {}) {
     }
 }
 
+function parseRustEnum(enumObj) {
+    if (typeof enumObj === 'string') {
+        return [enumObj, {}];
+    } else {
+        const actionKeys = Object.keys(enumObj);
+        if (actionKeys.length !== 1) {
+            console.log('rekt enum', enumObj);
+            process.exit(1);
+        }
+        return [actionKeys[0], enumObj[actionKeys[0]]];
+    }
+}
+
+const { stringify: csvToString } = require('csv-stringify/sync');
+
+async function dumpReceiptsToQuestDB(streamerMessage) {
+    const { height: blockHeight, hash: blockHashB58, timestampNanosec } = streamerMessage.block.header;
+    const blockHash = bs58.decode(blockHashB58);
+    // TODO: Record IPFS blockhashes?
+    const receipts = [];
+    for (let shard of streamerMessage.shards) {
+        let { chunk } = shard;
+        if (!chunk) {
+            console.log('rekt block', streamerMessage);
+            continue;
+        }
+        for (let { predecessorId, receipt, receiptId, receiverId } of chunk.receipts) {
+            if (receipt.Action) {
+                let index_in_action_receipt = 0;
+                for (let action of receipt.Action.actions) {
+                    const [action_kind, actionArgs] = parseRustEnum(action);
+                    let receiptData = {
+                        ts: new Date(Number(BigInt(timestampNanosec) / BigInt(1000000))).toISOString(),
+                        receipt_id: receiptId,
+                        index_in_action_receipt,
+                        action_kind,
+                        deposit: actionArgs.deposit,
+                        method_name: actionArgs.methodName,
+                        args_base64: actionArgs.args,
+                        receiver_id: receiverId,
+                        predecessor_id: predecessorId,
+                        // transaction_hash: null, // TODO: Join with transactions?
+                        signer_id: receipt.Action.signerId,
+                        signer_public_key: receipt.Action.signerPublicKey,
+                    }
+                    index_in_action_receipt++;
+                    receipts.push(receiptData);
+                }
+            } else {
+                console.log('Skipping receipt', receipt);
+            }
+        }
+    }
+    if (receipts.length > 0) {
+        const csv = csvToString(receipts, { header: true });
+        console.log(csv);
+        const formData = new FormData();
+        formData.append('data', csv, 'data.csv');
+        const res = await fetch('http://localhost:9000/imp', {
+            method: 'POST',
+            body: formData,
+        });
+        console.log('res.status', res.status, await res.text());
+    }
+}
+
 async function dumpChangesToRedis(streamerMessage, { historyLength, include, exclude } = {}) {
+    // TODO: Use timestampNanoSec?
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
     const keepFromBlockHeight = historyLength && blockHeight - historyLength;
-    totalMessages++;
-    console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
-        `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
-        `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
+    // totalMessages++;
+    // console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
+    //     `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
+    //     `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
 
     for (let { stateChanges } of streamerMessage.shards) {
         await storageClient.redisBatch(async batch => {
