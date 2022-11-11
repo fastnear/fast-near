@@ -91,14 +91,25 @@ async function dumpReceiptsToQuestDB(streamerMessage) {
     }
     if (receipts.length > 0) {
         const csv = csvToString(receipts, { header: true });
-        console.log(csv);
         const formData = new FormData();
-        formData.append('data', csv, 'data.csv');
-        const res = await fetch('http://localhost:9000/imp', {
+        formData.append('schema', JSON.stringify([
+            { name: "action_kind", type: "SYMBOL" },
+            { name: "receiver_id", type: "SYMBOL" },
+            { name: "predecessor_id", type: "SYMBOL" },
+            { name: "signer_id", type: "SYMBOL" },
+            { name: "method_name", type: "SYMBOL" },
+        ]), 'schema');
+        formData.append('data', csv, 'data');
+        console.log('importing', receipts.length, 'receipts for block', blockHeight);
+        const res = await fetch('http://localhost:9000/imp?fmt=json&forceHeader=true', {
             method: 'POST',
             body: formData,
         });
-        console.log('res.status', res.status, await res.text());
+        if (!res.ok) {
+            console.log('res', res.status, await res.text());
+            process.exit(1);
+        }
+        console.log('imported receipts for block', blockHeight);
     }
 }
 
