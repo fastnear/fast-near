@@ -19,6 +19,7 @@ let timeStarted = Date.now();
 const NUM_RETRIES = 10;
 const RETRY_TIMEOUT = 5000;
 async function handleStreamerMessage(streamerMessage, options = {}) {
+    const { dumpRedis, dumpEstuary, dumpQuestdb } = options;
     const { height: blockHeight, timestamp } = streamerMessage.block.header;
     totalMessages++;
     console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
@@ -26,10 +27,14 @@ async function handleStreamerMessage(streamerMessage, options = {}) {
         `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
     
     const pipeline = [
-        dumpReceiptsToQuestDB,
-        // dumpChangesToRedis,
-        // scheduleUploadToEstuary,
-    ];
+        dumpRedis && dumpChangesToRedis,
+        dumpEstuary && scheduleUploadToEstuary,
+        dumpQuestdb && dumpReceiptsToQuestDB,
+    ].filter(Boolean);
+
+    if (pipeline.length === 0) {
+        console.warn('NOTE: No data output pipeline configured. Performing dry run.');
+    }
 
     for (let fn of pipeline) {
         await fn(streamerMessage, options);
@@ -50,6 +55,7 @@ function parseRustEnum(enumObj) {
 }
 
 const { stringify: csvToString } = require('csv-stringify/sync');
+const FAST_NEAR_QUESTDB_URL = process.env.FAST_NEAR_QUESTDB_URL || 'http://localhost:9000';
 
 async function dumpReceiptsToQuestDB(streamerMessage) {
     const { height: blockHeight, hash: blockHashB58, timestampNanosec } = streamerMessage.block.header;
@@ -101,7 +107,7 @@ async function dumpReceiptsToQuestDB(streamerMessage) {
         ]), 'schema');
         formData.append('data', csv, 'data');
         console.log('importing', receipts.length, 'receipts for block', blockHeight);
-        const res = await fetch('http://localhost:9000/imp?fmt=json&forceHeader=true', {
+        const res = await fetch(`${FAST_NEAR_QUESTDB_URL}/imp?fmt=json&forceHeader=true`, {
             method: 'POST',
             body: formData,
         });
@@ -118,10 +124,6 @@ async function dumpChangesToRedis(streamerMessage, { historyLength, include, exc
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
     const keepFromBlockHeight = historyLength && blockHeight - historyLength;
-    // totalMessages++;
-    // console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
-    //     `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
-    //     `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
 
     for (let { stateChanges } of streamerMessage.shards) {
         await storageClient.redisBatch(async batch => {
@@ -281,7 +283,7 @@ if (require.main === module) {
     const yargs = require('yargs/yargs');
     yargs(process.argv.slice(2))
         .command(['s3 [bucket-name] [start-block-height] [region-name] [endpoint]', '$0'],
-                'loads data from NEAR Lake S3 into Redis DB',
+                'loads data from NEAR Lake S3 into other datastores',
                 yargs => yargs
                     .option('start-block-height', {
                         describe: 'block height to start loading from. By default starts from latest known block height or genesis.',
@@ -310,6 +312,18 @@ if (require.main === module) {
                     .option('limit', {
                         describe: 'How many blocks to fetch before stopping. Unlimited by default.',
                         number: true
+                    })
+                    .option('dump-redis', {
+                        describe: 'Dump state changes into Redis. FAST_NEAR_REDIS_URL environment variable to be set to choose Redis host.',
+                        boolean: true
+                    })
+                    .option('dump-estuary', {
+                        describe: 'Dump blocks into IPFS using Estuary. Requires ESTUARY_TOKEN environment variable to be set to auth token. See https://docs.estuary.tech/tutorial-get-an-api-key for more information.',
+                        boolean: true
+                    })
+                    .option('dump-questdb', {
+                        describe: 'Dump receipts into QuestDB. Requires FAST_NEAR_QUESTDB_URL environment variable to be set to QuestDB host. Defaults to http://localhost:9000.',
+                        boolean: true
                     }),
                 async argv => {
 
@@ -322,7 +336,10 @@ if (require.main === module) {
                 historyLength,
                 limit,
                 include,
-                exclude
+                exclude,
+                dumpRedis,
+                dumpEstuary,
+                dumpQuestdb,
             } = argv;
 
             let blocksProcessed = 0;
@@ -335,7 +352,14 @@ if (require.main === module) {
                 blocksPreloadPoolSize: batchSize
             })) {
                 await withTimeCounter('handleStreamerMessage', async () => {
-                    await handleStreamerMessage(streamerMessage, { historyLength, include, exclude });
+                    await handleStreamerMessage(streamerMessage, {
+                        historyLength,
+                        include,
+                        exclude,
+                        dumpRedis,
+                        dumpEstuary,
+                        dumpQuestdb,
+                    });
                 });
 
                 // console.log('counters', getCounters());

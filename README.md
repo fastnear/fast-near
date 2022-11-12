@@ -49,7 +49,7 @@ docker run -d -e FAST_NEAR_REDIS_URL=<redis_ip> -e FAST_NEAR_NODE_URL=<rpc_endpo
 To load from NEAR Lake (use `--help` to learn more about options):
 
 ```
-node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --history-length 1
+node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --history-length 1 --dump-redis
 ```
 
 ## Load data only for your app's smart contracts
@@ -57,7 +57,7 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --his
 To load data for `app1.near`, `app2.near` and all subaccounts of `superapp.near`:
 
 ```
-node scripts/load-from-near-lake.js near-lake-data-mainnet --include app1.near --include app2.near --include '*.superapp.near'
+node scripts/load-from-near-lake.js near-lake-data-mainnet --include app1.near --include app2.near --include '*.superapp.near' --dump-redis
 ```
 
 ## Exclude some undesired accounts
@@ -65,17 +65,28 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --include app1.near -
 To load data for all accounts except `aurora` and `sweat` subaccounts:
 
 ```
-node scripts/load-from-near-lake.js near-lake-data-mainnet --exclude aurora.* --exclude sweat.*
+node scripts/load-from-near-lake.js near-lake-data-mainnet --exclude aurora.* --exclude sweat.* --dump-redis
 ```
 
-See also https://github.com/vgrichina/near-state-indexer for Rust implementation running full nearcore node.
+## Different data sink options
+
+Currently there are such options to dump data loaded from NEAR Lake:
+- `--dump-redis` - dumps state changes into Redis
+- `--dump-questdb` - dumps receipts into QuestDB (https://questdb.io/)
+- `--dump-estuary` - dumps blocks into IPFS using Estuary (https://estuary.tech/)
+
+## Load data from a local node
+
+See https://github.com/vgrichina/near-state-indexer for Rust implementation running full nearcore node.
 
 # CLI options
 
 ## Environment variables
 
 - `PORT` - port to listen on (default: `3000`)
+- `ESTUARY_TOKEN` - token to use for Estuary IPFS upload. See https://docs.estuary.tech/tutorial-get-an-api-key for more information. 
 - `FAST_NEAR_REDIS_URL` - Redis URL (default: `redis://localhost:6379`)
+- `FAST_NEAR_QUESTDB_URL` - QuestDB URL (default: `http://localhost:9000`)
 - `FAST_NEAR_NODE_URL` - NEAR RPC endpoint (default: `https://rpc.mainnet.near.org`). This is only used as a fallback for JSON-RPC endpoint.
 - `FAST_NEAR_ARCHIVAL_NODE_URL` - NEAR RPC endpoint for archival node (default: `https://rpc.mainnet.internal.near.org`). This is only used as a fallback for JSON-RPC endpoint for data unavailable in Redis or on non-archival RPC.
 - `FAST_NEAR_ALWAYS_PROXY` - Always proxy JSON-RPC requests to `FAST_NEAR_NODE_URL` (default: `false`).
@@ -248,6 +259,7 @@ Some of the planned and already implemented components. Is not exhaustive list.
     - [ ] View account access keys list
     - [ ] View transaction results
     - [ ] Submit transaction
+    - [ ] Structured error handling
 - JSON-RPC API
     - [x] Call view methods
     - [x] View account
