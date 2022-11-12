@@ -10,9 +10,6 @@ const { Account, BORSH_SCHEMA, AccessKey, PublicKey, FunctionCallPermission, Acc
 
 const { withTimeCounter, getCounters, resetCounters} = require('../counters');
 
-const MAX_PARALLEL_UPLOADS = 30;
-const uploadQueue = [];
-
 let totalMessages = 0;
 let timeStarted = Date.now();
 
@@ -137,10 +134,12 @@ async function dumpChangesToRedis(streamerMessage, { historyLength, include, exc
     await storageClient.setLatestBlockHeight(blockHeight);
 }
 
-async function scheduleUploadToEstuary(streamerMessage) {
+const uploadQueue = [];
+
+async function scheduleUploadToEstuary(streamerMessage, { batchSize }) {
     const { height: blockHeight, hash: blockHashB58 } = streamerMessage.block.header;
 
-    if (uploadQueue.length >= MAX_PARALLEL_UPLOADS) {
+    if (uploadQueue.length >= batchSize) {
         await Promise.race(uploadQueue);
     }
 
@@ -353,6 +352,7 @@ if (require.main === module) {
             })) {
                 await withTimeCounter('handleStreamerMessage', async () => {
                     await handleStreamerMessage(streamerMessage, {
+                        batchSize,
                         historyLength,
                         include,
                         exclude,
