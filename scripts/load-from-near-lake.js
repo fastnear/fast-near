@@ -273,7 +273,10 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
 }
 
 module.exports = {
-    handleStreamerMessage
+    handleStreamerMessage,
+    dumpChangesToRedis,
+    dumpReceiptsToQuestDB,
+    scheduleUploadToEstuary,
 }
 
 if (require.main === module) {

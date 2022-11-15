@@ -8,7 +8,7 @@ test.onFinish(async () => {
     await redis.shutdown();
 });
 
-const { handleStreamerMessage } = require('../scripts/load-from-near-lake');
+const { dumpChangesToRedis: handleStreamerMessage } = require('../scripts/load-from-near-lake');
 const { clearDatabase } = require('../storage-client');
 const app = require('../app');
 const request = require('supertest')(app.callback());
