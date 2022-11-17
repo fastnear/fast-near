@@ -68,7 +68,6 @@ const runViewMethod = async ctx => {
         ctx.body = resultBuffer;
     } catch (e) {
         const message = e.toString();
-        console.log('message', message, e);
         if (/TypeError.* is not a function/.test(message)) {
             ctx.throw(404, `method ${methodName} not found`);
         }

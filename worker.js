@@ -68,12 +68,9 @@ const imports = (ctx) => {
     return {
         env: {
             register_len: (register_id) => {
-                console.log('register_len', register_id);
                 return BigInt(registers[register_id] ? registers[register_id].length : MAX_U64);
             },
             read_register: (register_id, ptr) => {
-                console.log('read_register', register_id, ptr);
-                console.log('ctx.memory', ctx.memory);
                 const mem = new Uint8Array(ctx.memory.buffer)
                 mem.set(registers[register_id] || Buffer.from([]), Number(ptr));
             },
@@ -84,7 +81,6 @@ const imports = (ctx) => {
             signer_account_pk: prohibitedInView('signer_account_pk'),
             predecessor_account_id: prohibitedInView('predecessor_account_id'),
             input: (register_id) => {
-                console.log('input', register_id);
                 registers[register_id] = Buffer.from(ctx.methodArgs);
             },
             block_index: () => {
@@ -213,13 +209,12 @@ async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, me
     };
     debug('module instantiate');
     const moduleImports = imports(ctx);
-    const wasm2 = await WebAssembly.instantiate(wasmModule, { env: { ...moduleImports.env, memory } });
+    const wasmInstance = await WebAssembly.instantiate(wasmModule, { env: { ...moduleImports.env, memory } });
     debug('module instantiate done');
-    console.log('imports', WebAssembly.Module.imports(wasmModule));
     ctx.memory = memory;
     try {
         debug(`run ${methodName}`);
-        wasm2.exports[methodName]();
+        wasmInstance.exports[methodName]();
     } finally {
         debug(`run ${methodName} done`);
     }

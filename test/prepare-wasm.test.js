@@ -14,13 +14,9 @@ function loadModule(wasmData) {
 
 test('remove memory export', async t => {
     const wasmData = fs.readFileSync('./test/data/memory-export.wasm');
-    // const wasmData = fs.readFileSync('./test/data/imported_memory.wasm');
     const newData = prepareWASM(wasmData);
-    fs.writeFileSync('tmp.wasm', newData);
 
     const { imports, exports } = loadModule(newData);
-    console.log('imports', imports);
-    console.log('exports', exports);
     t.true(imports.some(i => i.module === 'env' && i.name === 'memory'));
     t.false(exports.some(e => e.kind === 'memory'));
 });

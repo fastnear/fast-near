@@ -3,6 +3,7 @@
 // Binary format is manipulated directly, as otherwise is super slow (seconds) using `@webassemblyjs/wasm-edit`
 // https://coinexsmartchain.medium.com/wasm-introduction-part-1-binary-format-57895d851580
 
+const debug = require('debug')('prepare-wasm');
 
 function prepareWASM(input) {
     const parts = [];
@@ -63,7 +64,7 @@ function prepareWASM(input) {
         offset++;
         const sectionSize = decodeLEB128();
         const sectionEnd = offset + sectionSize;
-        console.log('section', sectionId, sectionStart, sectionSize);
+        debug('section', sectionId, sectionStart, sectionSize);
         
         if (sectionId == 5) {
             // Memory section
@@ -73,13 +74,13 @@ function prepareWASM(input) {
             // Import section
             const sectionParts = [];
             const numImports = decodeLEB128();
-            console.log('numImports', numImports);
+            debug('numImports', numImports);
             for (let i = 0; i < numImports; i++) {
                 const importStart = offset;
                 const module = decodeString();
                 const field = decodeString();
                 const kind = input.readUInt8(offset);
-                console.log('offset', offset.toString(16), 'kind', kind, 'module', module, 'field', field);
+                debug('offset', offset.toString(16), 'kind', kind, 'module', module, 'field', field);
                 offset++;
                 if (kind == 2) {
                     // Memory import
@@ -105,7 +106,6 @@ function prepareWASM(input) {
 
             sectionParts.push(importMemory);
 
-            console.log('sectionParts', sectionParts);
             const sectionData = Buffer.concat([
                 encodeLEB128(sectionParts.length),
                 ...sectionParts,
@@ -120,14 +120,14 @@ function prepareWASM(input) {
             // Export section
             const sectionParts = [];
             const numExports = decodeLEB128();
-            console.log('numExports', numExports);
+            debug('numExports', numExports);
             for (let i = 0; i < numExports; i++) {
                 const exportStart = offset;
                 const name = decodeString();
                 const kind = input.readUInt8(offset);
                 offset++;
                 const index = decodeLEB128();
-                console.log('kind', kind, 'name', name, 'index', index);
+                debug('kind', kind, 'name', name, 'index', index);
                 if (kind !== 2) {
                     // Pass through all exports except memory
                     sectionParts.push(input.slice(exportStart, offset));
