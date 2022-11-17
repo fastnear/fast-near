@@ -36,6 +36,17 @@ const imports = (ctx) => {
         return Buffer.from(Uint16Array.from(arr).buffer).toString('ucs2');
     }
 
+    function readUTF8CStr(len, ptr) {
+        let arr = [];
+        const mem = new Uint8Array(ctx.memory.buffer);
+        ptr = Number(ptr);
+        for (let i = 0; i < len && mem[ptr] != 0; i++){
+            arr.push(mem[ptr]);
+            ptr++;
+        }
+        return Buffer.from(arr).toString('utf8');
+    }
+
     function storageRead(key_len, key_ptr) {
         const storageKey = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(key_ptr), Number(key_len)));
         const compKey = dataKey(ctx.contractId, storageKey);
@@ -105,7 +116,7 @@ const imports = (ctx) => {
                 throw new FastNEARError('panic', message);
             },
             panic_utf8: (len, ptr) => {
-                const message = `${Buffer.from(new Uint8Array(ctx.memory.buffer, Number(ptr), Number(len))).toString('utf8')}`;
+                const message = readUTF8CStr(len, ptr);
                 debug('panic', message);
                 throw new FastNEARError('panic', message);
             },
@@ -122,14 +133,12 @@ const imports = (ctx) => {
                 throw new FastNEARError('abort', message);
             },
             log_utf8: (len, ptr) => {
-                // TODO: Support null terminated?
-                const message = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(ptr), Number(len))).toString('utf8');
+                const message = readUTF8CStr(len, ptr);
                 debug(`log: ${message}`);
                 ctx.logs.push(message);
             },
             log_utf16: (len, ptr) => {
-                // TODO: Support null terminated?
-                const message = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(ptr), Number(len))).toString('utf16');
+                const message = readUTF8CStr(len, ptr);
                 debug(`log: ${message}`);
                 ctx.logs.push(message);
             },
