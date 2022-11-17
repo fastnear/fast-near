@@ -75,12 +75,11 @@ function prepareWASM(input) {
             const numImports = decodeLEB128();
             console.log('numImports', numImports);
             for (let i = 0; i < numImports; i++) {
-                console.log('offset', offset.toString(16), offset - sectionStart);
                 const importStart = offset;
                 const module = decodeString();
                 const field = decodeString();
                 const kind = input.readUInt8(offset);
-                console.log('kind', kind, 'module', module, 'field', field);
+                console.log('offset', offset.toString(16), 'kind', kind, 'module', module, 'field', field);
                 offset++;
                 if (kind == 2) {
                     // Memory import
@@ -89,7 +88,7 @@ function prepareWASM(input) {
                     decodeLEB128(); 
                     // NOTE: existing memory import is removed (so no need to add it to sectionParts)
                 } else {
-                    // TODO: Support other import kinds?
+                    // TODO: Support other import kinds? Does offset vary by kind not only for memory?
                     offset++;
                     sectionParts.push(input.slice(importStart, offset));
                 }
@@ -114,6 +113,34 @@ function prepareWASM(input) {
 
             parts.push(Buffer.concat([
                 Buffer.from([2]), // Import section
+                encodeLEB128(sectionData.length),
+                sectionData
+            ]));
+        } else if (sectionId == 7) {
+            // Export section
+            const sectionParts = [];
+            const numExports = decodeLEB128();
+            console.log('numExports', numExports);
+            for (let i = 0; i < numExports; i++) {
+                const exportStart = offset;
+                const name = decodeString();
+                const kind = input.readUInt8(offset);
+                offset++;
+                const index = decodeLEB128();
+                console.log('kind', kind, 'name', name, 'index', index);
+                if (kind !== 2) {
+                    // Pass through all exports except memory
+                    sectionParts.push(input.slice(exportStart, offset));
+                }
+            }
+
+            const sectionData = Buffer.concat([
+                encodeLEB128(sectionParts.length),
+                ...sectionParts,
+            ]);
+
+            parts.push(Buffer.concat([
+                Buffer.from([7]), // Export section
                 encodeLEB128(sectionData.length),
                 sectionData
             ]));
