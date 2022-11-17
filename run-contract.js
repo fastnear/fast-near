@@ -57,28 +57,9 @@ async function getWasmModule(contractId, blockHeight) {
             throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
         }
         debug('wasmData.length', wasmData.length);
-
-        const t = require("@webassemblyjs/ast");
-        const { decode } = require('@webassemblyjs/wasm-parser');
-        const { addWithAST } = require('@webassemblyjs/wasm-edit');
-
-        const ast = decode(wasmData, {
-            ignoreCustomNameSection: true
-        });
         
-        // TODO: Check if exports?
-        // TODO: Looks like nearcore preprocesses in it's own way, makes sense to match
-        // https://github.com/near/nearcore/blob/85563483db8f7655cbb45e856ba3fb99bbf463e3/runtime/near-vm-runner/src/prepare.rs#L143
-        // TODO: Best to manipulate binary format directly, as otherwise is super slow (seconds)
-        // https://coinexsmartchain.medium.com/wasm-introduction-part-1-binary-format-57895d851580
-        const tmp = [
-          t.moduleExport("memory",
-            t.moduleExportDescr('Memory', 0)),
-        ]
-        // TODO: Is there any way to do it faster???
-        console.log('tmp', tmp, t.identifier('memory_0', ''));
-        const newData = addWithAST(ast, wasmData, tmp);
-
+        const { prepareWASM } = require('./utils/prepare-wasm');
+        const newData = prepareWASM(wasmData);
 
         debug('wasm compile');
         wasmModule = await WebAssembly.compile(newData);

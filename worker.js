@@ -201,6 +201,8 @@ const imports = (ctx) => {
 
 async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs }) {
     debug('runWASM', contractId, methodName, prettyBuffer(Buffer.from(methodArgs)));
+    // TODO: Take memory size from config
+    const memory = new WebAssembly.Memory({ initial: 1024, maximum: 2048 });
     const ctx = {
         blockHeight,
         blockTimestamp,
@@ -210,14 +212,11 @@ async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, me
         result: Buffer.from([]),
     };
     debug('module instantiate');
-    const memory = new WebAssembly.Memory({ initial: 1024, maximum: 2048 });
     const moduleImports = imports(ctx);
     const wasm2 = await WebAssembly.instantiate(wasmModule, { env: { ...moduleImports.env, memory } });
-    console.log('wasm2', wasm2, 'memory', wasm2.memory)
     debug('module instantiate done');
-    console.log('exports', wasm2.exports);
     console.log('imports', WebAssembly.Module.imports(wasmModule));
-    ctx.memory = wasm2.exports.memory || memory;
+    ctx.memory = memory;
     try {
         debug(`run ${methodName}`);
         wasm2.exports[methodName]();
