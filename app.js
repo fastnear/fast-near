@@ -68,6 +68,7 @@ const runViewMethod = async ctx => {
         ctx.body = resultBuffer;
     } catch (e) {
         const message = e.toString();
+        console.log('message', message, e);
         if (/TypeError.* is not a function/.test(message)) {
             ctx.throw(404, `method ${methodName} not found`);
         }
@@ -75,6 +76,8 @@ const runViewMethod = async ctx => {
         if (['codeNotFound', 'accountNotFound'].includes(e.code)) {
             ctx.throw(404, message);
         }
+
+        console.log('Unexpected error', e);
 
         ctx.throw(400, message);
     }

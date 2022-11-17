@@ -64,12 +64,16 @@ const imports = (ctx) => {
         return resultMessage.message;
     }
 
+
     return {
         env: {
             register_len: (register_id) => {
+                console.log('register_len', register_id);
                 return BigInt(registers[register_id] ? registers[register_id].length : MAX_U64);
             },
             read_register: (register_id, ptr) => {
+                console.log('read_register', register_id, ptr);
+                console.log('ctx.memory', ctx.memory);
                 const mem = new Uint8Array(ctx.memory.buffer)
                 mem.set(registers[register_id] || Buffer.from([]), Number(ptr));
             },
@@ -80,6 +84,7 @@ const imports = (ctx) => {
             signer_account_pk: prohibitedInView('signer_account_pk'),
             predecessor_account_id: prohibitedInView('predecessor_account_id'),
             input: (register_id) => {
+                console.log('input', register_id);
                 registers[register_id] = Buffer.from(ctx.methodArgs);
             },
             block_index: () => {
@@ -193,6 +198,7 @@ const imports = (ctx) => {
     }
 };
 
+
 async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs }) {
     debug('runWASM', contractId, methodName, prettyBuffer(Buffer.from(methodArgs)));
     const ctx = {
@@ -204,9 +210,14 @@ async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, me
         result: Buffer.from([]),
     };
     debug('module instantiate');
-    const wasm2 = await WebAssembly.instantiate(wasmModule, imports(ctx));
+    const memory = new WebAssembly.Memory({ initial: 1024, maximum: 2048 });
+    const moduleImports = imports(ctx);
+    const wasm2 = await WebAssembly.instantiate(wasmModule, { env: { ...moduleImports.env, memory } });
+    console.log('wasm2', wasm2, 'memory', wasm2.memory)
     debug('module instantiate done');
-    ctx.memory = wasm2.exports.memory;
+    console.log('exports', wasm2.exports);
+    console.log('imports', WebAssembly.Module.imports(wasmModule));
+    ctx.memory = wasm2.exports.memory || memory;
     try {
         debug(`run ${methodName}`);
         wasm2.exports[methodName]();
