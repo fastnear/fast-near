@@ -76,6 +76,8 @@ const runViewMethod = async ctx => {
             ctx.throw(404, message);
         }
 
+        console.log('Unexpected error', e);
+
         ctx.throw(400, message);
     }
 }

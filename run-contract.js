@@ -57,9 +57,12 @@ async function getWasmModule(contractId, blockHeight) {
             throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
         }
         debug('wasmData.length', wasmData.length);
+        
+        const { prepareWASM } = require('./utils/prepare-wasm');
+        const newData = prepareWASM(wasmData);
 
         debug('wasm compile');
-        wasmModule = await WebAssembly.compile(wasmData);
+        wasmModule = await WebAssembly.compile(newData);
         contractCache.set(cacheKey, wasmModule);
         debug('wasm compile done');
     }
