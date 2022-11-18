@@ -33,6 +33,14 @@ function prepareWASM(input) {
         return result;
     }
 
+    function decodeLimits() {
+        const flags = input[offset++];
+        const hasMax = flags & 0x1;
+        const initial = decodeLEB128();
+        const max = hasMax ? decodeLEB128() : null;
+        return { initial, max };
+    }
+
     function decodeString() {
         const length = decodeLEB128();
         const result = input.slice(offset, offset + length);
@@ -82,15 +90,34 @@ function prepareWASM(input) {
                 const kind = input.readUInt8(offset);
                 debug('offset', offset.toString(16), 'kind', kind, 'module', module, 'field', field);
                 offset++;
-                if (kind == 2) {
-                    // Memory import
-                    // TODO: figure out what exactly is being skipped (maybe just need to skip 2 bytes?)
-                    offset++;
-                    decodeLEB128(); 
-                    // NOTE: existing memory import is removed (so no need to add it to sectionParts)
-                } else {
-                    // TODO: Support other import kinds? Does offset vary by kind not only for memory?
-                    offset++;
+                
+                let skipImport = false;
+                switch (kind) {
+                    case 0:
+                        // Function import
+                        decodeLEB128(); // index
+                        break;
+                    case 1:
+                        // Table import
+                        offset++; // type
+                        decodeLimits();
+                        break;
+                    case 2:
+                        // Memory import
+                        decodeLimits();
+                        // NOTE: existing memory import is removed (so no need to add it to sectionParts)
+                        skipImport = true;
+                        break;
+                    case 3:
+                        // Global import
+                        offset++; // type
+                        offset++; // mutability
+                        break;
+                    default:
+                        throw new Error('Invalid import kind: ' + kind);
+                }
+
+                if (!skipImport) {
                     sectionParts.push(input.slice(importStart, offset));
                 }
             }
