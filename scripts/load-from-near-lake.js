@@ -172,7 +172,7 @@ async function scheduleUploadToEstuary(streamerMessage, { batchSize }) {
             });
 
             if (!res.ok) {
-                console.log('Error uploading to Estuary:', res.status, await res.json());
+                console.log('Error uploading to Estuary:', res.status, await res.text());
                 await new Promise(resolve => setTimeout(resolve, RETRY_TIMEOUT));
             } else {
                 const { cid } = await res.json();
