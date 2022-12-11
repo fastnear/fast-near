@@ -67,9 +67,13 @@ const imports = (ctx) => {
 
     return {
         register_len: (register_id) => {
+            debug('register_len', register_id);
+            debug('registers[register_id].length', registers[register_id].length);
             return BigInt(registers[register_id] ? registers[register_id].length : MAX_U64);
         },
         read_register: (register_id, ptr) => {
+            debug('read_register', register_id, ptr);
+            debug('registers[register_id]', registers[register_id]);
             const mem = new Uint8Array(ctx.memory.buffer)
             mem.set(registers[register_id] || Buffer.from([]), Number(ptr));
         },
@@ -80,6 +84,7 @@ const imports = (ctx) => {
         signer_account_pk: prohibitedInView('signer_account_pk'),
         predecessor_account_id: prohibitedInView('predecessor_account_id'),
         input: (register_id) => {
+            debug('input', register_id);
             registers[register_id] = Buffer.from(ctx.methodArgs);
         },
         block_index: () => {
@@ -108,6 +113,7 @@ const imports = (ctx) => {
         keccak512: notImplemented('keccak512'),
 
         value_return: (value_len, value_ptr) => {
+            debug('value_return', value_len, value_ptr);
             ctx.result = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(value_ptr), Number(value_len)));
         },
         panic: () => {
