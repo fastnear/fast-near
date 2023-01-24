@@ -53,9 +53,9 @@ class WorkerPool extends EventEmitter {
             switch (methodName) {
                 case 'storage_read':
                     (async () => {
-                        const blockHeight = await this.storageClient.getLatestDataBlockHeight(compKey, blockHeight);
+                        const dataBlockHeight = await this.storageClient.getLatestDataBlockHeight(compKey, blockHeight);
 
-                        if (blockHeight) {
+                        if (dataBlockHeight) {
                             const data = await this.storageClient.getData(compKey, blockHeight);
                             worker.postMessage(data);
                         } else {
