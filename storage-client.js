@@ -205,7 +205,7 @@ const clearDatabase = redisClient => async () => {
     redisCache.reset();
 };
 
-const closeRedis = () => new Promise((resolve, reject) => redisClient.quit(e => e ? reject(e) : resolve()));
+const closeDatabase = () => new Promise((resolve, reject) => redisClient.quit(e => e ? reject(e) : resolve()));
 
 module.exports = {
     // TODO: Rely on function name instead?
@@ -221,6 +221,6 @@ module.exports = {
     deleteData,
     cleanOlderData,
     redisBatch,
-    closeRedis,
+    closeDatabase,
     clearDatabase: withRedis({ name: 'clearDatabase' }, clearDatabase),
 };

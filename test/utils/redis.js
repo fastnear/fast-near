@@ -4,7 +4,7 @@ process.env.FAST_NEAR_REDIS_URL = process.env.FAST_NEAR_REDIS_URL || `redis://lo
 
 const { spawn } = require('child_process');
 const fs = require('fs');
-const { closeRedis } = require('../../storage-client');
+const { closeDatabase } = require('../../storage-client');
 
 let redisProcess;
 function startIfNeeded() {
@@ -28,7 +28,7 @@ async function shutdown() {
         redisProcess.kill();
         redisProcess = null;
     }
-    await closeRedis();
+    await closeDatabase();
 };
 
 module.exports = { startIfNeeded, shutdown }

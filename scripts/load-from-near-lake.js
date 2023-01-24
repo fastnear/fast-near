@@ -375,7 +375,7 @@ if (require.main === module) {
             }
 
             // TODO: Check what else is blocking exit
-            await storageClient.closeRedis();
+            await storageClient.closeDatabase();
         })
         .parse();
 }
