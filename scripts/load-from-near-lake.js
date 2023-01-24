@@ -344,9 +344,10 @@ if (require.main === module) {
                 dumpQuestdb,
             } = argv;
 
+            const { fromEnv } = require("@aws-sdk/credential-providers");
             let blocksProcessed = 0;
-
             for await (let streamerMessage of stream({
+                credentials: fromEnv(),
                 startBlockHeight: startBlockHeight || await storageClient.getLatestBlockHeight() || 0,
                 s3BucketName: bucketName || "near-lake-data-mainnet",
                 s3RegionName: regionName || "eu-central-1",
