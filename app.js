@@ -107,12 +107,12 @@ router.get('/account/:accountId', resolveBlockHeight, async ctx => {
     const { accountId } = ctx.params;
 
     // TODO: Refactor with JSON-RPC version?
-    const blockHash = await storageClient.getLatestDataBlockHash(accountKey(accountId), ctx.blockHeight);
-    if (!blockHash) {
+    const blockHeight = await storageClient.getLatestDataBlockHeight(accountKey(accountId), ctx.blockHeight);
+    if (!blockHeight) {
         ctx.throw(404);
     }
 
-    const data = await storageClient.getData(accountKey(accountId), blockHash);
+    const data = await storageClient.getData(accountKey(accountId), blockHeight);
     if (!data) {
         ctx.throw(404);
     }
@@ -129,12 +129,12 @@ router.get('/account/:accountId', resolveBlockHeight, async ctx => {
 router.get('/account/:accountId/contract', resolveBlockHeight, async ctx => {
     const { accountId } = ctx.params;
 
-    const blockHash = await storageClient.getLatestDataBlockHash(codeKey(accountId), ctx.blockHeight);
-    if (!blockHash) {
+    const blockHeight = await storageClient.getLatestDataBlockHeight(codeKey(accountId), ctx.blockHeight);
+    if (!blockHeight) {
         ctx.throw(404);
     }
 
-    const data = await storageClient.getData(codeKey(accountId), blockHash);
+    const data = await storageClient.getData(codeKey(accountId), blockHeight);
     if (!data) {
         ctx.throw(404);
     }
@@ -156,12 +156,12 @@ router.get('/account/:accountId/key/:publicKey', resolveBlockHeight, async ctx =
 
     // TODO: Refactor with JSON-RPC version and other similar methods?
     const storageKey = accessKeyKey(accountId, serialize(BORSH_SCHEMA, PublicKey.fromString(publicKey)));
-    const blockHash = await storageClient.getLatestDataBlockHash(storageKey, ctx.blockHeight);
-    if (!blockHash) {
+    const blockHeight = await storageClient.getLatestDataBlockHeight(storageKey, ctx.blockHeight);
+    if (!blockHeight) {
         ctx.throw(404);
     }
 
-    const data = await storageClient.getData(storageKey, blockHash);
+    const data = await storageClient.getData(storageKey, blockHeight);
     if (!data) {
         ctx.throw(404);
     }

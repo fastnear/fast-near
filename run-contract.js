@@ -23,35 +23,35 @@ async function getWasmModule(contractId, blockHeight) {
 
     const checkAccountExists = async () => {
         debug('load account data')
-        const accountBlockHash = await storageClient.getLatestDataBlockHash(accountDataKey, blockHeight);
-        debug('accountBlockHash', accountBlockHash);
-        if (!accountBlockHash) {
+        const accountBlockHeight = await storageClient.getLatestDataBlockHeight(accountDataKey, blockHeight);
+        debug('accountBlockHeight', accountBlockHeight);
+        if (!accountBlockHeight) {
             throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
         }
 
-        const accountData = await storageClient.getData(accountDataKey, accountBlockHash);
+        const accountData = await storageClient.getData(accountDataKey, accountBlockHeight);
         debug('accountData', accountData);
         if (!accountData) {
             throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
         }
     };
 
-    const contractBlockHash = await storageClient.getLatestDataBlockHash(contractCodeKey, blockHeight);
-    if (!contractBlockHash) {
+    const contractBlockHeight = await storageClient.getLatestDataBlockHeight(contractCodeKey, blockHeight);
+    debug('contract blockHeight', contractBlockHeight);
+    if (!contractBlockHeight) {
         await checkAccountExists();
         throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
     }
 
     // TODO: Have cache based on code hash instead?
-    const cacheKey = `${contractId}:${contractBlockHash.toString('hex')}}`;
+    const cacheKey = `${contractId}:${contractBlockHeight.toString('hex')}}`;
     let wasmModule = contractCache.get(cacheKey);
     if (wasmModule) {
         debug('contract cache hit', cacheKey);
     } else {
         debug('contract cache miss', cacheKey);
 
-        debug('blockHash', contractBlockHash);
-        const wasmData = await storageClient.getData(contractCodeKey, contractBlockHash);
+        const wasmData = await storageClient.getData(contractCodeKey, contractBlockHeight);
         if (!wasmData) {
             await checkAccountExists();
             throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);

@@ -132,6 +132,7 @@ async function dumpChangesToRedis(streamerMessage, { historyLength, include, exc
 
     await storageClient.setBlockTimestamp(blockHeight, timestamp);
     await storageClient.setLatestBlockHeight(blockHeight);
+    // TODO: Record block hash to block height mapping?
 }
 
 const uploadQueue = [];
@@ -192,16 +193,16 @@ async function scheduleUploadToEstuary(streamerMessage, { batchSize }) {
         .then(() => uploadQueue.splice(uploadQueue.indexOf(promise), 1));
 }
 
-async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
+async function handleChange({ batch, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
     const handleUpdate = async (scope, accountId, dataKey, data) => {
-        await storageClient.setData(batch)(scope, accountId, dataKey, blockHash, blockHeight, data);
+        await storageClient.setData(batch)(scope, accountId, dataKey, blockHeight, data);
         if (keepFromBlockHeight) {
             await storageClient.cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
     const handleDeletion = async (scope, accountId, dataKey) => {
-        await storageClient.deleteData(batch)(scope, accountId, dataKey, blockHash, blockHeight);
+        await storageClient.deleteData(batch)(scope, accountId, dataKey, blockHeight);
         if (keepFromBlockHeight) {
             await storageClient.cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }

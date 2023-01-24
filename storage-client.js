@@ -39,6 +39,8 @@ function getRedisClient() {
     };
 }
 
+// TODO: Encode blockHeight more efficiently than string? int32 should be enough for more than 20 years.
+
 const prettyBuffer = require('./pretty-buffer');
 const { withTimeCounter } = require('./counters');
 const { compositeKey, allKeysKey, DATA_SCOPE } = require('./storage-keys');
@@ -96,43 +98,42 @@ const setBlockTimestamp = redisClient => async (blockHeight, blockTimestamp) => 
     return await redisClient.set(`t:${blockHeight}`, blockTimestamp);
 }
 
-function dataBlockHashKey(compKey) {
+function dataHistoryKey(compKey) {
     return Buffer.concat([Buffer.from('h:'), compKey]);
 }
 
-function dataKey(compKey, blockHash) {
-    return Buffer.concat([Buffer.from('d:'), compKey, Buffer.from(':'), blockHash]);
+function dataKey(compKey, blockHeight) {
+    return Buffer.concat([Buffer.from('d:'), compKey, Buffer.from(`:${blockHeight}`)]);
 }
 
-const getLatestDataBlockHash = redisClient => async (compKey, blockHeight) => {
+const getLatestDataBlockHeight = redisClient => async (compKey, blockHeight) => {
     compKey = Buffer.from(compKey);
-    const [blockHash] = await redisClient.sendCommand('ZREVRANGEBYSCORE',
-        [dataBlockHashKey(compKey), blockHeight, '-inf', 'LIMIT', '0', '1']);
-    return blockHash;
+    const [dataBlockHeight] = await redisClient.sendCommand('ZREVRANGEBYSCORE',
+        [dataHistoryKey(compKey), blockHeight, '-inf', 'LIMIT', '0', '1']);
+    return dataBlockHeight;
 };
 
-const getData = redisClient => async (compKey, blockHash) => {
+const getData = redisClient => async (compKey, blockHeight) => {
     compKey = Buffer.from(compKey);
-    return await redisClient.get(dataKey(compKey, blockHash));
+    return await redisClient.get(dataKey(compKey, blockHeight));
 };
 
-const setData = batch => (scope, accountId, storageKey, blockHash, blockHeight, data) => {
-    debug('setData', ...prettyArgs([scope, accountId, storageKey, blockHash, blockHeight]));
+const setData = batch => (scope, accountId, storageKey, blockHeight, data) => {
+    debug('setData', ...prettyArgs([scope, accountId, storageKey, blockHeight]));
     const compKey = compositeKey(scope, accountId, storageKey);
     batch
-        .set(dataKey(compKey, blockHash), data)
-        .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
+        .set(dataKey(compKey, blockHeight), data)
+        .zadd(dataHistoryKey(compKey), blockHeight, blockHeight);
 
     if (storageKey) {
-        // TODO: Check if Rust version also uses blockHeight or blockHash? blockHeight is smaller so a bit better
         batch.hset(allKeysKey(scope, accountId), storageKey, blockHeight);
     }
 };
 
-const deleteData = batch => async (scope, accountId, storageKey, blockHash, blockHeight) => {
+const deleteData = batch => async (scope, accountId, storageKey, blockHeight) => {
     const compKey = compositeKey(scope, accountId, storageKey);
     batch
-        .zadd(dataBlockHashKey(compKey), blockHeight, blockHash);
+        .zadd(dataHistoryKey(compKey), blockHeight, blockHeight);
     if (storageKey) {
         batch.hset(allKeysKey(scope, accountId), storageKey, blockHeight);
     }
@@ -142,16 +143,16 @@ const cleanOlderData = batch => async (compKey, blockHeight) => {
     const redisClient = batch.redisClient;
     await withTimeCounter('cleanOlderData', async () => {
         compKey = Buffer.from(compKey);
-        const blockHashKey = dataBlockHashKey(compKey);
-        const blockHashes = await withTimeCounter('cleanOlderData:range', () => redisClient.sendCommand('ZREVRANGEBYSCORE', [blockHashKey, blockHeight, '-inf']));
-        let hashesToRemove = blockHashes.slice(1);
+        const blockHeightKey = dataHistoryKey(compKey);
+        const blockHeights = await withTimeCounter('cleanOlderData:range', () => redisClient.sendCommand('ZREVRANGEBYSCORE', [blockHeightKey, blockHeight, '-inf']));
+        let hightsToRemove = blockHeights.slice(1);
         const BATCH_SIZE = 100000;
-        while (hashesToRemove.length > 0) {
-            const removeBatch = hashesToRemove.slice(0, BATCH_SIZE);
+        while (hightsToRemove.length > 0) {
+            const removeBatch = hightsToRemove.slice(0, BATCH_SIZE);
             batch
-                .del(removeBatch.map(blockHash => dataKey(compKey, blockHash)))
-                .zrem(blockHashKey, removeBatch);
-            hashesToRemove = hashesToRemove.slice(BATCH_SIZE);
+                .del(removeBatch.map(blockHeight => dataKey(compKey, blockHeight)))
+                .zrem(blockHeightKey, removeBatch);
+            hightsToRemove = hightsToRemove.slice(BATCH_SIZE);
         }
     });
 }
@@ -174,11 +175,11 @@ const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, 
         console.log('keys', keys.map(k => k.toString('utf8')), newIterator.toString('utf8'))
         const newData = await Promise.all(keys.map(async storageKey => {
             const compKey = Buffer.concat([Buffer.from(`${DATA_SCOPE}:${contractId}:`), storageKey]);
-            const blockHash = await module.exports.getLatestDataBlockHash(compKey, blockHeight);
-            if (!blockHash) {
+            const dataBlockHeight = await module.exports.getLatestDataBlockHeight(compKey, blockHeight);
+            if (!dataBlockHeight) {
                 return [storageKey, null];
             }
-            return [storageKey, await module.exports.getData(compKey, blockHash)];
+            return [storageKey, await module.exports.getData(compKey, dataBlockHeight)];
         }));
         iterator = newIterator;
         data = data.concat(newData);
@@ -210,7 +211,7 @@ module.exports = {
     // TODO: Rely on function name instead?
     getLatestBlockHeight: withRedisAndCache({ name: 'getLatestBlockHeight', cachedExpires: true }, getLatestBlockHeight),
     getBlockTimestamp: withRedisAndCache({ name: 'getBlockTimestamp' }, getBlockTimestamp),
-    getLatestDataBlockHash: withRedisAndCache({ name: 'getLatestDataBlockHash' }, getLatestDataBlockHash),
+    getLatestDataBlockHeight: withRedisAndCache({ name: 'getLatestDataBlockHeight' }, getLatestDataBlockHeight),
     getData: withRedisAndCache({ name: 'getData' }, getData),
     scanDataKeys: withRedisAndCache({ name: 'scanDataKeys' }, scanDataKeys),
     setLatestBlockHeight: withRedis({ name: 'setLatestBlockHeight' }, setLatestBlockHeight),

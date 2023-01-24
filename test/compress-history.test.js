@@ -25,12 +25,12 @@ const BLOCKS = [
 test('single account, single entry', async t => {
     t.teardown(() => storageClient.clearDatabase());
     await storageClient.redisBatch(async batch => {
-        await storageClient.setData(batch)(ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[0].hash, BLOCKS[0].index, BLOCKS[0].data);
+        await storageClient.setData(batch)(ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[0].index, BLOCKS[0].data);
     });
     await storageClient.setLatestBlockHeight(BLOCKS[0].index);
     await compressHistory();
 
-    const buf = await storageClient.getData(accountKey(TEST_ACCOUNT), BLOCKS[0].hash);
+    const buf = await storageClient.getData(accountKey(TEST_ACCOUNT), BLOCKS[0].index);
     t.deepEqual(buf, BUF_123);
 });
 
@@ -38,16 +38,16 @@ test('single account, multiple entry', async t => {
     t.teardown(() => storageClient.clearDatabase());
     await storageClient.redisBatch(async batch => {
         for (let i = 0; i < BLOCKS.length; i++) {
-            await storageClient.setData(batch)(ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[i].hash, BLOCKS[i].index, BLOCKS[i].data);
+            await storageClient.setData(batch)(ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[i].index, BLOCKS[i].data);
         }
     });
     await storageClient.setLatestBlockHeight(BLOCKS[2].index);
     await compressHistory();
 
-    const buf = await storageClient.getData(accountKey(TEST_ACCOUNT), BLOCKS[2].hash);
+    const buf = await storageClient.getData(accountKey(TEST_ACCOUNT), BLOCKS[2].index);
     t.deepEqual(buf, BUF_123);
 
-    t.notOk(await storageClient.getData(accountKey(TEST_ACCOUNT), BLOCKS[1].hash));
+    t.notOk(await storageClient.getData(accountKey(TEST_ACCOUNT), BLOCKS[1].index));
 });
 
 
