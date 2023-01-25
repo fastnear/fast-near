@@ -107,12 +107,7 @@ router.get('/account/:accountId', resolveBlockHeight, async ctx => {
     const { accountId } = ctx.params;
 
     // TODO: Refactor with JSON-RPC version?
-    const blockHeight = await storageClient.getLatestDataBlockHeight(accountKey(accountId), ctx.blockHeight);
-    if (!blockHeight) {
-        ctx.throw(404);
-    }
-
-    const data = await storageClient.getData(accountKey(accountId), blockHeight);
+    const data = await storageClient.getLatestData(accountKey(accountId), ctx.blockHeight);
     if (!data) {
         ctx.throw(404);
     }
@@ -129,12 +124,7 @@ router.get('/account/:accountId', resolveBlockHeight, async ctx => {
 router.get('/account/:accountId/contract', resolveBlockHeight, async ctx => {
     const { accountId } = ctx.params;
 
-    const blockHeight = await storageClient.getLatestDataBlockHeight(codeKey(accountId), ctx.blockHeight);
-    if (!blockHeight) {
-        ctx.throw(404);
-    }
-
-    const data = await storageClient.getData(codeKey(accountId), blockHeight);
+    const data = await storageClient.getLatestData(codeKey(accountId), ctx.blockHeight);
     if (!data) {
         ctx.throw(404);
     }
@@ -156,12 +146,7 @@ router.get('/account/:accountId/key/:publicKey', resolveBlockHeight, async ctx =
 
     // TODO: Refactor with JSON-RPC version and other similar methods?
     const storageKey = accessKeyKey(accountId, serialize(BORSH_SCHEMA, PublicKey.fromString(publicKey)));
-    const blockHeight = await storageClient.getLatestDataBlockHeight(storageKey, ctx.blockHeight);
-    if (!blockHeight) {
-        ctx.throw(404);
-    }
-
-    const data = await storageClient.getData(storageKey, blockHeight);
+    const data = await storageClient.getLatestData(storageKey, ctx.blockHeight);
     if (!data) {
         ctx.throw(404);
     }

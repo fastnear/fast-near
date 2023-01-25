@@ -196,13 +196,7 @@ const viewAccount = async (ctx, { accountId }) => {
 
         debug('find account data', accountId);
         const compKey = accountKey(accountId);
-        const dataBlockHeight = await storageClient.getLatestDataBlockHeight(compKey, blockHeight);
-        debug('data blockHeight', dataBlockHeight);
-        if (!dataBlockHeight) {
-            throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);
-        }
-
-        const accountData = await storageClient.getData(compKey, dataBlockHeight);
+        const accountData = await storageClient.getLatestData(compKey, blockHeight);
         debug('account data loaded', accountId);
         if (!accountData) {
             throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);

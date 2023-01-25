@@ -118,6 +118,14 @@ const getData = redisClient => async (compKey, blockHeight) => {
     return await redisClient.get(dataKey(compKey, blockHeight));
 };
 
+const getLatestData = async (compKey, blockHeight) => {
+    const dataBlockHeight = await module.exports.getLatestDataBlockHeight(compKey, blockHeight);
+    if (!dataBlockHeight) {
+        return null;
+    }
+    return await module.exports.getData(compKey, dataBlockHeight);
+};
+
 const setData = batch => (scope, accountId, storageKey, blockHeight, data) => {
     debug('setData', ...prettyArgs([scope, accountId, storageKey, blockHeight]));
     const compKey = compositeKey(scope, accountId, storageKey);
@@ -212,6 +220,7 @@ module.exports = {
     getLatestBlockHeight: withRedisAndCache({ name: 'getLatestBlockHeight', cachedExpires: true }, getLatestBlockHeight),
     getBlockTimestamp: withRedisAndCache({ name: 'getBlockTimestamp' }, getBlockTimestamp),
     getLatestDataBlockHeight: withRedisAndCache({ name: 'getLatestDataBlockHeight' }, getLatestDataBlockHeight),
+    getLatestData,
     getData: withRedisAndCache({ name: 'getData' }, getData),
     scanDataKeys: withRedisAndCache({ name: 'scanDataKeys' }, scanDataKeys),
     setLatestBlockHeight: withRedis({ name: 'setLatestBlockHeight' }, setLatestBlockHeight),
