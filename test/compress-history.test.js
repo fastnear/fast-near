@@ -25,7 +25,7 @@ const BLOCKS = [
 test('single account, single entry', async t => {
     t.teardown(() => storageClient.clearDatabase());
     await storageClient.writeBatch(async batch => {
-        await storageClient.setData(batch)(ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[0].index, BLOCKS[0].data);
+        await storageClient.setData(batch, ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[0].index, BLOCKS[0].data);
     });
     await storageClient.setLatestBlockHeight(BLOCKS[0].index);
     await compressHistory();
@@ -38,7 +38,7 @@ test('single account, multiple entry', async t => {
     t.teardown(() => storageClient.clearDatabase());
     await storageClient.writeBatch(async batch => {
         for (let i = 0; i < BLOCKS.length; i++) {
-            await storageClient.setData(batch)(ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[i].index, BLOCKS[i].data);
+            await storageClient.setData(batch, ACCOUNT_SCOPE, TEST_ACCOUNT, null, BLOCKS[i].index, BLOCKS[i].data);
         }
     });
     await storageClient.setLatestBlockHeight(BLOCKS[2].index);

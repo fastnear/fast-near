@@ -195,16 +195,16 @@ async function scheduleUploadToEstuary(streamerMessage, { batchSize }) {
 
 async function handleChange({ batch, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
     const handleUpdate = async (scope, accountId, dataKey, data) => {
-        await storageClient.setData(batch)(scope, accountId, dataKey, blockHeight, data);
+        await storageClient.setData(batch, scope, accountId, dataKey, blockHeight, data);
         if (keepFromBlockHeight) {
-            await storageClient.cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
+            await storageClient.cleanOlderData(batch, compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
     const handleDeletion = async (scope, accountId, dataKey) => {
-        await storageClient.deleteData(batch)(scope, accountId, dataKey, blockHeight);
+        await storageClient.deleteData(batch, scope, accountId, dataKey, blockHeight);
         if (keepFromBlockHeight) {
-            await storageClient.cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
+            await storageClient.cleanOlderData(batch, compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
@@ -263,7 +263,7 @@ async function handleChange({ batch, blockHeight, type, change, keepFromBlockHei
         }
         case 'contract_code_update': {
             const { codeBase64 } = change;
-            await storageClient.setBlob(batch)(Buffer.from(codeBase64, 'base64'));
+            await storageClient.setBlob(batch, Buffer.from(codeBase64, 'base64'));
             break;
         }
         case 'contract_code_deletion': {

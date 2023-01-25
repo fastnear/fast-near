@@ -8,7 +8,7 @@ async function compressHistory() {
         await storageClient.writeBatch(async batch => {
             for (const key of keys) {
                 console.log('compress', JSON.stringify(key.toString('utf8')));
-                await storageClient.cleanOlderData(batch)(key, blockHeight);
+                await storageClient.cleanOlderData(batch, key, blockHeight);
             }
         });
         iterator = newIterator;

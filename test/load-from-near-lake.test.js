@@ -10,7 +10,7 @@ test.onFinish(async () => {
 });
 
 const { dumpChangesToRedis: handleStreamerMessage } = require('../scripts/load-from-near-lake');
-const { clearDatabase } = require('../storage-client');
+const storage = require('../storage-client');
 const app = require('../app');
 const request = require('supertest')(app.callback());
 
@@ -103,7 +103,7 @@ const STREAMER_MESSAGE = {
 
 function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, initFn) {
     test(testName, async t => {
-        t.teardown(clearDatabase);
+        t.teardown(() => storage.clearDatabase());
         await initFn();
 
         let response;

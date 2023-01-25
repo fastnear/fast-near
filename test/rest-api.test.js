@@ -9,7 +9,7 @@ test.onFinish(async () => {
 });
 
 const { dumpChangesToRedis: handleStreamerMessage } = require('../scripts/load-from-near-lake');
-const { clearDatabase } = require('../storage-client');
+const storage = require('../storage-client');
 const app = require('../app');
 const request = require('supertest')(app.callback());
 
@@ -208,14 +208,15 @@ const TEST_DELETION_STREAMER_MESSAGE = {
 }
 
 test('/healthz (unsynced)', async t => {
-    t.teardown(clearDatabase);
+    t.teardown(() => storage.clearDatabase());
 
     const response = await request.get('/healthz');
     t.isEqual(response.status, 500);
 });
 
 test('/healthz (synced)', async t => {
-    t.teardown(clearDatabase);
+    t.teardown(() => storage.clearDatabase());
+
     await handleStreamerMessage(STREAMER_MESSAGE);
 
     const response = await request.get('/healthz');
@@ -224,7 +225,8 @@ test('/healthz (synced)', async t => {
 
 function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, initFn) {
     test(testName, async t => {
-        t.teardown(clearDatabase);
+        t.teardown(() => storage.clearDatabase());
+
         await initFn();
 
         let response;
