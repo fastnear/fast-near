@@ -3,9 +3,14 @@ const storageClient = require('./storage-client');
 const { FastNEARError } = require('./error');
 
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
+const NO_CODE_HASH = Buffer.from('11111111111111111111111111111111', 'hex');
 
-const LRU = require("lru-cache");
 const { codeKey, accountKey } = require('./storage-keys');
+const { BORSH_SCHEMA, Account } = require('./data-model');
+const { deserialize } = require('borsh');
+const bs58 = require('bs58');
+
+const LRU = require('lru-cache');
 let contractCache = new LRU({
     max: 25
 });
@@ -16,38 +21,35 @@ async function getWasmModule(contractId, blockHeight) {
     const debug = require('debug')(`host:${contractId}`);
     debug('getWasmModule', contractId, blockHeight);
 
-    debug('find contract code');
     const contractCodeKey = codeKey(contractId);
     const accountDataKey = accountKey(contractId);
 
-    const checkAccountExists = async () => {
-        debug('load account data')
-        const accountData = await storageClient.getLatestData(accountDataKey, blockHeight);
-        debug('accountData', accountData);
-        if (!accountData) {
-            throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
-        }
-    };
-
-    const contractBlockHeight = await storageClient.getLatestDataBlockHeight(contractCodeKey, blockHeight);
-    debug('contract blockHeight', contractBlockHeight);
-    if (!contractBlockHeight) {
-        await checkAccountExists();
-        throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
+    debug('load account data')
+    const accountData = await storageClient.getLatestData(accountDataKey, blockHeight);
+    debug('accountData', accountData);
+    if (!accountData) {
+        throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
     }
 
-    // TODO: Have cache based on code hash instead?
-    const cacheKey = `${contractId}:${contractBlockHeight.toString('hex')}}`;
+    const { code_hash } = deserialize(BORSH_SCHEMA, Account, accountData);
+    const codeHash = Buffer.from(code_hash);
+    const codeHashStr = bs58.encode(codeHash);
+
+    if (NO_CODE_HASH.equals(codeHash)) {
+        throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId}, block height: ${blockHeight}, code hash: ${codeHashStr}`);
+    }
+
+    const cacheKey = codeHashStr;
     let wasmModule = contractCache.get(cacheKey);
     if (wasmModule) {
         debug('contract cache hit', cacheKey);
     } else {
         debug('contract cache miss', cacheKey);
 
-        const wasmData = await storageClient.getData(contractCodeKey, contractBlockHeight);
+        const wasmData = await storageClient.getBlob(codeHash);
         if (!wasmData) {
-            await checkAccountExists();
-            throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
+            // TODO: Should this be fatal error because shoudn't happen with consistent data?
+            throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId}, block height: ${blockHeight}, code hash: ${codeHashStr}`);
         }
         debug('wasmData.length', wasmData.length);
         

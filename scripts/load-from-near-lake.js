@@ -263,11 +263,11 @@ async function handleChange({ batch, blockHeight, type, change, keepFromBlockHei
         }
         case 'contract_code_update': {
             const { codeBase64 } = change;
-            await handleUpdate(CODE_SCOPE, accountId, null, Buffer.from(codeBase64, 'base64'));
+            await storageClient.setBlob(batch)(Buffer.from(codeBase64, 'base64'));
             break;
         }
         case 'contract_code_deletion': {
-            await handleDeletion(CODE_SCOPE, accountId, null);
+            // TODO: Garbage collect unreferenced contract code? Should it happen in corresponding account_update?
             break;
         }
     }

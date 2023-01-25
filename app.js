@@ -124,10 +124,13 @@ router.get('/account/:accountId', resolveBlockHeight, async ctx => {
 router.get('/account/:accountId/contract', resolveBlockHeight, async ctx => {
     const { accountId } = ctx.params;
 
-    const data = await storageClient.getLatestData(codeKey(accountId), ctx.blockHeight);
-    if (!data) {
+    const accountData = await storageClient.getLatestData(accountKey(accountId), ctx.blockHeight);
+    if (!accountData) {
         ctx.throw(404);
     }
+
+    const { code_hash } = deserialize(BORSH_SCHEMA, Account, accountData);
+    const data = await storageClient.getBlob(Buffer.from(code_hash));
 
     ctx.type = 'wasm';
     ctx.res.setHeader('Content-Disposition', `attachment; filename="${accountId}.wasm"`);

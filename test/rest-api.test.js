@@ -13,6 +13,8 @@ const { clearDatabase } = require('../storage-client');
 const app = require('../app');
 const request = require('supertest')(app.callback());
 
+const bs58 = require('bs58');
+const crypto = require('crypto');
 const fs = require('fs');
 const TEST_CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
 const LANDS_CONTRACT_CODE = fs.readFileSync('test/data/lands.near.wasm');
@@ -61,6 +63,10 @@ const LANDS_CHUNK_DEFAULT = {
     ]
 };
 
+const sha256 = (data) => {
+    return crypto.createHash('sha256').update(data).digest();
+};
+
 const STREAMER_MESSAGE = {
     block: {
         header: {
@@ -84,9 +90,18 @@ const STREAMER_MESSAGE = {
             change: {
                 accountId: 'test.near',
                 amount: '4936189930936415601114966690',
-                codeHash: '11111111111111111111111111111111',
+                codeHash: bs58.encode(sha256(TEST_CONTRACT_CODE)),
                 locked: '0',
                 storageUsage: 20797,
+            }
+        }, {
+            type: 'account_update',
+            change: {
+                accountId: 'lands.near',
+                amount: '0',
+                codeHash: bs58.encode(sha256(LANDS_CONTRACT_CODE)),
+                locked: '0',
+                storageUsage: 0,
             }
         }, {
             type: 'contract_code_update',
@@ -179,6 +194,15 @@ const TEST_DELETION_STREAMER_MESSAGE = {
                 accountId: 'lands.near',
                 keyBase64: Buffer.from('chunk:0:0').toString('base64'),
             }
+        }, {
+            type: 'account_update',
+            change: {
+                accountId: 'test.near',
+                amount: '4936189930936415601114966690',
+                codeHash: '11111111111111111111111111111111',
+                locked: '0',
+                storageUsage: 20797,
+            }
         }]
     }],
 }
@@ -268,7 +292,7 @@ testRequest('call view method (no such account)',
     '/account/no-such-account.near/view/someMethod', 404,'accountNotFound: Account not found: no-such-account.near at 1 block height');
 
 testRequest('call view method (no code)',
-    '/account/no-code.near/view/someMethod', 404, 'codeNotFound: Cannot find contract code: no-code.near 1');
+    '/account/no-code.near/view/someMethod', 404, 'codeNotFound: Cannot find contract code: no-code.near, block height: 1, code hash: 11111111111111111111111111111111');
 
 testRequest('call view method with JSON in query args',
     '/account/lands.near/view/getChunk?x.json=0&y.json=0', 200, LANDS_CHUNK_MODIFIED);
@@ -282,8 +306,8 @@ testRequest('call view method with JSON in POST: missing key storage_read',
 testRequest('view account', '/account/test.near',
     200, {
         amount: '4936189930936415601114966690',
-        code_hash: '11111111111111111111111111111111',
         locked: '0',
+        code_hash: '6D7H4GEc5g7Pu7hwRLivKn7VETzKtqre7FZ6kWFr3sK7',
         storage_usage: 20797,
     });
 
@@ -322,7 +346,7 @@ testRequestAfterDeletion('call view method (no such account)',
     '/account/no-code.near/view/someMethod', 404,'accountNotFound: Account not found: no-code.near at 2 block height');
 
 testRequestAfterDeletion('call view method (no code)',
-    '/account/test.near/view/ext_account_id', 404, 'codeNotFound: Cannot find contract code: test.near 2');
+    '/account/test.near/view/ext_account_id', 404, 'codeNotFound: Cannot find contract code: test.near, block height: 2, code hash: 11111111111111111111111111111111');
 
 testRequestAfterDeletion('call view method with JSON in POST',
     '/account/lands.near/view/getChunk', 200, LANDS_CHUNK_DEFAULT, { x: 0, y: 0 });
@@ -332,7 +356,7 @@ testRequestWithCompressHistory('call view method (no such account)',
     '/account/no-code.near/view/someMethod', 404,'accountNotFound: Account not found: no-code.near at 2 block height');
 
 testRequestWithCompressHistory('call view method (no code)',
-    '/account/test.near/view/ext_account_id', 404, 'codeNotFound: Cannot find contract code: test.near 2');
+    '/account/test.near/view/ext_account_id', 404, 'codeNotFound: Cannot find contract code: test.near, block height: 2, code hash: 11111111111111111111111111111111');
 
 testRequestWithCompressHistory('call view method with JSON in POST',
     '/account/lands.near/view/getChunk', 200, LANDS_CHUNK_DEFAULT, { x: 0, y: 0 });

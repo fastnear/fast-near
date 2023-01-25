@@ -1,9 +1,10 @@
 const { createClient } = require('redis');
-const { promisify } = require("util");
+const { promisify } = require('util');
+const crypto = require('crypto');
 
 const debug = require('debug')('storage');
 
-const LRU = require("lru-cache");
+const LRU = require('lru-cache');
 let redisCache = new LRU({
     max: 1000
 });
@@ -147,6 +148,20 @@ const deleteData = batch => async (scope, accountId, storageKey, blockHeight) =>
     }
 };
 
+const blobKey = hash => Buffer.concat([Buffer.from('b:'), hash]);
+
+const getBlob = redisClient => async (hash) => {
+    return await redisClient.get(blobKey(hash));
+};
+
+const setBlob = batch => async (data) => {
+    const hash = crypto.createHash('sha256').update(data).digest();
+    batch.set(blobKey(hash), data);
+    return hash;
+};
+
+// TODO: Garbage collection for blobs?
+
 const cleanOlderData = batch => async (compKey, blockHeight) => {
     const redisClient = batch.redisClient;
     await withTimeCounter('cleanOlderData', async () => {
@@ -222,6 +237,7 @@ module.exports = {
     getLatestDataBlockHeight: withRedisAndCache({ name: 'getLatestDataBlockHeight' }, getLatestDataBlockHeight),
     getLatestData,
     getData: withRedisAndCache({ name: 'getData' }, getData),
+    getBlob: withRedisAndCache({ name: 'getBlob' }, getBlob),
     scanDataKeys: withRedisAndCache({ name: 'scanDataKeys' }, scanDataKeys),
     setLatestBlockHeight: withRedis({ name: 'setLatestBlockHeight' }, setLatestBlockHeight),
     setBlockTimestamp: withRedis({ name: 'setBlockTimestamp' }, setBlockTimestamp),
@@ -229,6 +245,7 @@ module.exports = {
     setData,
     deleteData,
     cleanOlderData,
+    setBlob,
     writeBatch,
     closeDatabase,
     clearDatabase: withRedis({ name: 'clearDatabase' }, clearDatabase),
