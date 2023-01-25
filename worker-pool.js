@@ -61,7 +61,9 @@ class WorkerPool extends EventEmitter {
                         } else {
                             worker.postMessage(null);
                         }
-                    })();
+                    })().catch((error) => {
+                        worker.postMessage({ error });
+                    });
                     break;
             }
         });
