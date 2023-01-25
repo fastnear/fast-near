@@ -15,7 +15,11 @@ const app = require('../app');
 const request = require('supertest')(app.callback());
 
 const fs = require('fs');
+const bs58 = require('bs58');
+const crypto = require('crypto');
 const TEST_CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
+
+const sha256 = data => crypto.createHash('sha256').update(data).digest();
 
 const STREAMER_MESSAGE = {
     block: {
@@ -40,7 +44,7 @@ const STREAMER_MESSAGE = {
             change: {
                 accountId: 'test.near',
                 amount: '4936189930936415601114966690',
-                codeHash: '11111111111111111111111111111111',
+                codeHash: bs58.encode(sha256(TEST_CONTRACT_CODE)),
                 locked: '0',
                 storageUsage: 20797,
             }
