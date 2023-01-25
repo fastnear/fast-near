@@ -123,7 +123,7 @@ async function dumpChangesToRedis(streamerMessage, { historyLength, include, exc
     const keepFromBlockHeight = historyLength && blockHeight - historyLength;
 
     for (let { stateChanges } of streamerMessage.shards) {
-        await storageClient.redisBatch(async batch => {
+        await storageClient.writeBatch(async batch => {
             for (let { type, change } of stateChanges) {
                 await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
             }

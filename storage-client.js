@@ -192,7 +192,7 @@ const scanDataKeys = redisClient => async (contractId, blockHeight, keyPattern, 
     };
 };
 
-const redisBatch = async (fn) => {
+const writeBatch = async (fn) => {
     await withRedis({ name: 'batch' }, redisClient => async () => {
         const batch = redisClient.batch();
         await fn(batch);
@@ -220,7 +220,7 @@ module.exports = {
     setData,
     deleteData,
     cleanOlderData,
-    redisBatch,
+    writeBatch,
     closeDatabase,
     clearDatabase: withRedis({ name: 'clearDatabase' }, clearDatabase),
 };
