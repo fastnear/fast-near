@@ -23,13 +23,7 @@ async function getWasmModule(contractId, blockHeight) {
 
     const checkAccountExists = async () => {
         debug('load account data')
-        const accountBlockHeight = await storageClient.getLatestDataBlockHeight(accountDataKey, blockHeight);
-        debug('accountBlockHeight', accountBlockHeight);
-        if (!accountBlockHeight) {
-            throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
-        }
-
-        const accountData = await storageClient.getData(accountDataKey, accountBlockHeight);
+        const accountData = await storageClient.getLatestData(accountDataKey, blockHeight);
         debug('accountData', accountData);
         if (!accountData) {
             throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
