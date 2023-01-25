@@ -28,6 +28,7 @@ function dataKey(compKey, blockHeight) {
 
 const blobKey = hash => Buffer.concat([Buffer.from('b:'), hash]);
 
+// TODO: Split caching and storage logic? Caching logic can go into wrapping CachingStorage class
 class RedisStorage {
     constructor({
         cacheMaxItems = REDIS_CACHE_MAX_ITEMS,

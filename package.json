@@ -23,6 +23,7 @@
     "debug": "^4.3.2",
     "koa": "^2.13.4",
     "koa-router": "^10.1.1",
+    "lmdb": "^2.7.6",
     "lru-cache": "^6.0.0",
     "minimatch": "^5.1.0",
     "near-lake-framework": "^1.0.3",
