@@ -1,6 +1,5 @@
 const WorkerPool = require('./worker-pool');
 const storageClient = require('./storage-client');
-const resolveBlockHeight = require('./resolve-block-height');
 const { FastNEARError } = require('./error');
 
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
@@ -101,17 +100,3 @@ module.exports = {
     runContract,
     closeWorkerPool,
 };
-
-// TODO: Extract tests
-// (async function() {
-//     console.time('everything')
-//     const result = await runContract('dev-1629863402519-20649210409803', 'getChunk', {x: 0, y: 0});
-//     await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { path: '/chunk/0,0' } });
-//     await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { path: '/parcel/0,0' } });
-//     // const result = await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { } });
-//     console.log('runContract result', Buffer.from(result).toString('utf8'));
-//     console.timeEnd('everything')
-// })().catch(error => {
-//     console.error(error);
-//     process.exit(1);
-// });
