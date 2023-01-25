@@ -5,7 +5,7 @@ const fetch = require('node-fetch');
 const FormData = require('form-data');
 const { serialize } = require('borsh');
 const storage = require("../storage");
-const { DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
+const { DATA_SCOPE, ACCOUNT_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
 const { Account, BORSH_SCHEMA, AccessKey, PublicKey, FunctionCallPermission, AccessKeyPermission, FullAccessPermission } = require('../data-model');
 
 const { withTimeCounter, getCounters, resetCounters} = require('../utils/counters');

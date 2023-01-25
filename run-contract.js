@@ -5,7 +5,7 @@ const { FastNEARError } = require('./error');
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
 const NO_CODE_HASH = Buffer.from('11111111111111111111111111111111', 'hex');
 
-const { codeKey, accountKey } = require('./storage-keys');
+const { accountKey } = require('./storage-keys');
 const { BORSH_SCHEMA, Account } = require('./data-model');
 const { deserialize } = require('borsh');
 const bs58 = require('bs58');
@@ -21,7 +21,6 @@ async function getWasmModule(contractId, blockHeight) {
     const debug = require('debug')(`host:${contractId}`);
     debug('getWasmModule', contractId, blockHeight);
 
-    const contractCodeKey = codeKey(contractId);
     const accountDataKey = accountKey(contractId);
 
     debug('load account data')
