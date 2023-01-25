@@ -1,14 +1,14 @@
-const storageClient = require("../storage-client");
+const storage = require("../storage");
 
 async function compressHistory() {
-    const blockHeight = await storageClient.getLatestBlockHeight();
+    const blockHeight = await storage.getLatestBlockHeight();
     let iterator;
     do {
-        const [newIterator, keys] = await storageClient.scanAllKeys(iterator); 
-        await storageClient.writeBatch(async batch => {
+        const [newIterator, keys] = await storage.scanAllKeys(iterator); 
+        await storage.writeBatch(async batch => {
             for (const key of keys) {
                 console.log('compress', JSON.stringify(key.toString('utf8')));
-                await storageClient.cleanOlderData(batch, key, blockHeight);
+                await storage.cleanOlderData(batch, key, blockHeight);
             }
         });
         iterator = newIterator;

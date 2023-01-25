@@ -6,9 +6,9 @@ const debug = require('debug')('storage');
 
 const LRU = require('lru-cache');
 
-const prettyBuffer = require('./pretty-buffer');
-const { withTimeCounter } = require('./counters');
-const { compositeKey, allKeysKey, DATA_SCOPE } = require('./storage-keys');
+const prettyBuffer = require('../utils/pretty-buffer');
+const { withTimeCounter } = require('../utils/counters');
+const { compositeKey, allKeysKey, DATA_SCOPE } = require('../storage-keys');
 
 const REDIS_CACHE_MAX_ITEMS = 1000;
 const BLOCK_INDEX_CACHE_TIME = 500;

@@ -4,11 +4,11 @@ const bs58 = require('bs58');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const { serialize } = require('borsh');
-const storageClient = require("../storage-client");
+const storage = require("../storage");
 const { DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
 const { Account, BORSH_SCHEMA, AccessKey, PublicKey, FunctionCallPermission, AccessKeyPermission, FullAccessPermission } = require('../data-model');
 
-const { withTimeCounter, getCounters, resetCounters} = require('../counters');
+const { withTimeCounter, getCounters, resetCounters} = require('../utils/counters');
 
 let totalMessages = 0;
 let timeStarted = Date.now();
@@ -123,15 +123,15 @@ async function dumpChangesToRedis(streamerMessage, { historyLength, include, exc
     const keepFromBlockHeight = historyLength && blockHeight - historyLength;
 
     for (let { stateChanges } of streamerMessage.shards) {
-        await storageClient.writeBatch(async batch => {
+        await storage.writeBatch(async batch => {
             for (let { type, change } of stateChanges) {
                 await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
             }
         });
     }
 
-    await storageClient.setBlockTimestamp(blockHeight, timestamp);
-    await storageClient.setLatestBlockHeight(blockHeight);
+    await storage.setBlockTimestamp(blockHeight, timestamp);
+    await storage.setLatestBlockHeight(blockHeight);
     // TODO: Record block hash to block height mapping?
 }
 
@@ -195,16 +195,16 @@ async function scheduleUploadToEstuary(streamerMessage, { batchSize }) {
 
 async function handleChange({ batch, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
     const handleUpdate = async (scope, accountId, dataKey, data) => {
-        await storageClient.setData(batch, scope, accountId, dataKey, blockHeight, data);
+        await storage.setData(batch, scope, accountId, dataKey, blockHeight, data);
         if (keepFromBlockHeight) {
-            await storageClient.cleanOlderData(batch, compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
+            await storage.cleanOlderData(batch, compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
     const handleDeletion = async (scope, accountId, dataKey) => {
-        await storageClient.deleteData(batch, scope, accountId, dataKey, blockHeight);
+        await storage.deleteData(batch, scope, accountId, dataKey, blockHeight);
         if (keepFromBlockHeight) {
-            await storageClient.cleanOlderData(batch, compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
+            await storage.cleanOlderData(batch, compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
@@ -263,7 +263,7 @@ async function handleChange({ batch, blockHeight, type, change, keepFromBlockHei
         }
         case 'contract_code_update': {
             const { codeBase64 } = change;
-            await storageClient.setBlob(batch, Buffer.from(codeBase64, 'base64'));
+            await storage.setBlob(batch, Buffer.from(codeBase64, 'base64'));
             break;
         }
         case 'contract_code_deletion': {
@@ -348,7 +348,7 @@ if (require.main === module) {
             let blocksProcessed = 0;
 
             for await (let streamerMessage of stream({
-                startBlockHeight: startBlockHeight || await storageClient.getLatestBlockHeight() || 0,
+                startBlockHeight: startBlockHeight || await storage.getLatestBlockHeight() || 0,
                 s3BucketName: bucketName || "near-lake-data-mainnet",
                 s3RegionName: regionName || "eu-central-1",
                 s3Endpoint: endpoint,
@@ -375,7 +375,7 @@ if (require.main === module) {
             }
 
             // TODO: Check what else is blocking exit
-            await storageClient.closeDatabase();
+            await storage.closeDatabase();
         })
         .parse();
 }

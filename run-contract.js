@@ -1,5 +1,5 @@
 const WorkerPool = require('./worker-pool');
-const storageClient = require('./storage-client');
+const storage = require('./storage');
 const { FastNEARError } = require('./error');
 
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
@@ -25,7 +25,7 @@ async function getWasmModule(contractId, blockHeight) {
     const accountDataKey = accountKey(contractId);
 
     debug('load account data')
-    const accountData = await storageClient.getLatestData(accountDataKey, blockHeight);
+    const accountData = await storage.getLatestData(accountDataKey, blockHeight);
     debug('accountData', accountData);
     if (!accountData) {
         throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
@@ -46,7 +46,7 @@ async function getWasmModule(contractId, blockHeight) {
     } else {
         debug('contract cache miss', cacheKey);
 
-        const wasmData = await storageClient.getBlob(codeHash);
+        const wasmData = await storage.getBlob(codeHash);
         if (!wasmData) {
             // TODO: Should this be fatal error because shoudn't happen with consistent data?
             throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId}, block height: ${blockHeight}, code hash: ${codeHashStr}`);
@@ -75,11 +75,11 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
 
     if (!workerPool) {
         debug('workerPool');
-        workerPool = new WorkerPool(WORKER_COUNT, storageClient);
+        workerPool = new WorkerPool(WORKER_COUNT, storage);
         debug('workerPool done');
     }
 
-    const blockTimestamp = await storageClient.getBlockTimestamp(blockHeight);
+    const blockTimestamp = await storage.getBlockTimestamp(blockHeight);
     debug('blockTimestamp', blockTimestamp);
 
     const wasmModule = await getWasmModule(contractId, blockHeight);

@@ -10,7 +10,7 @@ const cors = require('@koa/cors');
 const resolveBlockHeightUtil = require('./resolve-block-height');
 const isJSON = require('./utils/is-json');
 const { runContract, getWasmModule } = require('./run-contract');
-const storageClient = require('./storage-client');
+const storage = require('./storage');
 const { codeKey, accountKey, accessKeyKey } = require('./storage-keys');
 const { deserialize, serialize } = require('borsh');
 const bs58 = require('bs58');
@@ -91,10 +91,10 @@ router.get('/account/:accountId/data/:keyPattern', async ctx => {
     const { accountId, keyPattern } = ctx.params;
     const debug = require('debug')(`data:${accountId}`);
 
-    const latestBlockHeight = await storageClient.getLatestBlockHeight();
+    const latestBlockHeight = await storage.getLatestBlockHeight();
     debug('latestBlockHeight', latestBlockHeight);
 
-    const { data, iterator: newIterator } = await storageClient.scanDataKeys(accountId, latestBlockHeight, keyPattern, iterator, Math.min(MAX_LIMIT, parseInt(limit)));
+    const { data, iterator: newIterator } = await storage.scanDataKeys(accountId, latestBlockHeight, keyPattern, iterator, Math.min(MAX_LIMIT, parseInt(limit)));
     ctx.body = {
         data: data
             .filter(([_, value]) => value !== null)
@@ -107,7 +107,7 @@ router.get('/account/:accountId', resolveBlockHeight, async ctx => {
     const { accountId } = ctx.params;
 
     // TODO: Refactor with JSON-RPC version?
-    const data = await storageClient.getLatestData(accountKey(accountId), ctx.blockHeight);
+    const data = await storage.getLatestData(accountKey(accountId), ctx.blockHeight);
     if (!data) {
         ctx.throw(404);
     }
@@ -124,13 +124,13 @@ router.get('/account/:accountId', resolveBlockHeight, async ctx => {
 router.get('/account/:accountId/contract', resolveBlockHeight, async ctx => {
     const { accountId } = ctx.params;
 
-    const accountData = await storageClient.getLatestData(accountKey(accountId), ctx.blockHeight);
+    const accountData = await storage.getLatestData(accountKey(accountId), ctx.blockHeight);
     if (!accountData) {
         ctx.throw(404);
     }
 
     const { code_hash } = deserialize(BORSH_SCHEMA, Account, accountData);
-    const data = await storageClient.getBlob(Buffer.from(code_hash));
+    const data = await storage.getBlob(Buffer.from(code_hash));
 
     ctx.type = 'wasm';
     ctx.res.setHeader('Content-Disposition', `attachment; filename="${accountId}.wasm"`);
@@ -149,7 +149,7 @@ router.get('/account/:accountId/key/:publicKey', resolveBlockHeight, async ctx =
 
     // TODO: Refactor with JSON-RPC version and other similar methods?
     const storageKey = accessKeyKey(accountId, serialize(BORSH_SCHEMA, PublicKey.fromString(publicKey)));
-    const data = await storageClient.getLatestData(storageKey, ctx.blockHeight);
+    const data = await storage.getLatestData(storageKey, ctx.blockHeight);
     if (!data) {
         ctx.throw(404);
     }
@@ -180,8 +180,8 @@ router.get('/account/:accountId/key/:publicKey', resolveBlockHeight, async ctx =
 
 const MAX_BLOCK_LAG_TIME_MS = 20000;
 router.get('/healthz', async ctx => {
-    const latestBlockHeight = await storageClient.getLatestBlockHeight();
-    const latestBlockTimestamp = (await storageClient.getBlockTimestamp(latestBlockHeight)) / 1000000;
+    const latestBlockHeight = await storage.getLatestBlockHeight();
+    const latestBlockTimestamp = (await storage.getBlockTimestamp(latestBlockHeight)) / 1000000;
 
     // NOTE: fast-near node considered unhealthy if it's out of sync
     if (Date.now() - latestBlockTimestamp > MAX_BLOCK_LAG_TIME_MS) {

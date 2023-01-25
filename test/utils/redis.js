@@ -4,7 +4,7 @@ process.env.FAST_NEAR_REDIS_URL = process.env.FAST_NEAR_REDIS_URL || `redis://lo
 
 const { spawn } = require('child_process');
 const fs = require('fs');
-const storage = require('../../storage-client');
+const storage = require('../../storage');
 
 let redisProcess;
 function startIfNeeded() {

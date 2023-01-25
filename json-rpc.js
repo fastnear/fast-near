@@ -2,7 +2,7 @@ const fetch = require('node-fetch');
 const getRawBody = require('raw-body');
 
 const { runContract }  = require('./run-contract');
-const storageClient = require('./storage-client');
+const storage = require('./storage');
 const { FastNEARError } = require('./error');
 
 const { Account, BORSH_SCHEMA } = require('./data-model');
@@ -196,7 +196,7 @@ const viewAccount = async (ctx, { accountId }) => {
 
         debug('find account data', accountId);
         const compKey = accountKey(accountId);
-        const accountData = await storageClient.getLatestData(compKey, blockHeight);
+        const accountData = await storage.getLatestData(compKey, blockHeight);
         debug('account data loaded', accountId);
         if (!accountData) {
             throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);
