@@ -9,6 +9,7 @@ const LRU = require('lru-cache');
 const prettyBuffer = require('../utils/pretty-buffer');
 const { withTimeCounter } = require('../utils/counters');
 const { compositeKey, allKeysKey, DATA_SCOPE } = require('../storage-keys');
+const sha256 = require('../utils/sha256');
 
 const REDIS_CACHE_MAX_ITEMS = 1000;
 const BLOCK_INDEX_CACHE_TIME = 500;
@@ -167,7 +168,7 @@ class RedisStorage {
         });
 
     async setBlob(batch, data) {
-        const hash = crypto.createHash('sha256').update(data).digest();
+        const hash = sha256(data);
         batch.set(blobKey(hash), data);
         return hash;
     }
@@ -210,11 +211,11 @@ class RedisStorage {
                 console.log('keys', keys.map(k => k.toString('utf8')), newIterator.toString('utf8'))
                 const newData = await Promise.all(keys.map(async storageKey => {
                     const compKey = Buffer.concat([Buffer.from(`${DATA_SCOPE}:${contractId}:`), storageKey]);
-                    const dataBlockHeight = await module.exports.getLatestDataBlockHeight(compKey, blockHeight);
+                    const dataBlockHeight = await this.getLatestDataBlockHeight(compKey, blockHeight);
                     if (!dataBlockHeight) {
                         return [storageKey, null];
                     }
-                    return [storageKey, await module.exports.getData(compKey, dataBlockHeight)];
+                    return [storageKey, await this.getData(compKey, dataBlockHeight)];
                 }));
                 iterator = newIterator;
                 data = data.concat(newData);
@@ -245,4 +246,4 @@ class RedisStorage {
     }
 }
 
-module.exports = new RedisStorage();
+module.exports = { RedisStorage };

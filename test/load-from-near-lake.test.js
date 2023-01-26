@@ -19,7 +19,7 @@ const bs58 = require('bs58');
 const crypto = require('crypto');
 const TEST_CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
 
-const sha256 = data => crypto.createHash('sha256').update(data).digest();
+const sha256 = require('../utils/sha256');
 
 const STREAMER_MESSAGE = {
     block: {

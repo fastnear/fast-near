@@ -14,7 +14,6 @@ const app = require('../app');
 const request = require('supertest')(app.callback());
 
 const bs58 = require('bs58');
-const crypto = require('crypto');
 const fs = require('fs');
 const TEST_CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
 const LANDS_CONTRACT_CODE = fs.readFileSync('test/data/lands.near.wasm');
@@ -63,9 +62,7 @@ const LANDS_CHUNK_DEFAULT = {
     ]
 };
 
-const sha256 = (data) => {
-    return crypto.createHash('sha256').update(data).digest();
-};
+const sha256 = require('../utils/sha256');
 
 const STREAMER_MESSAGE = {
     block: {

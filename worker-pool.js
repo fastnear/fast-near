@@ -48,7 +48,7 @@ class WorkerPool extends EventEmitter {
             }
 
             compKey = Buffer.from(compKey);
-            blockHeight = Buffer.from(blockHeight);
+            blockHeight = Buffer.from(blockHeight.toString());
 
             switch (methodName) {
                 case 'storage_read':
