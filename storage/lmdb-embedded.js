@@ -141,7 +141,8 @@ class LMDBStorage {
     }
 
     scanAllKeys(iterator) {
-        // TODO: Is it still needed?
+        // TODO: Implement if implementing cleanOlderData
+        return ["0", []];
     }
 
     scanDataKeys(contractId, blockHeight, keyPattern, iterator, limit) {
