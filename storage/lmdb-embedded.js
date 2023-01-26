@@ -200,7 +200,14 @@ class LMDBStorage {
     }
 
     async closeDatabase() {
-        return this.db.close();
+        try {
+            return await this.db.close();
+        } catch (e) {
+            if (/The environment is already closed/.test(e.message)) {
+                return;
+            }
+            throw e;
+        }
     }
 
     async printDatabase() {
