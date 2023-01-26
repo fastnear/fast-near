@@ -58,6 +58,7 @@ class LMDBStorage {
         this.db = open({
             path: LMDB_PATH,
             keyEncoder,
+            noSync: true, // NOTE: YOLO, as all data is recoverable from the blockchain
             // compression: true, // TODO: Check if this is worth it
         });
     }
@@ -150,7 +151,7 @@ class LMDBStorage {
         // TODO: More robust pattern handling
         const keyPrefix = keyPattern.replace(/\*$/, '');
 
-        let start; 
+        let start;
         if (iterator === '0') {
             start = { blockHeight, compKey: compositeKey(DATA_SCOPE, contractId, keyPrefix) };
         } else {
@@ -163,7 +164,7 @@ class LMDBStorage {
             end: { blockHeight: 0xffffffff, compKey: compositeKey(DATA_SCOPE, contractId, keyPrefix + '\xff') },
             limit,
         }).asArray;
-        
+
         if (data.length > 0) {
             // compute serialized key using writeKey
             const buffer = Buffer.alloc(1024);
