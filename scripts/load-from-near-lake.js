@@ -122,16 +122,18 @@ async function dumpChangesToRedis(streamerMessage, { historyLength, include, exc
     const blockHash = bs58.decode(blockHashB58);
     const keepFromBlockHeight = historyLength && blockHeight - historyLength;
 
-    for (let { stateChanges } of streamerMessage.shards) {
-        await storage.writeBatch(async batch => {
+    console.time('dumpChangesToRedis');
+    await storage.writeBatch(async batch => {
+        for (let { stateChanges } of streamerMessage.shards) {
             for (let { type, change } of stateChanges) {
                 await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
             }
-        });
-    }
+        }
+    });
 
     await storage.setBlockTimestamp(blockHeight, timestamp);
     await storage.setLatestBlockHeight(blockHeight);
+    console.timeEnd('dumpChangesToRedis');
     // TODO: Record block hash to block height mapping?
 }
 
