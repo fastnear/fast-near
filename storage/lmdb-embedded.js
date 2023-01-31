@@ -88,13 +88,10 @@ class LMDBStorage {
             reverse: true,
         }).asArray;
 
-        debug('latest', latest);
         if (latest) {
-            debug('1', latest.blockHeight);
             return latest.blockHeight;
         }
 
-        debug('2');
         return null;
     }
 
