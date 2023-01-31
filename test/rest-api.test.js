@@ -64,6 +64,8 @@ const LANDS_CHUNK_DEFAULT = {
 
 const sha256 = require('../utils/sha256');
 
+const BIG_KEY = 'a'.repeat(2000);
+
 const STREAMER_MESSAGE = {
     block: {
         header: {
@@ -113,6 +115,13 @@ const STREAMER_MESSAGE = {
                 keyBase64: Buffer.from('8charkey').toString('base64'),
                 valueBase64: Buffer.from('test-value').toString('base64'),
             }
+        }, {
+            type: 'data_update',
+            change: {
+                accountId: 'test.near',
+                keyBase64: Buffer.from(BIG_KEY).toString('base64'),
+                valueBase64: Buffer.from('test-big-key').toString('base64'),
+            },
         }, {
             type: 'contract_code_update',
             change: {
@@ -327,13 +336,19 @@ testRequest('view account access key (full access)', '/account/test.near/key/ed2
         type: 'FullAccess',
     });
 
-testRequest('view contract data', '/account/test.near/data/*',
-    200, {
-        data: [
-            [ '8charkey', 'test-value' ],
-        ],
-        iterator: '0',
-    });
+test('view contract data', async t => {
+    t.teardown(() => storage.clearDatabase());
+    await handleStreamerMessage(STREAMER_MESSAGE);
+
+    let res = await request.get('/account/test.near/data/*');
+    t.is(res.status, 200);
+    const { data, iterator } = res.body;
+    t.deepEqual(data.sort((a, b) => a[0].localeCompare(b[0])), [
+        [ '8charkey', 'test-value' ],
+        [ BIG_KEY, 'test-big-key' ],
+    ]);
+    t.is(iterator, '0');
+});
 
 testRequest('download contract code',
     '/account/test.near/contract', 200, TEST_CONTRACT_CODE);
