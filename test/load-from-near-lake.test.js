@@ -16,7 +16,6 @@ const request = require('supertest')(app.callback());
 
 const fs = require('fs');
 const bs58 = require('bs58');
-const crypto = require('crypto');
 const TEST_CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
 
 const sha256 = require('../utils/sha256');
