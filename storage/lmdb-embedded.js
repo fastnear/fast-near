@@ -5,6 +5,8 @@ const { compositeKey, DATA_SCOPE } = require('../storage-keys');
 
 const LMDB_PATH = process.env.FAST_NEAR_LMDB_PATH || './lmdb-data';
 
+const MAX_STORAGE_KEY_SIZE = 1024;
+
 const KEY_TYPE_STRING = 0;
 const KEY_TYPE_BUFFER = 1;
 const KEY_TYPE_CHANGE = 2;
@@ -24,7 +26,7 @@ class KeyEncoder {
         } else if (key.blockHeight !== undefined && key.compKey) {
             offset = targetBuffer.writeUInt8(KEY_TYPE_CHANGE, offset);
             offset += key.compKey.copy(targetBuffer, offset);
-            offset = targetBuffer.writeUInt32LE(key.blockHeight, offset);
+            offset = targetBuffer.writeUInt32BE(key.blockHeight, offset);
         } else {
             throw new Error(`Unsupported key type: ${typeof key}, key: ${JSON.stringify(key)}`);
         }
@@ -36,14 +38,16 @@ class KeyEncoder {
         let offset = start;
         const type = buffer.readUInt8(offset);
         offset += 1;
+        // NOTE: Buffer.from is used together with .subarray to make a copy of the buffer slice.
+        // Otherwise it would be a view on the same buffer, which would be mutated by the next read.
         switch (type) {
             case KEY_TYPE_STRING:
                 return buffer.toString('utf8', offset, end);
             case KEY_TYPE_BUFFER:
-                return buffer.slice(offset, end);
+                return Buffer.from(buffer.subarray(offset, end));
             case KEY_TYPE_CHANGE:
-                const compKey = buffer.slice(offset, end - 4);
-                const blockHeight = buffer.readUInt32LE(end - 4);
+                const compKey = Buffer.from(buffer.subarray(offset, end - 4));
+                const blockHeight = buffer.readUInt32BE(end - 4);
                 return { compKey, blockHeight };
             default:
                 throw new Error('Unsupported key type: ' + type);
@@ -52,6 +56,14 @@ class KeyEncoder {
 }
 
 const keyEncoder = new KeyEncoder();
+
+function truncatedKey(compKey) {
+    if (compKey.length <= MAX_STORAGE_KEY_SIZE) {
+        return compKey;
+    }
+
+    return Buffer.concat([compKey.subarray(0, MAX_STORAGE_KEY_SIZE), sha256(compKey)]);
+}
 
 class LMDBStorage {
     constructor() {
@@ -80,10 +92,11 @@ class LMDBStorage {
     }
 
     async getLatestDataBlockHeight(compKey, blockHeight) {
-        debug('getLatestDataBlockHeight', JSON.stringify(compKey.toString('utf8')), blockHeight);
+        const key = truncatedKey(compKey);
+        debug('getLatestDataBlockHeight', JSON.stringify(key.toString('utf8')), blockHeight);
         const [latest] = this.db.getKeys({
-            start: { compKey, blockHeight },
-            end: { compKey, blockHeight: 0 },
+            start: { compKey: key, blockHeight },
+            end: { compKey: key, blockHeight: 0 },
             limit: 1,
             reverse: true,
         }).asArray;
@@ -96,8 +109,9 @@ class LMDBStorage {
     }
 
     async getData(compKey, blockHeight) {
-        debug('getData', JSON.stringify(compKey.toString('utf8')), blockHeight);
-        const result = this.db.get({ compKey, blockHeight });
+        const key = truncatedKey(compKey);
+        debug('getData', JSON.stringify(key.toString('utf8')), blockHeight);
+        const result = this.db.get({ compKey: key, blockHeight });
         return result && Buffer.from(result);
     }
 
@@ -114,24 +128,32 @@ class LMDBStorage {
 
     setData(batch, scope, accountId, storageKey, blockHeight, data) {
         const compKey = compositeKey(scope, accountId, storageKey);
-        debug('setData', JSON.stringify(compKey.toString('utf8')), blockHeight, data.length, 'bytes');
-        this.db.put({ compKey, blockHeight }, data);
+        const key = truncatedKey(compKey);
+        debug('setData', JSON.stringify(key.toString('utf8')), blockHeight, data.length, 'bytes');
+        if (key.length > MAX_STORAGE_KEY_SIZE) {
+            this.setBlob(batch, compKey);
+        }
+        this.db.put({ compKey: key, blockHeight }, data);
     }
 
     deleteData(batch, scope, accountId, storageKey, blockHeight) {
         const compKey = compositeKey(scope, accountId, storageKey);
+        // TODO: Garbage collect key blob for long keys?
         this.db.put({ compKey, blockHeight }, null);
     }
 
-    async getBlob(hash) {
-        const result = this.db.get(`b:${bs58.encode(hash)}`);
+    getBlob(hash) {
+        const bs58hash = bs58.encode(hash);
+        debug('getBlob', bs58hash);
+        const result = this.db.get(`b:${bs58hash}`);
         return result && Buffer.from(result);
     }
 
     setBlob(batch, data) {
         const hash = sha256(data);
-        debug('setBlob', bs58.encode(hash), data.length, 'bytes');
-        this.db.put(`b:${bs58.encode(hash)}`, data);
+        const bs58hash = bs58.encode(hash);
+        debug('setBlob', bs58hash, data.length, 'bytes');
+        this.db.put(`b:${bs58hash}`, data);
     }
 
     cleanOlderData(batch, key, blockHeight) {
@@ -143,7 +165,7 @@ class LMDBStorage {
         return ["0", []];
     }
 
-    scanDataKeys(contractId, blockHeight, keyPattern, iterator, limit) {
+    async scanDataKeys(contractId, blockHeight, keyPattern, iterator, limit) {
         iterator = iterator || '0';
         // TODO: More robust pattern handling
         const keyPrefix = keyPattern.replace(/\*$/, '');
@@ -156,7 +178,7 @@ class LMDBStorage {
             start = keyEncoder.readKey(buffer, 0, buffer.length);
         }
 
-        const data = this.db.getRange({
+        const data = await this.db.getRange({
             start,
             end: { blockHeight: 0xffffffff, compKey: compositeKey(DATA_SCOPE, contractId, keyPrefix + '\xff') },
             limit,
@@ -164,9 +186,9 @@ class LMDBStorage {
 
         if (data.length > 0) {
             // compute serialized key using writeKey
-            const buffer = Buffer.alloc(1024);
+            const buffer = Buffer.alloc(2048); // 2048 is bigger than biggest default key size in lmdb
             const offset = keyEncoder.writeKey(data[0].key, buffer, 0);
-            const serializedKey = buffer.slice(0, offset);
+            const serializedKey = buffer.subarray(0, offset);
             iterator = serializedKey.toString('hex');
         }
 
@@ -177,7 +199,13 @@ class LMDBStorage {
         return {
             iterator,
             data: data.map(({ key, value }) => {
-                const storageKey = key.compKey.slice(3 + contractId.length);
+                let { compKey } = key;
+                debug('compKey', compKey.toString('utf8'));
+                if (compKey.length > MAX_STORAGE_KEY_SIZE) {
+                    compKey = this.getBlob(compKey.subarray(compKey.length - 32, compKey.length));
+                }
+                const storageKey = compKey.slice(3 + contractId.length);
+                debug('storageKey', storageKey.toString('utf8'));
                 return [
                     storageKey,
                     value,
