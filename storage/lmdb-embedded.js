@@ -110,8 +110,9 @@ class LMDBStorage {
 
     async getData(compKey, blockHeight) {
         const key = truncatedKey(compKey);
-        debug('getData', JSON.stringify(key.toString('utf8')), blockHeight);
+        debug('getData', JSON.stringify(key.toString('utf8')), key.toString('hex'), blockHeight);
         const result = this.db.get({ compKey: key, blockHeight });
+        debug('result', result);
         return result && Buffer.from(result);
     }
 
@@ -129,7 +130,7 @@ class LMDBStorage {
     setData(batch, scope, accountId, storageKey, blockHeight, data) {
         const compKey = compositeKey(scope, accountId, storageKey);
         const key = truncatedKey(compKey);
-        debug('setData', JSON.stringify(key.toString('utf8')), blockHeight, data.length, 'bytes');
+        debug('setData', JSON.stringify(key.toString('utf8')), key.toString('hex'), blockHeight, data.length, 'bytes');
         if (key.length > MAX_STORAGE_KEY_SIZE) {
             this.setBlob(batch, compKey);
         }
@@ -138,8 +139,13 @@ class LMDBStorage {
 
     deleteData(batch, scope, accountId, storageKey, blockHeight) {
         const compKey = compositeKey(scope, accountId, storageKey);
+        const key = truncatedKey(compKey);
+        debug('deleteData', JSON.stringify(key.toString('utf8')), key.toString('hex'), blockHeight);
+        if (key.length > MAX_STORAGE_KEY_SIZE) {
+            this.setBlob(batch, compKey);
+        }
         // TODO: Garbage collect key blob for long keys?
-        this.db.put({ compKey, blockHeight }, null);
+        this.db.put({ compKey: key, blockHeight }, null);
     }
 
     getBlob(hash) {
