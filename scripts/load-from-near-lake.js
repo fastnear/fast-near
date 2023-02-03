@@ -13,6 +13,14 @@ const { withTimeCounter, getCounters, resetCounters} = require('../utils/counter
 let totalMessages = 0;
 let timeStarted = Date.now();
 
+function formatDuration(milliseconds) {
+    let seconds = Math.floor((milliseconds / 1000) % 60);
+    let minutes = Math.floor((milliseconds / (1000 * 60)) % 60);
+    let hours = Math.floor((milliseconds / (1000 * 60 * 60)) % 24);
+    let days = Math.floor((milliseconds / (1000 * 60 * 60 * 24)) % 24);
+    return [days, hours, minutes, seconds].map(n => n.toString().padStart(2, '0')).join(':');
+}
+
 const NUM_RETRIES = 10;
 const RETRY_TIMEOUT = 5000;
 async function handleStreamerMessage(streamerMessage, options = {}) {
@@ -21,7 +29,7 @@ async function handleStreamerMessage(streamerMessage, options = {}) {
     totalMessages++;
     console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
         `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
-        `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
+        `Lag: ${formatDuration(Date.now() - (timestamp / 1000000))}`);
     
     const pipeline = [
         dumpRedis && dumpChangesToRedis,
