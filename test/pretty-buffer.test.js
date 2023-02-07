@@ -4,6 +4,7 @@ const prettyBuffer = require('../utils/pretty-buffer');
 
 // NOTE: Using async for sync tests removes the need to use t.plan or t.end
 
+test('null', async t => t.equal(prettyBuffer(null), null));
 test('empty buffer', async t => t.equal(prettyBuffer(Buffer.from([])), ''));
 test('binary', async t => t.equal(prettyBuffer(Buffer.from([1, 2, 3])), '\\x01\\x02\\x03'));
 test('ascii', async t => t.equal(prettyBuffer(Buffer.from('Hello, World!')), 'Hello, World!'));

@@ -1,4 +1,8 @@
 const prettyBuffer = buffer => {
+    if (!buffer) {
+        return buffer;
+    }
+
     return Array.from(buffer).map(c => {
         if (c >= 32 && c <= 126) {
             return String.fromCharCode(c);
