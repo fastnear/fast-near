@@ -1,6 +1,5 @@
 const { createClient } = require('redis');
 const { promisify } = require('util');
-const crypto = require('crypto');
 
 const debug = require('debug')('storage');
 
@@ -66,35 +65,20 @@ class RedisStorage {
         };
     }
 
-    withRedis = ({ name }, fn) => async (...args) => {
-        const readableArgs = prettyArgs(args);
-        debug(name, ...readableArgs);
-        try {
-            return await fn.call(this, ...args);
-        } finally {
-            debug(`${name} done`, ...readableArgs);
-        }
-    }
-
     withRedisAndCache = ({ name, cachedExpires }, fn) => async (...args) => {
         const readableArgs = prettyArgs(args);
-        debug(name, ...readableArgs);
-        try {
-            let cacheKey = [name, ...readableArgs].join('$$');
-            const cachedPromise = this.redisCache.get(cacheKey);
-            if (cachedPromise) {
-                debug(name, 'local cache hit', cacheKey);
-                return await cachedPromise;
-            }
-            debug(name, 'local cache miss', cacheKey);
-
-            const resultPromise = fn.call(this, ...args);
-            // TODO: Protect from size-bombing cache?
-            this.redisCache.set(cacheKey, resultPromise, cachedExpires && BLOCK_INDEX_CACHE_TIME);
-            return await resultPromise;
-        } finally {
-            debug(`${name} done`, ...readableArgs);
+        let cacheKey = [name, ...readableArgs].join('$$');
+        const cachedPromise = this.redisCache.get(cacheKey);
+        if (cachedPromise) {
+            debug(name, 'local cache hit', cacheKey);
+            return await cachedPromise;
         }
+        debug(name, 'local cache miss', cacheKey);
+
+        const resultPromise = fn.call(this, ...args);
+        // TODO: Protect from size-bombing cache?
+        this.redisCache.set(cacheKey, resultPromise, cachedExpires && BLOCK_INDEX_CACHE_TIME);
+        return await resultPromise;
     }
 
     getLatestBlockHeight = this.withRedisAndCache({ name: 'getLatestBlockHeight', cachedExpires: true },
@@ -102,21 +86,19 @@ class RedisStorage {
             return await this.redisClient.get('latest_block_height');
         });
 
-    setLatestBlockHeight = this.withRedis({ name: 'setLatestBlockHeight' },
-        async function (blockHeight) {
-            this.redisCache.del('getLatestBlockHeight');
-            return await this.redisClient.set('latest_block_height', blockHeight.toString());
-        });
+    async setLatestBlockHeight(blockHeight) {
+        this.redisCache.del('getLatestBlockHeight');
+        return await this.redisClient.set('latest_block_height', blockHeight.toString());
+    }
 
     getBlockTimestamp = this.withRedisAndCache({ name: 'getBlockTimestamp' },
         async function (blockHeight) {
             return await this.redisClient.get(`t:${blockHeight}`);
         });
 
-    setBlockTimestamp = this.withRedis({ name: 'setBlockTimestamp' },
-        async function (blockHeight, blockTimestamp) {
-            return await this.redisClient.set(`t:${blockHeight}`, blockTimestamp);
-        });
+    async setBlockTimestamp(blockHeight, blockTimestamp) {
+        return await this.redisClient.set(`t:${blockHeight}`, blockTimestamp);
+    }
 
     getLatestDataBlockHeight = this.withRedisAndCache({ name: 'getLatestDataBlockHeight' },
         async function (compKey, blockHeight) {
@@ -193,13 +175,12 @@ class RedisStorage {
         });
     }
 
-    scanAllKeys = this.withRedis({ name: 'scanAllKeys' },
-        async function (iterator) {
-            const [newIterator, keys] = await this.redisClient.scan(iterator || 0, 'MATCH', Buffer.from('h:*'), 'COUNT', SCAN_COUNT);
-            return [newIterator, keys.map(k =>
-                k.slice(2) // NOTE: Remove h: prefix
-            )];
-        });
+    async scanAllKeys(iterator) {
+        const [newIterator, keys] = await this.redisClient.scan(iterator || 0, 'MATCH', Buffer.from('h:*'), 'COUNT', SCAN_COUNT);
+        return [newIterator, keys.map(k =>
+            k.slice(2) // NOTE: Remove h: prefix
+        )];
+    }
 
     // TODO: Does this work ok with caching???
     scanDataKeys = this.withRedisAndCache({ name: 'scanDataKeys' },
@@ -229,11 +210,9 @@ class RedisStorage {
         });
 
     async writeBatch(fn) {
-        await this.withRedis({ name: 'batch' }, async () => {
-            const batch = this.redisClient.batch();
-            await fn(batch);
-            await batch.exec();
-        })();
+        const batch = this.redisClient.batch();
+        await fn(batch);
+        await batch.exec();
     }
 
     async clearDatabase() {

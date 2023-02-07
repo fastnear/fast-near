@@ -11,9 +11,6 @@ const KEY_TYPE_STRING = 0;
 const KEY_TYPE_BUFFER = 1;
 const KEY_TYPE_CHANGE = 2;
 
-// TODO: Have debug wrapper storage class?
-const debug = require('debug')('storage-lmdb-embedded');
-
 class KeyEncoder {
     writeKey(key, targetBuffer, startPosition) {
         let offset = startPosition;
@@ -93,7 +90,6 @@ class LMDBStorage {
 
     async getLatestDataBlockHeight(compKey, blockHeight) {
         const key = truncatedKey(compKey);
-        debug('getLatestDataBlockHeight', JSON.stringify(key.toString('utf8')), blockHeight);
         const [latest] = this.db.getKeys({
             start: { compKey: key, blockHeight },
             end: { compKey: key, blockHeight: 0 },
@@ -110,16 +106,12 @@ class LMDBStorage {
 
     async getData(compKey, blockHeight) {
         const key = truncatedKey(compKey);
-        debug('getData', JSON.stringify(key.toString('utf8')), key.toString('hex'), blockHeight);
         const result = this.db.get({ compKey: key, blockHeight });
-        debug('result', result);
         return result && Buffer.from(result);
     }
 
     async getLatestData(compKey, blockHeight) {
-        debug('getLatestData', JSON.stringify(compKey.toString('utf8')), blockHeight);
         const dataBlockHeight = await this.getLatestDataBlockHeight(compKey, blockHeight);
-        debug('dataBlockHeight', dataBlockHeight);
         if (!dataBlockHeight) {
             return null;
         }
@@ -130,7 +122,6 @@ class LMDBStorage {
     setData(batch, scope, accountId, storageKey, blockHeight, data) {
         const compKey = compositeKey(scope, accountId, storageKey);
         const key = truncatedKey(compKey);
-        debug('setData', JSON.stringify(key.toString('utf8')), key.toString('hex'), blockHeight, data.length, 'bytes');
         if (key.length > MAX_STORAGE_KEY_SIZE) {
             this.setBlob(batch, compKey);
         }
@@ -140,7 +131,6 @@ class LMDBStorage {
     deleteData(batch, scope, accountId, storageKey, blockHeight) {
         const compKey = compositeKey(scope, accountId, storageKey);
         const key = truncatedKey(compKey);
-        debug('deleteData', JSON.stringify(key.toString('utf8')), key.toString('hex'), blockHeight);
         if (key.length > MAX_STORAGE_KEY_SIZE) {
             this.setBlob(batch, compKey);
         }
@@ -150,7 +140,6 @@ class LMDBStorage {
 
     getBlob(hash) {
         const bs58hash = bs58.encode(hash);
-        debug('getBlob', bs58hash);
         const result = this.db.get(`b:${bs58hash}`);
         return result && Buffer.from(result);
     }
@@ -158,7 +147,6 @@ class LMDBStorage {
     setBlob(batch, data) {
         const hash = sha256(data);
         const bs58hash = bs58.encode(hash);
-        debug('setBlob', bs58hash, data.length, 'bytes');
         this.db.put(`b:${bs58hash}`, data);
     }
 
@@ -206,12 +194,10 @@ class LMDBStorage {
             iterator,
             data: data.map(({ key, value }) => {
                 let { compKey } = key;
-                debug('compKey', compKey.toString('utf8'));
                 if (compKey.length > MAX_STORAGE_KEY_SIZE) {
                     compKey = this.getBlob(compKey.subarray(compKey.length - 32, compKey.length));
                 }
                 const storageKey = compKey.slice(3 + contractId.length);
-                debug('storageKey', storageKey.toString('utf8'));
                 return [
                     storageKey,
                     value,
