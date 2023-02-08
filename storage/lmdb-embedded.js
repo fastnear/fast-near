@@ -110,6 +110,7 @@ class LMDBStorage {
         return result && Buffer.from(result);
     }
 
+    // TODO: Looks like this can resolve block height and get data at same read instead
     async getLatestData(compKey, blockHeight) {
         const dataBlockHeight = await this.getLatestDataBlockHeight(compKey, blockHeight);
         if (!dataBlockHeight) {

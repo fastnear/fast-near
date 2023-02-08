@@ -8,7 +8,7 @@ class DebugStorage {
     constructor(storage) {
         this._storage = storage;
     }
-    
+
     async getLatestBlockHeight() {
         debug('getLatestBlockHeight');
         try {
@@ -44,7 +44,7 @@ class DebugStorage {
             debug('setBlockTimestamp done');
         }
     }
-    
+
     async getLatestDataBlockHeight(compKey, blockHeight) {
         if (debug.enabled) {
             debug('getLatestDataBlockHeight', prettyBuffer(compKey), blockHeight);

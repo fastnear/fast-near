@@ -3,20 +3,14 @@ const { promisify } = require('util');
 
 const debug = require('debug')('storage');
 
-const LRU = require('lru-cache');
-
-const prettyBuffer = require('../utils/pretty-buffer');
 const { withTimeCounter } = require('../utils/counters');
 const { compositeKey, allKeysKey, DATA_SCOPE } = require('../storage-keys');
 const sha256 = require('../utils/sha256');
 
-const REDIS_CACHE_MAX_ITEMS = 1000;
-const BLOCK_INDEX_CACHE_TIME = 500;
 const MAX_SCAN_STEPS = 10;
 const SCAN_COUNT = 1000;
 const REDIS_URL = process.env.FAST_NEAR_REDIS_URL || 'redis://localhost:6379';
 
-const prettyArgs = args => args.map(arg => arg instanceof Uint8Array || arg instanceof Buffer ? prettyBuffer(arg) : `${arg}`);
 
 function dataHistoryKey(compKey) {
     return Buffer.concat([Buffer.from('h:'), compKey]);
@@ -31,15 +25,9 @@ const blobKey = hash => Buffer.concat([Buffer.from('b:'), hash]);
 // TODO: Split caching and storage logic? Caching logic can go into wrapping CachingStorage class
 class RedisStorage {
     constructor({
-        cacheMaxItems = REDIS_CACHE_MAX_ITEMS,
-        blockIndexCacheTime = BLOCK_INDEX_CACHE_TIME,
         redisUrl = REDIS_URL
     } = {}) {
-        this.redisCache = new LRU({
-            max: cacheMaxItems,
-        });
-
-        const redisClient = createClient(REDIS_URL, {
+        const redisClient = createClient(redisUrl, {
             detect_buffers: true
         });
         // TODO: Does it need to crash as fatal error?
@@ -65,54 +53,33 @@ class RedisStorage {
         };
     }
 
-    withRedisAndCache = ({ name, cachedExpires }, fn) => async (...args) => {
-        const readableArgs = prettyArgs(args);
-        let cacheKey = [name, ...readableArgs].join('$$');
-        const cachedPromise = this.redisCache.get(cacheKey);
-        if (cachedPromise) {
-            debug(name, 'local cache hit', cacheKey);
-            return await cachedPromise;
-        }
-        debug(name, 'local cache miss', cacheKey);
-
-        const resultPromise = fn.call(this, ...args);
-        // TODO: Protect from size-bombing cache?
-        this.redisCache.set(cacheKey, resultPromise, cachedExpires && BLOCK_INDEX_CACHE_TIME);
-        return await resultPromise;
+    async getLatestBlockHeight() {
+        return await this.redisClient.get('latest_block_height');
     }
 
-    getLatestBlockHeight = this.withRedisAndCache({ name: 'getLatestBlockHeight', cachedExpires: true },
-        async function () {
-            return await this.redisClient.get('latest_block_height');
-        });
-
     async setLatestBlockHeight(blockHeight) {
-        this.redisCache.del('getLatestBlockHeight');
         return await this.redisClient.set('latest_block_height', blockHeight.toString());
     }
 
-    getBlockTimestamp = this.withRedisAndCache({ name: 'getBlockTimestamp' },
-        async function (blockHeight) {
-            return await this.redisClient.get(`t:${blockHeight}`);
-        });
+    async getBlockTimestamp(blockHeight) {
+        return await this.redisClient.get(`t:${blockHeight}`);
+    }
 
     async setBlockTimestamp(blockHeight, blockTimestamp) {
         return await this.redisClient.set(`t:${blockHeight}`, blockTimestamp);
     }
 
-    getLatestDataBlockHeight = this.withRedisAndCache({ name: 'getLatestDataBlockHeight' },
-        async function (compKey, blockHeight) {
-            compKey = Buffer.from(compKey);
-            const [dataBlockHeight] = await this.redisClient.sendCommand('ZREVRANGEBYSCORE',
-                [dataHistoryKey(compKey), blockHeight, '-inf', 'LIMIT', '0', '1']);
-            return dataBlockHeight;
-        });
+    async getLatestDataBlockHeight(compKey, blockHeight) {
+        compKey = Buffer.from(compKey);
+        const [dataBlockHeight] = await this.redisClient.sendCommand('ZREVRANGEBYSCORE',
+            [dataHistoryKey(compKey), blockHeight, '-inf', 'LIMIT', '0', '1']);
+        return dataBlockHeight;
+    }
 
-    getData = this.withRedisAndCache({ name: 'getData' },
-        async function (compKey, blockHeight) {
-            compKey = Buffer.from(compKey);
-            return await this.redisClient.get(dataKey(compKey, blockHeight));
-        });
+    async getData(compKey, blockHeight) {
+        compKey = Buffer.from(compKey);
+        return await this.redisClient.get(dataKey(compKey, blockHeight));
+    }
 
     async getLatestData(compKey, blockHeight) {
         const dataBlockHeight = await this.getLatestDataBlockHeight(compKey, blockHeight);
@@ -124,7 +91,6 @@ class RedisStorage {
 
     // TODO: Encode blockHeight more efficiently than string? int32 should be enough for more than 20 years.
     async setData(batch, scope, accountId, storageKey, blockHeight, data) {
-        debug('setData', ...prettyArgs([scope, accountId, storageKey, blockHeight]));
         const compKey = compositeKey(scope, accountId, storageKey);
         batch
             .set(dataKey(compKey, blockHeight), data)
@@ -144,10 +110,9 @@ class RedisStorage {
         }
     }
 
-    getBlob = this.withRedisAndCache({ name: 'getBlob' },
-        async function (hash) {
-            return await this.redisClient.get(blobKey(hash));
-        });
+    async getBlob(hash) {
+        return await this.redisClient.get(blobKey(hash));
+    }
 
     async setBlob(batch, data) {
         const hash = sha256(data);
@@ -182,32 +147,30 @@ class RedisStorage {
         )];
     }
 
-    // TODO: Does this work ok with caching???
-    scanDataKeys = this.withRedisAndCache({ name: 'scanDataKeys' },
-        async function (contractId, blockHeight, keyPattern, iterator, limit) {
-            let step = 0;
-            let data = [];
-            do {
-                const [newIterator, keys] = await this.redisClient.hscan(Buffer.from(`k:${DATA_SCOPE}:${contractId}`), iterator, 'MATCH', keyPattern, 'COUNT', SCAN_COUNT);
-                console.log('keys', keys.map(k => k.toString('utf8')), newIterator.toString('utf8'))
-                const newData = await Promise.all(keys.map(async storageKey => {
-                    const compKey = Buffer.concat([Buffer.from(`${DATA_SCOPE}:${contractId}:`), storageKey]);
-                    const dataBlockHeight = await this.getLatestDataBlockHeight(compKey, blockHeight);
-                    if (!dataBlockHeight) {
-                        return [storageKey, null];
-                    }
-                    return [storageKey, await this.getData(compKey, dataBlockHeight)];
-                }));
-                iterator = newIterator;
-                data = data.concat(newData);
-                step++;
-                console.log('step', step, 'iterator', iterator.toString('utf8'));
-            } while (step < MAX_SCAN_STEPS && data.length < limit && iterator.toString('utf8') != '0');
-            return {
-                iterator: Buffer.from(iterator).toString('utf8'),
-                data
-            };
-        });
+    async scanDataKeys(contractId, blockHeight, keyPattern, iterator, limit) {
+        let step = 0;
+        let data = [];
+        do {
+            const [newIterator, keys] = await this.redisClient.hscan(Buffer.from(`k:${DATA_SCOPE}:${contractId}`), iterator, 'MATCH', keyPattern, 'COUNT', SCAN_COUNT);
+            console.log('keys', keys.map(k => k.toString('utf8')), newIterator.toString('utf8'))
+            const newData = await Promise.all(keys.map(async storageKey => {
+                const compKey = Buffer.concat([Buffer.from(`${DATA_SCOPE}:${contractId}:`), storageKey]);
+                const dataBlockHeight = await this.getLatestDataBlockHeight(compKey, blockHeight);
+                if (!dataBlockHeight) {
+                    return [storageKey, null];
+                }
+                return [storageKey, await this.getData(compKey, dataBlockHeight)];
+            }));
+            iterator = newIterator;
+            data = data.concat(newData);
+            step++;
+            console.log('step', step, 'iterator', iterator.toString('utf8'));
+        } while (step < MAX_SCAN_STEPS && data.length < limit && iterator.toString('utf8') != '0');
+        return {
+            iterator: Buffer.from(iterator).toString('utf8'),
+            data
+        };
+    }
 
     async writeBatch(fn) {
         const batch = this.redisClient.batch();
@@ -217,7 +180,6 @@ class RedisStorage {
 
     async clearDatabase() {
         await this.redisClient.sendCommand('FLUSHDB');
-        this.redisCache.reset();
     }
 
     async closeDatabase() {
