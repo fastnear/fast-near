@@ -7,6 +7,8 @@ const LMDB_PATH = process.env.FAST_NEAR_LMDB_PATH || './lmdb-data';
 
 const MAX_STORAGE_KEY_SIZE = 1024;
 
+const SCAN_COUNT = 1000;
+
 const KEY_TYPE_STRING = 0;
 const KEY_TYPE_BUFFER = 1;
 const KEY_TYPE_CHANGE = 2;
@@ -157,16 +159,55 @@ class LMDBStorage {
         this.db.put(`b:${bs58hash}`, data);
     }
 
-    cleanOlderData(batch, key, blockHeight) {
-        // TODO: Is it still needed?
+    async cleanOlderData(batch, compKey, blockHeight) {
+        const keysToRemove = await this.db.getKeys({
+            start: { compKey, blockHeight: 0 },
+            end: { compKey, blockHeight }
+        }).asArray;
+        for (const key of keysToRemove) {
+            this.db.remove(key);
+        }
     }
 
-    scanAllKeys(iterator) {
-        // TODO: Implement if implementing cleanOlderData
-        return ["0", []];
+    async scanAllKeys(iterator) {
+        iterator = iterator || '0';
+        const limit = SCAN_COUNT;
+
+        // TODO: Figure out how to start from first data key
+        let start = null
+        if (iterator != '0') {
+            const buffer = Buffer.from(iterator, 'hex');
+            start = keyEncoder.readKey(buffer, 0, buffer.length);
+        }
+
+        let data = await this.db.getKeys({
+            start,
+            end: { blockHeight: 0xffffffff, compKey: compositeKey(DATA_SCOPE, '\xff', '\xff') },
+            limit
+        }).asArray
+
+        // TODO: Refactor with scanDataKeys
+        if (data.length > 0) {
+            // compute serialized key using writeKey
+            const buffer = Buffer.alloc(2048); // 2048 is bigger than biggest default key size in lmdb
+            const offset = keyEncoder.writeKey(data[0].key, buffer, 0);
+            const serializedKey = buffer.subarray(0, offset);
+            iterator = serializedKey.toString('hex');
+        }
+
+        if (data.length < limit) {
+            iterator = '0';
+        }
+
+        data = data.filter(key => !!key.blockHeight).map(key => key.compKey);
+
+        return [
+            iterator,
+            data
+        ];
     }
 
-    async scanDataKeys(contractId, blockHeight, keyPattern, iterator, limit) {
+    async scanDataKeys(contractId, blockHeight, keyPattern, iterator, limit = SCAN_COUNT) {
         iterator = iterator || '0';
         // TODO: More robust pattern handling
         const keyPrefix = keyPattern.replace(/\*$/, '');
