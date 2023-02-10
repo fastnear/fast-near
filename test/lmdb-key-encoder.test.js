@@ -15,6 +15,7 @@ function roundtrip(t, key) {
 
 const BUFFER_INCLUDING_ZEROS = Buffer.from([0x1, 0x0, 0xFF, 0x0, 0x2]);
 
+test('null key', async t => roundtrip(t, null));
 test('string key', async t => roundtrip(t, 'Hello, World!'));
 test('empty string key', async t => roundtrip(t, ''));
 test('buffer key', async t => roundtrip(t, BUFFER_INCLUDING_ZEROS));

@@ -14,7 +14,9 @@ const KEY_TYPE_CHANGE = 2;
 class KeyEncoder {
     writeKey(key, targetBuffer, startPosition) {
         let offset = startPosition;
-        if (typeof key === 'string') {
+        if (key === null || key === undefined) {
+            offset = startPosition;
+        } else if (typeof key === 'string') {
             offset = targetBuffer.writeUInt8(KEY_TYPE_STRING, offset);
             offset += targetBuffer.write(key, offset);
         } else if (Buffer.isBuffer(key)) {
@@ -32,6 +34,10 @@ class KeyEncoder {
     }
 
     readKey(buffer, start, end) {
+        if (start === end) {
+            return null;
+        }
+
         let offset = start;
         const type = buffer.readUInt8(offset);
         offset += 1;
