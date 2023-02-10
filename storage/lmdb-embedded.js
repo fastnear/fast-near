@@ -201,6 +201,10 @@ class LMDBStorage {
 
         data = data.filter(key => !!key.blockHeight).map(key => key.compKey);
 
+        // Deduplicate array of buffers in data
+        // TODO: Less hacky way to do this?
+        data = [...new Set(data.map(buffer => buffer.toString('hex')))].map(hex => Buffer.from(hex, 'hex'));
+
         return [
             iterator,
             data
