@@ -87,7 +87,7 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --exclude aurora.* --
 ## Different data sink options
 
 Currently there are such options to dump data loaded from NEAR Lake:
-- `--dump-changes` - dumps state changes into Redis
+- `--dump-changes` - dumps state changes into storage. Use `FAST_NEAR_STORAGE_TYPE` to specify storage type. Defaults to `redis`
 - `--dump-questdb` - dumps receipts into QuestDB (https://questdb.io/)
 - `--dump-estuary` - dumps blocks into IPFS using Estuary (https://estuary.tech/)
 
@@ -114,6 +114,11 @@ See https://github.com/vgrichina/near-state-indexer for Rust implementation runn
 - `FAST_NEAR_CONTRACT_TIMEOUT_MS` - Timeout for contract execution in milliseconds (default: `1000`).
 
 # HTTP API
+
+## Public endpoints
+
+- Testnet: https://rpc.web4.testnet.page/account/testnet
+- Mainnet: https://rpc.web4.near.page/account/near
 
 ## Call view method
 
