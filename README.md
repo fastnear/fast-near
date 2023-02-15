@@ -2,11 +2,13 @@
 
 # What is fast-near?
 
-fast-near aims to provide the fastest RPC implementation for @NEARProtocol using in-memory storage in Redis.
+fast-near aims to provide the fastest RPC implementation for @NEARProtocol using high performance storage backends like:
+ - in-memory storage in Redis.
+- SSD optimized storage using LMDB.
 
 It is optimized for view call performance and ease of deploy and scaling. 
 
-It currently doesn't sync with network on it's own, data needs to be fed into Redis either from [NEAR Lake](https://github.com/near/near-lake-indexer) or from https://github.com/vgrichina/near-state-indexer.
+It currently doesn't sync with network on it's own, data needs to be loaded either from [NEAR Lake](https://github.com/near/near-lake-indexer) or from https://github.com/vgrichina/near-state-indexer.
 
 # Why
 
@@ -257,6 +259,7 @@ Some of the planned and already implemented components. Is not exhaustive list.
 
 - Loading data
     - [x] Allow loading from NEAR Data Lake
+    - [ ] Allow loading from [NEAR ZeroMQ Indexer](https://github.com/here-wallet/near-zmq-indexer) for smaller latency
     - [x] Compress history to given time window
     - [?] Update near-state-indexer to load latest format in Redis
     - [?] Update nearcore to load latest format in Redis
