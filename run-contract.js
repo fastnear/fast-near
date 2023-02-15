@@ -1,12 +1,16 @@
 const WorkerPool = require('./worker-pool');
-const storageClient = require('./storage-client');
-const resolveBlockHeight = require('./resolve-block-height');
+const storage = require('./storage');
 const { FastNEARError } = require('./error');
 
 const WORKER_COUNT = parseInt(process.env.FAST_NEAR_WORKER_COUNT || '4');
+const NO_CODE_HASH = Buffer.from('11111111111111111111111111111111', 'hex');
 
-const LRU = require("lru-cache");
-const { codeKey, accountKey } = require('./storage-keys');
+const { accountKey } = require('./storage-keys');
+const { BORSH_SCHEMA, Account } = require('./data-model');
+const { deserialize } = require('borsh');
+const bs58 = require('bs58');
+
+const LRU = require('lru-cache');
 let contractCache = new LRU({
     max: 25
 });
@@ -17,44 +21,34 @@ async function getWasmModule(contractId, blockHeight) {
     const debug = require('debug')(`host:${contractId}`);
     debug('getWasmModule', contractId, blockHeight);
 
-    debug('find contract code');
-    const contractCodeKey = codeKey(contractId);
     const accountDataKey = accountKey(contractId);
 
-    const checkAccountExists = async () => {
-        debug('load account data')
-        const accountBlockHash = await storageClient.getLatestDataBlockHash(accountDataKey, blockHeight);
-        debug('accountBlockHash', accountBlockHash);
-        if (!accountBlockHash) {
-            throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
-        }
-
-        const accountData = await storageClient.getData(accountDataKey, accountBlockHash);
-        debug('accountData', accountData);
-        if (!accountData) {
-            throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
-        }
-    };
-
-    const contractBlockHash = await storageClient.getLatestDataBlockHash(contractCodeKey, blockHeight);
-    if (!contractBlockHash) {
-        await checkAccountExists();
-        throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
+    debug('load account data')
+    const accountData = await storage.getLatestData(accountDataKey, blockHeight);
+    debug('accountData', accountData);
+    if (!accountData) {
+        throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
     }
 
-    // TODO: Have cache based on code hash instead?
-    const cacheKey = `${contractId}:${contractBlockHash.toString('hex')}}`;
+    const { code_hash } = deserialize(BORSH_SCHEMA, Account, accountData);
+    const codeHash = Buffer.from(code_hash);
+    const codeHashStr = bs58.encode(codeHash);
+
+    if (NO_CODE_HASH.equals(codeHash)) {
+        throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId}, block height: ${blockHeight}, code hash: ${codeHashStr}`);
+    }
+
+    const cacheKey = codeHashStr;
     let wasmModule = contractCache.get(cacheKey);
     if (wasmModule) {
         debug('contract cache hit', cacheKey);
     } else {
         debug('contract cache miss', cacheKey);
 
-        debug('blockHash', contractBlockHash);
-        const wasmData = await storageClient.getData(contractCodeKey, contractBlockHash);
+        const wasmData = await storage.getBlob(codeHash);
         if (!wasmData) {
-            await checkAccountExists();
-            throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId} ${blockHeight}`);
+            // TODO: Should this be fatal error because shoudn't happen with consistent data?
+            throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId}, block height: ${blockHeight}, code hash: ${codeHashStr}`);
         }
         debug('wasmData.length', wasmData.length);
         
@@ -80,11 +74,11 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
 
     if (!workerPool) {
         debug('workerPool');
-        workerPool = new WorkerPool(WORKER_COUNT, storageClient);
+        workerPool = new WorkerPool(WORKER_COUNT, storage);
         debug('workerPool done');
     }
 
-    const blockTimestamp = await storageClient.getBlockTimestamp(blockHeight);
+    const blockTimestamp = await storage.getBlockTimestamp(blockHeight);
     debug('blockTimestamp', blockTimestamp);
 
     const wasmModule = await getWasmModule(contractId, blockHeight);
@@ -107,17 +101,3 @@ module.exports = {
     runContract,
     closeWorkerPool,
 };
-
-// TODO: Extract tests
-// (async function() {
-//     console.time('everything')
-//     const result = await runContract('dev-1629863402519-20649210409803', 'getChunk', {x: 0, y: 0});
-//     await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { path: '/chunk/0,0' } });
-//     await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { path: '/parcel/0,0' } });
-//     // const result = await runContract('dev-1629863402519-20649210409803', 'web4_get', { request: { } });
-//     console.log('runContract result', Buffer.from(result).toString('utf8'));
-//     console.timeEnd('everything')
-// })().catch(error => {
-//     console.error(error);
-//     process.exit(1);
-// });

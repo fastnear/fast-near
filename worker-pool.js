@@ -10,12 +10,12 @@ const CONTRACT_TIMEOUT_MS = parseInt(process.env.FAST_NEAR_CONTRACT_TIMEOUT_MS |
 
 // NOTE: Mostly lifted from here https://amagiacademy.com/blog/posts/2021-04-09/node-worker-threads-pool
 class WorkerPool extends EventEmitter {
-    constructor(numThreads, storageClient) {
+    constructor(numThreads, storage) {
         super();
         this.numThreads = numThreads;
         this.workers = [];
         this.freeWorkers = [];
-        this.storageClient = storageClient;
+        this.storage = storage;
         this.running = true;
 
         for (let i = 0; i < numThreads; i++) {
@@ -48,20 +48,16 @@ class WorkerPool extends EventEmitter {
             }
 
             compKey = Buffer.from(compKey);
-            blockHeight = Buffer.from(blockHeight);
+            blockHeight = Buffer.from(blockHeight.toString());
 
             switch (methodName) {
                 case 'storage_read':
                     (async () => {
-                        const blockHash = await this.storageClient.getLatestDataBlockHash(compKey, blockHeight);
-
-                        if (blockHash) {
-                            const data = await this.storageClient.getData(compKey, blockHash);
-                            worker.postMessage(data);
-                        } else {
-                            worker.postMessage(null);
-                        }
-                    })();
+                        const data = await this.storage.getLatestData(compKey, blockHeight);
+                        worker.postMessage(data);
+                    })().catch((error) => {
+                        worker.postMessage({ error });
+                    });
                     break;
             }
         });

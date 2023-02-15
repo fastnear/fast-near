@@ -7,7 +7,7 @@ const { createHash } = require('crypto');
 const debug = require('debug')(`worker:${threadId}`);
 
 const { FastNEARError } = require('./error');
-const prettyBuffer = require('./pretty-buffer');
+const prettyBuffer = require('./utils/pretty-buffer');
 const { dataKey } = require('./storage-keys');
 
 const MAX_U64 = 18446744073709551615n;

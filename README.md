@@ -2,11 +2,13 @@
 
 # What is fast-near?
 
-fast-near aims to provide the fastest RPC implementation for @NEARProtocol using in-memory storage in Redis.
+fast-near aims to provide the fastest RPC implementation for @NEARProtocol using high performance storage backends like:
+ - in-memory storage in Redis.
+- SSD optimized storage using LMDB.
 
 It is optimized for view call performance and ease of deploy and scaling. 
 
-It currently doesn't sync with network on it's own, data needs to be fed into Redis either from [NEAR Lake](https://github.com/near/near-lake-indexer) or from https://github.com/vgrichina/near-state-indexer.
+It currently doesn't sync with network on it's own, data needs to be loaded either from [NEAR Lake](https://github.com/near/near-lake-indexer) or from https://github.com/vgrichina/near-state-indexer.
 
 # Why
 
@@ -49,7 +51,21 @@ docker run -d -e FAST_NEAR_REDIS_URL=<redis_ip> -e FAST_NEAR_NODE_URL=<rpc_endpo
 To load from NEAR Lake (use `--help` to learn more about options):
 
 ```
-node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --history-length 1 --dump-redis
+node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --history-length 1 --dump-changes
+```
+
+## Pull data into LMDB (experimental)
+
+To load from NEAR Lake (use `--help` to learn more about options):
+
+```bash
+FAST_NEAR_STORAGE_TYPE=lmdb node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --history-length 1 --dump-changes
+```
+
+Run server:
+
+```bash
+FAST_NEAR_STORAGE_TYPE=lmdb yarn start
 ```
 
 ## Load data only for your app's smart contracts
@@ -57,7 +73,7 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 50 --his
 To load data for `app1.near`, `app2.near` and all subaccounts of `superapp.near`:
 
 ```
-node scripts/load-from-near-lake.js near-lake-data-mainnet --include app1.near --include app2.near --include '*.superapp.near' --dump-redis
+node scripts/load-from-near-lake.js near-lake-data-mainnet --include app1.near --include app2.near --include '*.superapp.near' --dump-changes
 ```
 
 ## Exclude some undesired accounts
@@ -65,13 +81,13 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --include app1.near -
 To load data for all accounts except `aurora` and `sweat` subaccounts:
 
 ```
-node scripts/load-from-near-lake.js near-lake-data-mainnet --exclude aurora.* --exclude sweat.* --dump-redis
+node scripts/load-from-near-lake.js near-lake-data-mainnet --exclude aurora.* --exclude sweat.* --dump-changes
 ```
 
 ## Different data sink options
 
 Currently there are such options to dump data loaded from NEAR Lake:
-- `--dump-redis` - dumps state changes into Redis
+- `--dump-changes` - dumps state changes into Redis
 - `--dump-questdb` - dumps receipts into QuestDB (https://questdb.io/)
 - `--dump-estuary` - dumps blocks into IPFS using Estuary (https://estuary.tech/)
 
@@ -85,6 +101,9 @@ See https://github.com/vgrichina/near-state-indexer for Rust implementation runn
 
 - `PORT` - port to listen on (default: `3000`)
 - `ESTUARY_TOKEN` - token to use for Estuary IPFS upload. See https://docs.estuary.tech/tutorial-get-an-api-key for more information. 
+- `FAST_NEAR_STORAGE_TYPE` - storage type to use (default: `redis`). Supported values: `redis`, `lmdb`.
+- `FAST_NEAR_ENABLE_CACHE` - enable client-side caching (default: `true`).
+- `FAST_NEAR_LMDB_PATH` - path to LMDB database (default: `./lmdb-data`). This is only used if `FAST_NEAR_STORAGE_TYPE` is set to `lmdb`.
 - `FAST_NEAR_REDIS_URL` - Redis URL (default: `redis://localhost:6379`)
 - `FAST_NEAR_QUESTDB_URL` - QuestDB URL (default: `http://localhost:9000`)
 - `FAST_NEAR_NODE_URL` - NEAR RPC endpoint (default: `https://rpc.mainnet.near.org`). This is only used as a fallback for JSON-RPC endpoint.
@@ -240,9 +259,10 @@ Some of the planned and already implemented components. Is not exhaustive list.
 
 - Loading data
     - [x] Allow loading from NEAR Data Lake
+    - [ ] Allow loading from [NEAR ZeroMQ Indexer](https://github.com/here-wallet/near-zmq-indexer) for smaller latency
     - [x] Compress history to given time window
-    - [x] Update near-state-indexer to load latest format in Redis
-    - [x] Update nearcore to load latest format in Redis
+    - [?] Update near-state-indexer to load latest format in Redis
+    - [?] Update nearcore to load latest format in Redis
     - [x] Load account keys
     - [x] Filter accounts when loading
     - [ ] Load recent transactions results
@@ -276,8 +296,8 @@ Some of the planned and already implemented components. Is not exhaustive list.
     - [ ] State change method support
 - Storage
     - [x] Redis
-    - [ ] Abstract storage API
-    - [ ] Choose some SSD-optimized key value store?
+    - [x] Abstract storage API
+    - [x] LMDB storage
     - [ ] Load storage selectively from another fast-near instance
     - [ ] Browser-based storage
 - Tests

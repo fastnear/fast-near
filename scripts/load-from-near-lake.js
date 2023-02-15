@@ -4,27 +4,35 @@ const bs58 = require('bs58');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const { serialize } = require('borsh');
-const storageClient = require("../storage-client");
-const { DATA_SCOPE, ACCOUNT_SCOPE, CODE_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
+const storage = require("../storage");
+const { DATA_SCOPE, ACCOUNT_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
 const { Account, BORSH_SCHEMA, AccessKey, PublicKey, FunctionCallPermission, AccessKeyPermission, FullAccessPermission } = require('../data-model');
 
-const { withTimeCounter, getCounters, resetCounters} = require('../counters');
+const { withTimeCounter, getCounters, resetCounters} = require('../utils/counters');
 
 let totalMessages = 0;
 let timeStarted = Date.now();
 
+function formatDuration(milliseconds) {
+    let seconds = Math.floor((milliseconds / 1000) % 60);
+    let minutes = Math.floor((milliseconds / (1000 * 60)) % 60);
+    let hours = Math.floor((milliseconds / (1000 * 60 * 60)) % 24);
+    let days = Math.floor((milliseconds / (1000 * 60 * 60 * 24)));
+    return [days, hours, minutes, seconds].map(n => n.toString().padStart(2, '0')).join(':');
+}
+
 const NUM_RETRIES = 10;
 const RETRY_TIMEOUT = 5000;
 async function handleStreamerMessage(streamerMessage, options = {}) {
-    const { dumpRedis, dumpEstuary, dumpQuestdb } = options;
+    const { dumpChanges, dumpEstuary, dumpQuestdb } = options;
     const { height: blockHeight, timestamp } = streamerMessage.block.header;
     totalMessages++;
     console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
         `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
-        `Lag: ${Date.now() - (timestamp / 1000000)} ms`);
+        `Lag: ${formatDuration(Date.now() - (timestamp / 1000000))}`);
     
     const pipeline = [
-        dumpRedis && dumpChangesToRedis,
+        dumpChanges && dumpChangesToStorage,
         dumpEstuary && scheduleUploadToEstuary,
         dumpQuestdb && dumpReceiptsToQuestDB,
     ].filter(Boolean);
@@ -116,22 +124,25 @@ async function dumpReceiptsToQuestDB(streamerMessage) {
     }
 }
 
-async function dumpChangesToRedis(streamerMessage, { historyLength, include, exclude } = {}) {
+async function dumpChangesToStorage(streamerMessage, { historyLength, include, exclude } = {}) {
     // TODO: Use timestampNanoSec?
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
     const keepFromBlockHeight = historyLength && blockHeight - historyLength;
 
-    for (let { stateChanges } of streamerMessage.shards) {
-        await storageClient.redisBatch(async batch => {
+    console.time('dumpChangesToStorage');
+    await storage.writeBatch(async batch => {
+        for (let { stateChanges } of streamerMessage.shards) {
             for (let { type, change } of stateChanges) {
                 await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
             }
-        });
-    }
+        }
+    });
 
-    await storageClient.setBlockTimestamp(blockHeight, timestamp);
-    await storageClient.setLatestBlockHeight(blockHeight);
+    await storage.setBlockTimestamp(blockHeight, timestamp);
+    await storage.setLatestBlockHeight(blockHeight);
+    console.timeEnd('dumpChangesToStorage');
+    // TODO: Record block hash to block height mapping?
 }
 
 const uploadQueue = [];
@@ -192,18 +203,18 @@ async function scheduleUploadToEstuary(streamerMessage, { batchSize }) {
         .then(() => uploadQueue.splice(uploadQueue.indexOf(promise), 1));
 }
 
-async function handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
+async function handleChange({ batch, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
     const handleUpdate = async (scope, accountId, dataKey, data) => {
-        await storageClient.setData(batch)(scope, accountId, dataKey, blockHash, blockHeight, data);
+        await storage.setData(batch, scope, accountId, dataKey, blockHeight, data);
         if (keepFromBlockHeight) {
-            await storageClient.cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
+            await storage.cleanOlderData(batch, compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
     const handleDeletion = async (scope, accountId, dataKey) => {
-        await storageClient.deleteData(batch)(scope, accountId, dataKey, blockHash, blockHeight);
+        await storage.deleteData(batch, scope, accountId, dataKey, blockHeight);
         if (keepFromBlockHeight) {
-            await storageClient.cleanOlderData(batch)(compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
+            await storage.cleanOlderData(batch, compositeKey(scope, accountId, dataKey), keepFromBlockHeight);
         }
     }
 
@@ -262,11 +273,11 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
         }
         case 'contract_code_update': {
             const { codeBase64 } = change;
-            await handleUpdate(CODE_SCOPE, accountId, null, Buffer.from(codeBase64, 'base64'));
+            await storage.setBlob(batch, Buffer.from(codeBase64, 'base64'));
             break;
         }
         case 'contract_code_deletion': {
-            await handleDeletion(CODE_SCOPE, accountId, null);
+            // TODO: Garbage collect unreferenced contract code? Should it happen in corresponding account_update?
             break;
         }
     }
@@ -274,7 +285,7 @@ async function handleChange({ batch, blockHash, blockHeight, type, change, keepF
 
 module.exports = {
     handleStreamerMessage,
-    dumpChangesToRedis,
+    dumpChangesToStorage,
     dumpReceiptsToQuestDB,
     scheduleUploadToEstuary,
 }
@@ -315,8 +326,8 @@ if (require.main === module) {
                         describe: 'How many blocks to fetch before stopping. Unlimited by default.',
                         number: true
                     })
-                    .option('dump-redis', {
-                        describe: 'Dump state changes into Redis. FAST_NEAR_REDIS_URL environment variable to be set to choose Redis host.',
+                    .option('dump-changes', {
+                        describe: 'Dump state changes into storage. Use FAST_NEAR_STORAGE_TYPE to specify storage type. Defaults to `redis`.',
                         boolean: true
                     })
                     .option('dump-estuary', {
@@ -339,7 +350,7 @@ if (require.main === module) {
                 limit,
                 include,
                 exclude,
-                dumpRedis,
+                dumpChanges,
                 dumpEstuary,
                 dumpQuestdb,
             } = argv;
@@ -347,7 +358,7 @@ if (require.main === module) {
             let blocksProcessed = 0;
 
             for await (let streamerMessage of stream({
-                startBlockHeight: startBlockHeight || await storageClient.getLatestBlockHeight() || 0,
+                startBlockHeight: startBlockHeight || await storage.getLatestBlockHeight() || 0,
                 s3BucketName: bucketName || "near-lake-data-mainnet",
                 s3RegionName: regionName || "eu-central-1",
                 s3Endpoint: endpoint,
@@ -359,7 +370,7 @@ if (require.main === module) {
                         historyLength,
                         include,
                         exclude,
-                        dumpRedis,
+                        dumpChanges,
                         dumpEstuary,
                         dumpQuestdb,
                     });
@@ -374,7 +385,7 @@ if (require.main === module) {
             }
 
             // TODO: Check what else is blocking exit
-            await storageClient.closeRedis();
+            await storage.closeDatabase();
         })
         .parse();
 }

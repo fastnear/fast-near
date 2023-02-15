@@ -634,7 +634,7 @@ const BORSH_SCHEMA = new Map([
 ]);
 
 const ed = require('@noble/ed25519');
-const { sha256 } = require('@noble/hashes/lib/sha256');
+const sha256  = require('./utils/sha256');
 
 const privateKey = ed.utils.randomPrivateKey(); // 32-byte Uint8Array or string.
 

@@ -1,14 +1,8 @@
 #!/bin/sh
 set -ex
 
-# Try importing small chunk of real mainnet data
-node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --history-length 1 --start-block-height 66377251 --limit 5 --dump-changes
-
-# Make sure different key types supported
-node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --history-length 1 --start-block-height 71745488 --limit 5 --dump-changes
-
-# Try compressing history
-node scripts/compress-history.js
+# Try importing large chunk of real mainnet data
+node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --history-length 1 --start-block-height 66377251 --limit 500 --dump-changes
 
 # Start server
 bin/fast-near &

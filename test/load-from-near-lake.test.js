@@ -9,13 +9,16 @@ test.onFinish(async () => {
     await redis.shutdown();
 });
 
-const { dumpChangesToRedis: handleStreamerMessage } = require('../scripts/load-from-near-lake');
-const { clearDatabase } = require('../storage-client');
+const { dumpChangesToStorage: handleStreamerMessage } = require('../scripts/load-from-near-lake');
+const storage = require('../storage');
 const app = require('../app');
 const request = require('supertest')(app.callback());
 
 const fs = require('fs');
+const bs58 = require('bs58');
 const TEST_CONTRACT_CODE = fs.readFileSync('test/data/test_contract_rs.wasm');
+
+const sha256 = require('../utils/sha256');
 
 const STREAMER_MESSAGE = {
     block: {
@@ -40,7 +43,7 @@ const STREAMER_MESSAGE = {
             change: {
                 accountId: 'test.near',
                 amount: '4936189930936415601114966690',
-                codeHash: '11111111111111111111111111111111',
+                codeHash: bs58.encode(sha256(TEST_CONTRACT_CODE)),
                 locked: '0',
                 storageUsage: 20797,
             }
@@ -99,7 +102,7 @@ const STREAMER_MESSAGE = {
 
 function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, initFn) {
     test(testName, async t => {
-        t.teardown(clearDatabase);
+        t.teardown(() => storage.clearDatabase());
         await initFn();
 
         let response;
