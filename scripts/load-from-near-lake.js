@@ -24,7 +24,7 @@ function formatDuration(milliseconds) {
 const NUM_RETRIES = 10;
 const RETRY_TIMEOUT = 5000;
 async function handleStreamerMessage(streamerMessage, options = {}) {
-    const { dumpRedis, dumpEstuary, dumpQuestdb } = options;
+    const { dumpChanges, dumpEstuary, dumpQuestdb } = options;
     const { height: blockHeight, timestamp } = streamerMessage.block.header;
     totalMessages++;
     console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
@@ -32,7 +32,7 @@ async function handleStreamerMessage(streamerMessage, options = {}) {
         `Lag: ${formatDuration(Date.now() - (timestamp / 1000000))}`);
     
     const pipeline = [
-        dumpRedis && dumpChangesToRedis,
+        dumpChanges && dumpChangesToStorage,
         dumpEstuary && scheduleUploadToEstuary,
         dumpQuestdb && dumpReceiptsToQuestDB,
     ].filter(Boolean);
@@ -124,13 +124,13 @@ async function dumpReceiptsToQuestDB(streamerMessage) {
     }
 }
 
-async function dumpChangesToRedis(streamerMessage, { historyLength, include, exclude } = {}) {
+async function dumpChangesToStorage(streamerMessage, { historyLength, include, exclude } = {}) {
     // TODO: Use timestampNanoSec?
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
     const keepFromBlockHeight = historyLength && blockHeight - historyLength;
 
-    console.time('dumpChangesToRedis');
+    console.time('dumpChangesToStorage');
     await storage.writeBatch(async batch => {
         for (let { stateChanges } of streamerMessage.shards) {
             for (let { type, change } of stateChanges) {
@@ -141,7 +141,7 @@ async function dumpChangesToRedis(streamerMessage, { historyLength, include, exc
 
     await storage.setBlockTimestamp(blockHeight, timestamp);
     await storage.setLatestBlockHeight(blockHeight);
-    console.timeEnd('dumpChangesToRedis');
+    console.timeEnd('dumpChangesToStorage');
     // TODO: Record block hash to block height mapping?
 }
 
@@ -285,7 +285,7 @@ async function handleChange({ batch, blockHeight, type, change, keepFromBlockHei
 
 module.exports = {
     handleStreamerMessage,
-    dumpChangesToRedis,
+    dumpChangesToStorage,
     dumpReceiptsToQuestDB,
     scheduleUploadToEstuary,
 }
@@ -326,8 +326,8 @@ if (require.main === module) {
                         describe: 'How many blocks to fetch before stopping. Unlimited by default.',
                         number: true
                     })
-                    .option('dump-redis', {
-                        describe: 'Dump state changes into Redis. FAST_NEAR_REDIS_URL environment variable to be set to choose Redis host.',
+                    .option('dump-changes', {
+                        describe: 'Dump state changes into storage. Use FAST_NEAR_STORAGE_TYPE to specify storage type. Defaults to `redis`.',
                         boolean: true
                     })
                     .option('dump-estuary', {
@@ -350,7 +350,7 @@ if (require.main === module) {
                 limit,
                 include,
                 exclude,
-                dumpRedis,
+                dumpChanges,
                 dumpEstuary,
                 dumpQuestdb,
             } = argv;
@@ -370,7 +370,7 @@ if (require.main === module) {
                         historyLength,
                         include,
                         exclude,
-                        dumpRedis,
+                        dumpChanges,
                         dumpEstuary,
                         dumpQuestdb,
                     });

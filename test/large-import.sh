@@ -2,7 +2,7 @@
 set -ex
 
 # Try importing large chunk of real mainnet data
-node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --history-length 1 --start-block-height 66377251 --limit 500 --dump-redis
+node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --history-length 1 --start-block-height 66377251 --limit 500 --dump-changes
 
 # Start server
 bin/fast-near &
