@@ -1,4 +1,5 @@
 node_modules
+lmdb-data
 .nyc_output
 .DS_Store
 .env
