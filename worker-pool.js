@@ -24,7 +24,7 @@ class WorkerPool extends EventEmitter {
     }
 
     addNewWorker() {
-        const worker = new Worker('./worker.js');
+        const worker = new Worker(`${__dirname}/worker.js`);
         worker.on('message', ({ result, logs, error, errorCode, methodName, compKey }) => {
             let { resolve, reject, blockHeight } = worker[kTaskInfo];
 
