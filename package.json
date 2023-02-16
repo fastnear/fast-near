@@ -7,6 +7,7 @@
   "bin": {
     "fast-near": "bin/fast-near"
   },
+  "main": "app.js",
   "files": [
     "bin",
     "scripts",
