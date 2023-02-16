@@ -10,6 +10,7 @@
   "files": [
     "bin",
     "scripts",
+    "storage",
     "utils",
     "*.js"
   ],
