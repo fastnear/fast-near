@@ -1,6 +1,6 @@
 {
   "name": "fast-near",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Fastest RPC for NEAR Protocol",
   "repository": "https://github.com/vgrichina/fast-near",
   "license": "MIT",
