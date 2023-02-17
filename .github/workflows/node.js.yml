@@ -37,11 +37,11 @@ jobs:
     - run: yarn
     - name: Unit tests coverage
       run: FAST_NEAR_CONTRACT_TIMEOUT_MS=5000 npx nyc --reporter=lcov --no-clean yarn test
+    - name: Unit tests with LMDB
+      run: FAST_NEAR_CONTRACT_TIMEOUT_MS=5000 FAST_NEAR_STORAGE_TYPE=lmdb npx nyc --reporter=lcov --no-clean yarn test
     - name: End to end tests coverage
       run: npx nyc --reporter=lcov --no-clean yarn test:e2e
     - name: Report code coverage
       uses: coverallsapp/github-action@master
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
-    - name: Unit tests with LMDB
-      run: FAST_NEAR_CONTRACT_TIMEOUT_MS=5000 FAST_NEAR_STORAGE_TYPE=lmdb yarn test
