@@ -178,6 +178,8 @@ class LMDBStorage {
         if (iterator != '0') {
             const buffer = Buffer.from(iterator, 'hex');
             start = keyEncoder.readKey(buffer, 0, buffer.length);
+            // NOTE: Make sure we don't start from iterator key
+            start.blockHeight += 1;
         }
 
         let data = await this.db.getKeys({
@@ -190,7 +192,7 @@ class LMDBStorage {
         if (data.length > 0) {
             // compute serialized key using writeKey
             const buffer = Buffer.alloc(2048); // 2048 is bigger than biggest default key size in lmdb
-            const offset = keyEncoder.writeKey(data[0].key, buffer, 0);
+            const offset = keyEncoder.writeKey(data[data.length - 1].key, buffer, 0);
             const serializedKey = buffer.subarray(0, offset);
             iterator = serializedKey.toString('hex');
         }
@@ -222,6 +224,8 @@ class LMDBStorage {
         } else {
             const buffer = Buffer.from(iterator, 'hex');
             start = keyEncoder.readKey(buffer, 0, buffer.length);
+            // NOTE: Make sure we don't start from iterator key
+            start.blockHeight += 1;
         }
 
         const data = await this.db.getRange({
@@ -233,7 +237,7 @@ class LMDBStorage {
         if (data.length > 0) {
             // compute serialized key using writeKey
             const buffer = Buffer.alloc(2048); // 2048 is bigger than biggest default key size in lmdb
-            const offset = keyEncoder.writeKey(data[0].key, buffer, 0);
+            const offset = keyEncoder.writeKey(data[data.length - 1].key, buffer, 0);
             const serializedKey = buffer.subarray(0, offset);
             iterator = serializedKey.toString('hex');
         }

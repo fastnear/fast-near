@@ -350,6 +350,50 @@ test('view contract data', async t => {
     t.is(iterator, '0');
 });
 
+test('view contract data with iterator', async t => {
+    t.teardown(() => storage.clearDatabase());
+    await handleStreamerMessage(STREAMER_MESSAGE);
+
+    const BIG_DATA = [...Array(1005)].map((_, i) => [i.toString().padStart(4), `v${i}`]);
+    await handleStreamerMessage({
+        block: {
+            header: {
+                height: 2,
+                hash: '5HMFFXK1dpjMEKV5zAWLXCXeioQsnKKjSqHBk24X7RFJ',
+                timestamp: Math.floor((Date.now() + 1000) * 1000000)
+            }
+        },
+        shards: [{
+            stateChanges: BIG_DATA.map(([key, value]) => ({
+                type: 'data_update',
+                change: {
+                    accountId: 'test.near',
+                    keyBase64: Buffer.from(key).toString('base64'),
+                    valueBase64: Buffer.from(value).toString('base64'),
+                }
+            }))
+        }],
+    });
+
+    let res = await request.get('/account/test.near/data/*');
+    t.is(res.status, 200);
+
+    const { data, iterator } = res.body;
+    t.equal(data.length, 1000);
+
+    const { data: data2, iterator: iterator2 } = (await request.get(`/account/test.near/data/*?iterator=${iterator}`)).body;
+    t.equal(data2.length, 7);
+
+    console.log('data', data.map(([k, v]) => k));
+    console.log('data2', data2.map(([k, v]) => k));
+
+    t.deepEqual([...data, ...data2].sort((a, b) => a[0].localeCompare(b[0])), BIG_DATA.concat([
+        [ '8charkey', 'test-value' ],
+        [ BIG_KEY, 'test-big-key' ],
+    ]).sort((a, b) => a[0].localeCompare(b[0])));
+    t.is(iterator2, '0');
+});
+
 testRequest('download contract code',
     '/account/test.near/contract', 200, TEST_CONTRACT_CODE);
 
