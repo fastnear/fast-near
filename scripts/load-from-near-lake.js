@@ -24,7 +24,7 @@ function formatDuration(milliseconds) {
 const NUM_RETRIES = 10;
 const RETRY_TIMEOUT = 5000;
 async function handleStreamerMessage(streamerMessage, options = {}) {
-    const { dumpChanges, dumpEstuary, dumpQuestdb } = options;
+    const { dumpChanges, dumpEstuary, dumpLocal, dumpQuestdb } = options;
     const { height: blockHeight, timestamp } = streamerMessage.block.header;
     totalMessages++;
     console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
@@ -34,6 +34,7 @@ async function handleStreamerMessage(streamerMessage, options = {}) {
     const pipeline = [
         dumpChanges && dumpChangesToStorage,
         dumpEstuary && scheduleUploadToEstuary,
+        dumpLocal && dumpToFiles,
         dumpQuestdb && dumpReceiptsToQuestDB,
     ].filter(Boolean);
 
@@ -147,6 +148,20 @@ async function dumpChangesToStorage(streamerMessage, { historyLength, include, e
 
 const uploadQueue = [];
 
+async function compress(data) {
+    const zlib = require('zlib');
+    const gzip = zlib.createGzip({ level: 9 });
+    const compressed = await new Promise((resolve, reject) => {
+        const chunks = [];
+        gzip.on('data', (chunk) => chunks.push(chunk));
+        gzip.on('end', () => resolve(Buffer.concat(chunks)));
+        gzip.on('error', reject);
+        gzip.write(data);
+        gzip.end();
+    });
+    return compressed;
+}
+
 async function scheduleUploadToEstuary(streamerMessage, { batchSize }) {
     const { height: blockHeight, hash: blockHashB58 } = streamerMessage.block.header;
 
@@ -158,18 +173,7 @@ async function scheduleUploadToEstuary(streamerMessage, { batchSize }) {
         const ESTUARY_TOKEN = process.env.ESTUARY_TOKEN;
 
         const streamerMessageData = Buffer.from(JSON.stringify(streamerMessage));
-
-        const zlib = require('zlib');
-        const gzip = zlib.createGzip();
-        const compressed = await new Promise((resolve, reject) => {
-            const chunks = [];
-            gzip.on('data', (chunk) => chunks.push(chunk));
-            gzip.on('end', () => resolve(Buffer.concat(chunks)));
-            gzip.on('error', reject);
-            gzip.write(streamerMessageData);
-            gzip.end();
-        });
-        
+        const compressed = await compress(streamerMessageData);
 
         for (let i = 0; i < NUM_RETRIES; i++) {
             const formData = new FormData();
@@ -201,6 +205,20 @@ async function scheduleUploadToEstuary(streamerMessage, { batchSize }) {
             console.log('Error uploading', e);
             process.exit(1); })
         .then(() => uploadQueue.splice(uploadQueue.indexOf(promise), 1));
+}
+
+async function dumpToFiles(streamerMessage) {
+    const { block, shards } = streamerMessage;
+    const { height: blockHeight } = block.header;
+
+    const fs = require('fs').promises;
+
+    await fs.mkdir(`./data/block`, { recursive: true });
+    await fs.writeFile(`./data/block/${blockHeight}.json.gz`, await compress(JSON.stringify(block, null, 2)));
+    for (let shard of shards) {
+        await fs.mkdir(`./data/shard-${shard.shardId}`, { recursive: true });
+        await fs.writeFile(`./data/shard-${shard.shardId}/${blockHeight}.json.gz`, await compress(JSON.stringify(shard, null, 2)));
+    }
 }
 
 async function handleChange({ batch, blockHeight, type, change, keepFromBlockHeight, include, exclude }) {
@@ -334,6 +352,11 @@ if (require.main === module) {
                         describe: 'Dump blocks into IPFS using Estuary. Requires ESTUARY_TOKEN environment variable to be set to auth token. See https://docs.estuary.tech/tutorial-get-an-api-key for more information.',
                         boolean: true
                     })
+                    .option('dump-local', {
+                        describe: 'Dump blocks into local FS.',
+                        // TODO: Pass path to local FS?
+                        boolean: true,
+                    })
                     .option('dump-questdb', {
                         describe: 'Dump receipts into QuestDB. Requires FAST_NEAR_QUESTDB_URL environment variable to be set to QuestDB host. Defaults to http://localhost:9000.',
                         boolean: true
@@ -352,6 +375,7 @@ if (require.main === module) {
                 exclude,
                 dumpChanges,
                 dumpEstuary,
+                dumpLocal,
                 dumpQuestdb,
             } = argv;
 
@@ -372,6 +396,7 @@ if (require.main === module) {
                         exclude,
                         dumpChanges,
                         dumpEstuary,
+                        dumpLocal,
                         dumpQuestdb,
                     });
                 });

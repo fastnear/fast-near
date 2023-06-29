@@ -2,7 +2,7 @@
 
 const { DebugStorage } = require('./debug-wrapper');
 const { RedisStorage } = require('./redis');
-const { LMDBStorage } = require('./lmdb-embedded');
+//const { LMDBStorage } = require('./lmdb-embedded');
 const { CachedStorage } = require('./cached');
 
 const storageType = process.env.FAST_NEAR_STORAGE_TYPE || 'redis';
@@ -10,11 +10,12 @@ const storageType = process.env.FAST_NEAR_STORAGE_TYPE || 'redis';
 const ENABLE_CACHE = ['no', 'false', '0'].indexOf((process.env.FAST_NEAR_ENABLE_CACHE || 'true').trim().toLowerCase()) === -1;
 
 const debugStorage = new DebugStorage(
-    storageType === 'lmdb'
-        ? new LMDBStorage()
-        : new RedisStorage());
+//    storageType === 'lmdb'
+//        ? new LMDBStorage()
+//        :
+    new RedisStorage());
 
-module.exports = 
+module.exports =
     ENABLE_CACHE
         ? new CachedStorage(debugStorage)
         : debugStorage;
