@@ -246,9 +246,21 @@ class LMDBStorage {
             iterator = '0';
         }
 
+        // Make sure to return only latest versions
+        const latestData = [];
+        for (const { key, value } of data) {
+            if (latestData.length && key.compKey.equals(latestData[latestData.length - 1].key.compKey)) {
+                latestData[latestData.length - 1] = { key, value };
+            } else {
+                latestData.push({ key, value });
+            }
+        }
+
+        // TODO: Handle case when latest version is cut off by the limit
+
         return {
             iterator,
-            data: data.map(({ key, value }) => {
+            data: latestData.map(({ key, value }) => {
                 let { compKey } = key;
                 if (compKey.length > MAX_STORAGE_KEY_SIZE) {
                     compKey = this.getBlob(compKey.subarray(compKey.length - 32, compKey.length));

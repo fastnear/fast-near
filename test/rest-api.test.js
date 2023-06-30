@@ -364,14 +364,21 @@ test('view contract data with iterator', async t => {
             }
         },
         shards: [{
-            stateChanges: BIG_DATA.map(([key, value]) => ({
+            stateChanges: [...BIG_DATA.map(([key, value]) => ({
                 type: 'data_update',
                 change: {
                     accountId: 'test.near',
                     keyBase64: Buffer.from(key).toString('base64'),
                     valueBase64: Buffer.from(value).toString('base64'),
                 }
-            }))
+            })), {
+                type: 'data_update',
+                change: {
+                    accountId: 'test.near',
+                    keyBase64: Buffer.from('8charkey').toString('base64'),
+                    valueBase64: Buffer.from('test-value-updated').toString('base64'),
+                }
+            }]
         }],
     });
 
@@ -384,11 +391,8 @@ test('view contract data with iterator', async t => {
     const { data: data2, iterator: iterator2 } = (await request.get(`/account/test.near/data/*?iterator=${iterator}`)).body;
     t.equal(data2.length, 7);
 
-    console.log('data', data.map(([k, v]) => k));
-    console.log('data2', data2.map(([k, v]) => k));
-
     t.deepEqual([...data, ...data2].sort((a, b) => a[0].localeCompare(b[0])), BIG_DATA.concat([
-        [ '8charkey', 'test-value' ],
+        [ '8charkey', 'test-value-updated' ],
         [ BIG_KEY, 'test-big-key' ],
     ]).sort((a, b) => a[0].localeCompare(b[0])));
     t.is(iterator2, '0');
