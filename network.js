@@ -104,7 +104,11 @@ class StateRootNode extends BaseMessage {}
 class RootProof extends BaseMessage {}
 class TransactionReceipt extends BaseMessage {}
 
-const BORSH_SCHEMA = new Map([
+const { BORSH_SCHEMA: BASE_SCHEMA } = require('./data-model');
+
+// Merge 2 Maps in one function call
+
+const BORSH_SCHEMA = new Map([...BASE_SCHEMA.entries(),
     [Handshake, { kind: 'struct', fields: [
         ['version', 'u32'],
         ['oldest_supported_version', 'u32'],
@@ -113,10 +117,6 @@ const BORSH_SCHEMA = new Map([
         ['listen_port', { kind: 'option', type: 'u16' }],
         ['chain_info', PeerChainInfoV2],
         ['edge_info', EdgeInfo],
-    ]}],
-    [PublicKey, { kind: 'struct', fields: [
-        ['keyType', 'u8'],
-        ['data', [32]]
     ]}],
     [Signature, { kind: 'struct', fields: [
         ['keyType', 'u8'],
@@ -645,7 +645,7 @@ const signObject = async (obj) => {
 }
 
 const signEdgeInfo = async (nonce, peer0, peer1) => {
-    if (Buffer.compare(peer0.data, peer1.data) > 0) {
+    if (Buffer.compare(peer0.ed25519.data, peer1.ed25519.data) > 0) {
         [peer1, peer0] = [peer0, peer1];
     }
     return signObject(new EdgeInfoToSign({ peer0, peer1, nonce }));
@@ -655,7 +655,6 @@ const bs58 = require('bs58');
 const net = require('net');
 const EventEmitter = require('events');
 const { Buffer } = require('buffer');
-const { BaseMessage } = require('./data-model');
 
 const sendMessage = (socket, message) => {
     const messageData = serialize(BORSH_SCHEMA, message);
@@ -665,7 +664,7 @@ const sendMessage = (socket, message) => {
     socket.write(Buffer.concat([length, messageData]));
 }
 
-const target_peer_id = new PublicKey({ keyType: 0, data: bs58.decode('2gYpfHjqJa5Ji3btBnScQrxgwx2Ya5NXnJoTDqJWY36c') });
+const target_peer_id = PublicKey.fromString('ed25519:2gYpfHjqJa5Ji3btBnScQrxgwx2Ya5NXnJoTDqJWY36c');
 let peer_id;
 
 const NODE_ADDRESS = process.env.NODE_ADDRESS || '127.0.0.1'
@@ -677,8 +676,8 @@ const socket = net.connect(24567, NODE_ADDRESS, async () => {
 
     const publicKey = Buffer.from(await ed.getPublicKey(privateKey));
     const nonce = 1;
-    peer_id = new PublicKey({ keyType: 0, data: publicKey });
-    console.log('peer_id', bs58.encode(peer_id.data))
+    peer_id = PublicKey.fromString('ed25519:' + bs58.encode(publicKey));
+    console.log('peer_id', bs58.encode(publicKey));
 
     const handshake = new PeerMessage({
         handshake: new Handshake({
@@ -718,7 +717,13 @@ socket.on('data', (data) => {
             return;
         }
 
-        const message = deserialize(BORSH_SCHEMA, PeerMessage, data.slice(4, 4 + length));
+        console.log('data', data.slice(4, 4 + length).toString('hex'));
+
+        const { readPeerMessage } = require('./network-protos');
+        const message = readPeerMessage(data.slice(4, 4 + length));
+        console.log('message', message);
+
+        // const message = deserialize(BORSH_SCHEMA, PeerMessage, data.slice(4, 4 + length));
         unprocessedData = data = data.slice(4 + length);
 
         eventEmitter.emit('message', message);
