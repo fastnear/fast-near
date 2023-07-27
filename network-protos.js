@@ -160,10 +160,10 @@ function readHandshake(data) {
     return readProto(data, (fieldNumber, value, handshake) => {
         switch (fieldNumber) {
             case 1:
-                handshake.protocol_version = readUint32(value);
+                handshake.protocol_version = value;
                 break;
             case 2:
-                handshake.oldest_supported_version = readUint32(value);
+                handshake.oldest_supported_version = value;
                 break;
             case 3:
                 handshake.sender_peer_id = readPublicKey(value);
@@ -172,16 +172,16 @@ function readHandshake(data) {
                 handshake.target_peer_id = readPublicKey(value);
                 break;
             case 5:
-                handshake.sender_listen_port = readUint32(value);
+                handshake.sender_listen_port = value;
                 break;
             case 6:
-                handshake.sender_chain_info = readPeerChainInfo(value);
+                // handshake.sender_chain_info = readpeerchaininfo(value);
                 break;
             case 7:
-                handshake.partial_edge_info = readPartialEdgeInfo(value);
+                // handshake.partial_edge_info = readPartialEdgeInfo(value);
                 break;
             case 8:
-                handshake.owned_account = readAccountKeySignedPayload(value);
+                // handshake.owned_account = readAccountKeySignedPayload(value);
                 break;
             default:
                 throw new Error(`Unsupported Handshake field number: ${fieldNumber}`);
@@ -199,12 +199,11 @@ function writeHandshake(handshake) {
         fields.push(writeProtoField(2, 0, handshake.oldest_supported_version));
     }
     if (handshake.sender_peer_id) {
-        // NOTE: this is PublicKey borsh wrapper
-        fields.push(writeProtoField(3, 2, writeProtoField(1, 2, writePublicKey(handshake.sender_peer_id))));
+        fields.push(writeProtoField(3, 2, writePublicKey(handshake.sender_peer_id)));
     }
     if (handshake.target_peer_id) {
         // NOTE: this is PublicKey borsh wrapper
-        fields.push(writeProtoField(4, 2, writeProtoField(1, 2, writePublicKey(handshake.target_peer_id))));
+        fields.push(writeProtoField(4, 2, writePublicKey(handshake.target_peer_id)));
     }
     if (handshake.sender_listen_port) {
         fields.push(writeProtoField(5, 0, handshake.sender_listen_port));
@@ -214,7 +213,7 @@ function writeHandshake(handshake) {
     }
     if (handshake.partial_edge_info) {
         // NOTE: this is PartialEdgeInfo borsh wrapper
-        fields.push(writeProtoField(7, 2, writeProtoField(1, 2, writePartialEdgeInfo(handshake.partial_edge_info))));
+        fields.push(writeProtoField(7, 2, writePartialEdgeInfo(handshake.partial_edge_info)));
     }
     if (handshake.owned_account) {
         fields.push(writeProtoField(8, 2, writeAccountKeySignedPayload(handshake.owned_account)));
@@ -329,12 +328,28 @@ const { serialize, deserialize } = require('borsh');
 const { BORSH_SCHEMA, EdgeInfo } = require('./network-borsh');
 const { PublicKey } = require('./data-model');
 
+function readPublicKey(data) {
+    let publicKey;
+    readProto(data, (fieldNumber, value, _) => {
+        switch (fieldNumber) {
+            case 1:
+                publicKey = deserialize(BORSH_SCHEMA, PublicKey, value);
+                break;
+            default:
+                throw new Error(`Unsupported PublicKey field number: ${fieldNumber}`);
+        }
+    });
+    return publicKey;
+}
+
 function writePublicKey(publicKey) {
-    return serialize(BORSH_SCHEMA, publicKey);
+    // NOTE: this is PublicKey borsh wrapper
+    return writeProtoField(1, 2, serialize(BORSH_SCHEMA, publicKey));
 }
 
 function writePartialEdgeInfo(partialEdgeInfo) {
-    return serialize(BORSH_SCHEMA, partialEdgeInfo);
+    // NOTE: this is PartialEdgeInfo borsh wrapper
+    return writeProtoField(1, 2, serialize(BORSH_SCHEMA, partialEdgeInfo));
 }
 
 

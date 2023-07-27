@@ -61,10 +61,10 @@ const socket = net.connect(24567, NODE_ADDRESS, async () => {
             sender_listen_port: 24567,
             sender_chain_info: {
                 genesis_id: {
-                    chain_id: 'localnet',
-                    hash: Buffer.from('b2adf5f9273460d714aa622a92cd9445bcfa110cf6315bc20241552b4c61f0a1', 'hex')
+                    chain_id: 'mainnet',
+                    hash: bs58.decode('EPnLgE7iEq9s7yTkos96M3cWymH5avBAPm3qx3NXqR8H')
                 },
-                height: 3138788, // TODO: Update to avoid HeightFraud?
+                height: 95000000, // TODO: Update to avoid HeightFraud?
                 tracked_shards: [0],
                 archival: 0
             },
