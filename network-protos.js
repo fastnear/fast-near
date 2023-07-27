@@ -60,73 +60,34 @@ function readPeerMessage(data) {
                 result.handshake = readHandshake(value);
                 break;
             case 5:
-                // handshake_failure
-                result.handshakeFailure = readHandshakeFailure(value);
+                result.handshake_failure = readHandshakeFailure(value);
                 break;
             case 6:
-                // last_edge
-                result.lastEdge = readLastEdge(value);
+                result.last_edge = readLastEdge(value);
                 break;
             case 7:
-                // sync_routing_table
-                result.syncRoutingTable = readSyncRoutingTable(value);
+                result.sync_routing_table = readRoutingTableUpdate(value);
                 break;
             case 8:
-                // update_nonce_request
-                result.updateNonceRequest = readUpdateNonceRequest(value);
+                result.update_nonce_request = readUpdateNonceRequest(value);
                 break;
             case 9:
-                // update_nonce_response
-                result.updateNonceResponse = readUpdateNonceResponse(value);
+                result.update_nonce_response = readUpdateNonceResponse(value);
                 break;
             case 10:
-                // peers_request
-                result.peersRequest = readPeersRequest(value);
+                result.peers_request = readPeersRequest(value);
                 break;
             case 11:
-                // peers_response
-                result.peersResponse = readPeersResponse(value);
+                result.peers_response = readPeersResponse(value);
                 break;
             case 12:
-                // block_headers_request
-                result.blockHeadersRequest = readBlockHeadersRequest(value);
+                result.block_headers_request = readBlockHeadersRequest(value);
                 break;
             case 13:
-                // block_headers_response
-                result.blockHeadersResponse = readBlockHeadersResponse(value);
+                result.block_headers_response = readBlockHeadersResponse(value);
                 break;
-            case 14:
-                // block_request
-                result.blockRequest = readBlockRequest(value);
-                break;
-            case 15:
-                // block_response
-                result.blockResponse = readBlockResponse(value);
-                break;
-            case 16:
-                // transaction
-                result.transaction = readSignedTransaction(value);
-                break;
-            case 17:
-                // routed
-                result.routed = readRoutedMessage(value);
-                break;
-            case 18:
-                // disconnect
-                result.disconnect = readDisconnect(value);
-                break;
-            case 19:
-                // challenge
-                result.challenge = readChallenge(value);
-                break;
-            case 25:
-                // sync_accounts_data
-                result.syncAccountsData = readSyncAccountsData(value);
-                break;
-            case 26:
-                // trace_context
-                result.traceContext = readTraceContext(value);
-                break;
+                // TODO
+
             case 27:
                 // tier1_handshake
                 result.handshake = readHandshake(value);
@@ -141,60 +102,13 @@ function readPeerMessage(data) {
 function writePeerMessage(peerMessage) {
     const fields = [];
     if (peerMessage.handshake) {
-        // tier2_handshake
-        fields.push(writeProtoField(4, writeHandshake(peerMessage.handshake)));
+        fields.push(writeProtoField(4, 2, writeHandshake(peerMessage.handshake)));
     }
-    if (peerMessage.handshakeFailure) {
-        fields.push(writeProtoField(5, writeHandshakeFailure(peerMessage.handshakeFailure)));
+    if (peerMessage.handshake_failure) {
+        fields.push(writeProtoField(5, 2, writeHandshakeFailure(peerMessage.handshake_failure)));
     }
-    if (peerMessage.lastEdge) {
-        fields.push(writeProtoField(6, writeLastEdge(peerMessage.lastEdge)));
-    }
-    if (peerMessage.syncRoutingTable) {
-        fields.push(writeProtoField(7, writeSyncRoutingTable(peerMessage.syncRoutingTable)));
-    }
-    if (peerMessage.updateNonceRequest) {
-        fields.push(writeProtoField(8, writeUpdateNonceRequest(peerMessage.updateNonceRequest)));
-    }
-    if (peerMessage.updateNonceResponse) {
-        fields.push(writeProtoField(9, writeUpdateNonceResponse(peerMessage.updateNonceResponse)));
-    }
-    if (peerMessage.peersRequest) {
-        fields.push(writeProtoField(10, writePeersRequest(peerMessage.peersRequest)));
-    }
-    if (peerMessage.peersResponse) {
-        fields.push(writeProtoField(11, writePeersResponse(peerMessage.peersResponse)));
-    }
-    if (peerMessage.blockHeadersRequest) {
-        fields.push(writeProtoField(12, writeBlockHeadersRequest(peerMessage.blockHeadersRequest)));
-    }
-    if (peerMessage.blockHeadersResponse) {
-        fields.push(writeProtoField(13, writeBlockHeadersResponse(peerMessage.blockHeadersResponse)));
-    }
-    if (peerMessage.blockRequest) {
-        fields.push(writeProtoField(14, writeBlockRequest(peerMessage.blockRequest)));
-    }
-    if (peerMessage.blockResponse) {
-        fields.push(writeProtoField(15, writeBlockResponse(peerMessage.blockResponse)));
-    }
-    if (peerMessage.transaction) {
-        fields.push(writeProtoField(16, writeSignedTransaction(peerMessage.transaction)));
-    }
-    if (peerMessage.routed) {
-        fields.push(writeProtoField(17, writeRoutedMessage(peerMessage.routed)));
-    }
-    if (peerMessage.disconnect) {
-        fields.push(writeProtoField(18, writeDisconnect(peerMessage.disconnect)));
-    }
-    if (peerMessage.challenge) {
-        fields.push(writeProtoField(19, writeChallenge(peerMessage.challenge)));
-    }
-    if (peerMessage.syncAccountsData) {
-        fields.push(writeProtoField(25, writeSyncAccountsData(peerMessage.syncAccountsData)));
-    }
-    if (peerMessage.traceContext) {
-        fields.push(writeProtoField(26, writeTraceContext(peerMessage.traceContext)));
-    }
+    console.log('fields', fields);
+    // TODO
     return Buffer.concat(fields);
 }
 
@@ -246,34 +160,118 @@ function readHandshake(data) {
     return readProto(data, (fieldNumber, value, handshake) => {
         switch (fieldNumber) {
             case 1:
-                handshake.protocolVersion = value;
+                handshake.protocol_version = readUint32(value);
                 break;
             case 2:
-                handshake.oldestSupportedVersion = readUint32(value);
+                handshake.oldest_supported_version = readUint32(value);
                 break;
             case 3:
-                handshake.senderPeerId = readPublicKey(value);
+                handshake.sender_peer_id = readPublicKey(value);
                 break;
             case 4:
-                handshake.targetPeerId = readPublicKey(value);
+                handshake.target_peer_id = readPublicKey(value);
                 break;
             case 5:
-                handshake.senderListenPort = value;
+                handshake.sender_listen_port = readUint32(value);
                 break;
             case 6:
-                handshake.senderChainInfo = readPeerChainInfo(value);
+                handshake.sender_chain_info = readPeerChainInfo(value);
                 break;
             case 7:
-                handshake.partialEdgeInfo = readPartialEdgeInfo(value);
+                handshake.partial_edge_info = readPartialEdgeInfo(value);
                 break;
             case 8:
-                handshake.ownedAccount = readAccountKeySignedPayload(value);
+                handshake.owned_account = readAccountKeySignedPayload(value);
                 break;
             default:
                 throw new Error(`Unsupported Handshake field number: ${fieldNumber}`);
         }
     });
-    return handshake;
+}
+
+function writeHandshake(handshake) {
+    console.log('writeHandshake', handshake);
+    const fields = [];
+    if (handshake.protocol_version) {
+        fields.push(writeProtoField(1, 0, handshake.protocol_version));
+    }
+    if (handshake.oldest_supported_version) {
+        fields.push(writeProtoField(2, 0, handshake.oldest_supported_version));
+    }
+    if (handshake.sender_peer_id) {
+        // NOTE: this is PublicKey borsh wrapper
+        fields.push(writeProtoField(3, 2, writeProtoField(1, 2, writePublicKey(handshake.sender_peer_id))));
+    }
+    if (handshake.target_peer_id) {
+        // NOTE: this is PublicKey borsh wrapper
+        fields.push(writeProtoField(4, 2, writeProtoField(1, 2, writePublicKey(handshake.target_peer_id))));
+    }
+    if (handshake.sender_listen_port) {
+        fields.push(writeProtoField(5, 0, handshake.sender_listen_port));
+    }
+    if (handshake.sender_chain_info) {
+        fields.push(writeProtoField(6, 2, writePeerChainInfo(handshake.sender_chain_info)));
+    }
+    if (handshake.partial_edge_info) {
+        // NOTE: this is PartialEdgeInfo borsh wrapper
+        fields.push(writeProtoField(7, 2, writeProtoField(1, 2, writePartialEdgeInfo(handshake.partial_edge_info))));
+    }
+    if (handshake.owned_account) {
+        fields.push(writeProtoField(8, 2, writeAccountKeySignedPayload(handshake.owned_account)));
+    }
+
+    console.log('fields', fields);
+    return Buffer.concat(fields);
+}
+
+// Basic information about the chain view maintained by a peer.
+// message PeerChainInfo {
+//     GenesisId genesis_id = 1;
+//     // Height of the highest NEAR chain block known to a peer.
+//     uint64 height = 2;
+//     // Shards of the NEAR chain tracked by the peer.
+//     repeated uint64 tracked_shards = 3;
+//     // Whether the peer is an archival node.
+//     bool archival = 4;
+//   }
+
+function writePeerChainInfo(peerChainInfo) {
+    const fields = [];
+    if (peerChainInfo.genesis_id) {
+        fields.push(writeProtoField(1, 2, writeGenesisId(peerChainInfo.genesis_id)));
+    }
+    if (peerChainInfo.height) {
+        fields.push(writeProtoField(2, 0, peerChainInfo.height));
+    }
+    if (peerChainInfo.tracked_shards) {
+        for (const trackedShard of peerChainInfo.tracked_shards) {
+            fields.push(writeProtoField(3, 0, trackedShard));
+        }
+    }
+    if (peerChainInfo.archival !== undefined) {
+        fields.push(writeProtoField(4, 0, peerChainInfo.archival));
+    }
+    return Buffer.concat(fields);
+}
+
+// Unique identifier of the NEAR chain.
+// message GenesisId {
+//     // Name of the chain (for example "mainnet").
+//     string chain_id = 1;
+//     // Hash of the genesis block(?) of the NEAR chain.
+//     CryptoHash hash = 2;
+//   }
+  
+function writeGenesisId(genesisId) {
+    const fields = [];
+    if (genesisId.chain_id) {
+        fields.push(writeProtoField(1, 2, Buffer.from(genesisId.chain_id)));
+    }
+    if (genesisId.hash) {
+        // NOTE: this is a CryptoHash, but we don't have a type for it yet.
+        fields.push(writeProtoField(2, 2, writeProtoField(1, 2, genesisId.hash)));
+    }
+    return Buffer.concat(fields);
 }
 
 // Response to Handshake, in case the Handshake was rejected.
@@ -324,5 +322,20 @@ function readHandshakeFailure(data) {
         }
     });
 }
+
+// Borsh-based messages
+
+const { serialize, deserialize } = require('borsh');
+const { BORSH_SCHEMA, EdgeInfo } = require('./network-borsh');
+const { PublicKey } = require('./data-model');
+
+function writePublicKey(publicKey) {
+    return serialize(BORSH_SCHEMA, publicKey);
+}
+
+function writePartialEdgeInfo(partialEdgeInfo) {
+    return serialize(BORSH_SCHEMA, partialEdgeInfo);
+}
+
 
 module.exports = { readPeerMessage, writePeerMessage };
