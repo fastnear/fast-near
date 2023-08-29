@@ -2,7 +2,7 @@
 const assert = require('assert');
 const { serialize, deserialize } = require('borsh');
 const { PublicKey } = require('./data-model');
-const { BORSH_SCHEMA, PeerChainInfoV2, GenesisId, EdgeInfo, EdgeInfoToSign, Signature } = require('./network-borsh'); 
+const { BORSH_SCHEMA, PingPong, RoutedMessageToSign, RoutedMessageBody, RoutedMessage, StateRequestHeader, PeerIdOrHash, PeerChainInfoV2, GenesisId, EdgeInfo, EdgeInfoToSign, Signature, PartialEncodedChunkRequestMsg } = require('./network-borsh'); 
 const { readPeerMessage, writePeerMessage } = require('./network-protos');
 
 const ed = require('@noble/ed25519');
@@ -37,7 +37,11 @@ const sendMessage = (socket, message) => {
     socket.write(Buffer.concat([length, messageData]));
 }
 
-const target_peer_id = PublicKey.fromString('ed25519:2gYpfHjqJa5Ji3btBnScQrxgwx2Ya5NXnJoTDqJWY36c');
+if (!process.env.TARGET_PEER_ID) {
+    console.error('TARGET_PEER_ID is not set');
+    process.exit(1);
+}
+const target_peer_id = PublicKey.fromString(process.env.TARGET_PEER_ID);
 let sender_peer_id;
 
 const NODE_ADDRESS = process.env.NODE_ADDRESS || '127.0.0.1'
@@ -90,8 +94,6 @@ socket.on('data', (data) => {
             return;
         }
 
-        console.log('data', data.slice(4, 4 + length).toString('hex'));
-
         const message = readPeerMessage(data.slice(4, 4 + length));
         console.log('message', message);
 
@@ -113,21 +115,35 @@ const sendRoutedMessage = async (messageBodyObj) => {
         author: sender_peer_id,
         body: new RoutedMessageBody(messageBodyObj)
     });
-    sendMessage(socket, new PeerMessage({
-        routed: new RoutedMessage({
-            target: messageToSign.target,
-            author: messageToSign.author,
-            signature: await signObject(messageToSign),
-            ttl: 100,
-            body: messageToSign.body
-        })
-    }));
+    sendMessage(socket, {
+        routed: {
+            borsh: serialize(BORSH_SCHEMA, new RoutedMessage({
+                target: messageToSign.target,
+                author: messageToSign.author,
+                signature: await signObject(messageToSign),
+                ttl: 100,
+                body: messageToSign.body
+            })),
+            created_at: {
+                nanos: Math.floor(Date.now() * 1000000),
+            },
+            num_hops: 0,
+        }
+    });
 }
 
 const chunkHash = (chunkHeader) => {
-    // TODO: v1 and v3?
+    // TODO: v1?
     if (chunkHeader.v2) {
         const { inner } = chunkHeader.v2;
+        const serialized = serialize(BORSH_SCHEMA, inner);
+        const innerHash = sha256(serialized);
+        return sha256(Buffer.concat([innerHash, inner.encoded_merkle_root]));
+    }
+
+    if (chunkHeader.v3) {
+        // TODO: Support other versions of inner?
+        const inner = chunkHeader.v3.inner.v2;
         const serialized = serialize(BORSH_SCHEMA, inner);
         const innerHash = sha256(serialized);
         return sha256(Buffer.concat([innerHash, inner.encoded_merkle_root]));
@@ -137,7 +153,6 @@ const chunkHash = (chunkHeader) => {
 const chunkHeaders = {};
 
 eventEmitter.on('message', async message => {
-    console.log('message', message.enum);
     if (message.handshake) {
         console.log('received handshake');
 
@@ -160,8 +175,12 @@ eventEmitter.on('message', async message => {
         });
     }
 
-    if (message.block) {
-        const header = message.block.v2.header.v2;
+    if (message.block_response) {
+        console.log('block_response', message.block_response);
+
+        // TODO: Adjust following
+        const header = message.block_response.block.v2.header.v3;
+        console.log('header', message.block_response.block.v2.header);
         console.log('block', bs58.encode(header.prev_hash), header.inner_lite.height.toString());
         // console.log(bs58.encode(header.inner_lite.prev_state_root));
         // console.log('header', header);
@@ -183,7 +202,7 @@ eventEmitter.on('message', async message => {
         //     })
         // });
 
-        const { chunks } = message.block.v2;
+        const { chunks } = message.block_response.block.v2;
 
         for (let chunk of chunks) {
             const hash = chunkHash(chunk);

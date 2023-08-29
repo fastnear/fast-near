@@ -26,7 +26,6 @@ function writeVarint(value) {
 }
 
 function readProto(data, processField) {
-    console.trace();
     console.log('readProto', data);
     const result = {};
     let offset = 0;

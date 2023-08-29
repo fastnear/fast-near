@@ -11,10 +11,10 @@ const { readProto, writeProtoField } = require('./utils/proto');
 //     reserved 1,2,3;
 //     // Deprecated fields.
 //     reserved 20,21,22,23,24;
-  
+
 //     // Inter-process tracing information.
 //     TraceContext trace_context = 26;
-  
+
 //     oneof message_type {
 //       // Handshakes for TIER1 and TIER2 networks are considered separate,
 //       // so that a node binary which doesn't support TIER1 connection won't
@@ -27,25 +27,25 @@ const { readProto, writeProtoField } = require('./utils/proto');
 //       // make it evolve differently for TIER1 and TIER2.
 //       Handshake tier1_handshake = 27;
 //       Handshake tier2_handshake = 4;
-  
+
 //       HandshakeFailure handshake_failure = 5;
 //       LastEdge last_edge = 6;
 //       RoutingTableUpdate sync_routing_table = 7;
-      
+
 //       UpdateNonceRequest update_nonce_request = 8;
 //       UpdateNonceResponse update_nonce_response = 9;
-  
+
 //       SyncAccountsData sync_accounts_data = 25;
-  
+
 //       PeersRequest peers_request = 10;
 //       PeersResponse peers_response = 11;
-      
+
 //       BlockHeadersRequest block_headers_request = 12;
 //       BlockHeadersResponse block_headers_response = 13;
-      
+
 //       BlockRequest block_request = 14;
 //       BlockResponse block_response = 15;
-      
+
 //       SignedTransaction transaction = 16;
 //       RoutedMessage routed = 17;
 //       Disconnect disconnect = 18;
@@ -86,8 +86,30 @@ function readPeerMessage(data) {
             case 13:
                 result.block_headers_response = readBlockHeadersResponse(value);
                 break;
-                // TODO
-
+            case 14:
+                result.block_request = readBlockRequest(value);
+                break;
+            case 15:
+                result.block_response = readBlockResponse(value);
+                break;
+            case 16:
+                result.transaction = readSignedTransaction(value);
+                break;
+            case 17:
+                result.routed = readRoutedMessage(value);
+                break;
+            case 18:
+                result.disconnect = readDisconnect(value);
+                break;
+            case 19:
+                result.challenge = readChallenge(value);
+                break;
+            case 25:
+                result.sync_accounts_data = readSyncAccountsData(value);
+                break;
+            case 26:
+                result.trace_context = readTraceContext(value);
+                break;
             case 27:
                 // tier1_handshake
                 result.handshake = readHandshake(value);
@@ -106,6 +128,12 @@ function writePeerMessage(peerMessage) {
     }
     if (peerMessage.handshake_failure) {
         fields.push(writeProtoField(5, 2, writeHandshakeFailure(peerMessage.handshake_failure)));
+    }
+
+    // TODO: all other fields
+
+    if (peerMessage.routed) {
+        fields.push(writeProtoField(17, 2, writeRoutedMessage(peerMessage.routed)));
     }
     console.log('fields', fields);
     // TODO
@@ -138,7 +166,7 @@ function writePeerMessage(peerMessage) {
 //     uint32 sender_listen_port = 5;
 //     // Basic info about the NEAR chain that the sender belongs to.
 //     // Sender expects receiver to belong to the same chain.
-//     // In case of mismatch, receiver sends back HandshakeFailure with 
+//     // In case of mismatch, receiver sends back HandshakeFailure with
 //     // reason GenesisMismatch.
 //     PeerChainInfo sender_chain_info = 6;
 //     // Edge (sender,receiver) signed by sender, which once signed by
@@ -223,6 +251,185 @@ function writeHandshake(handshake) {
     return Buffer.concat(fields);
 }
 
+// Wrapper of borsh-encoded RoutedMessage
+// https://github.com/near/nearcore/blob/1a4edefd0116f7d1e222bc96569367a02fe64199/chain/network-primitives/src/network_protocol/mod.rs#L295
+// message RoutedMessage {
+//     bytes borsh = 1;
+//     // Timestamp of creating the Routed message by its original author.
+//     google.protobuf.Timestamp created_at = 2;
+//     // Number of peers this routed message travelled through. Doesn't include the peer that created the message.
+//     optional int32 num_hops = 3;
+// }
+
+function readRoutedMessage(data) {
+    return readProto(data, (fieldNumber, value, routedMessage) => {
+        switch (fieldNumber) {
+            case 1:
+                routedMessage.borsh = value;
+                break;
+            case 2:
+                routedMessage.created_at = readTimestamp(value);
+                break;
+            case 3:
+                routedMessage.num_hops = value;
+                break;
+            default:
+                throw new Error(`Unsupported RoutedMessage field number: ${fieldNumber}`);
+        }
+    });
+}
+
+function writeRoutedMessage(routedMessage) {
+    const fields = [];
+    if (routedMessage.borsh !== undefined) {
+        fields.push(writeProtoField(1, 2, routedMessage.borsh));
+    }
+    if (routedMessage.created_at !== undefined) {
+        fields.push(writeProtoField(2, 2, writeTimestamp(routedMessage.created_at)));
+    }
+    if (routedMessage.num_hops !== undefined) {
+        fields.push(writeProtoField(3, 0, routedMessage.num_hops));
+    }
+
+    return Buffer.concat(fields);
+}
+
+// NEAR chain Block.
+// It might be send both as a response to BlockRequest,
+// or unsolicitated in case a new Block is being broadcasted.
+// message BlockResponse {
+//     Block block = 1;
+//   }
+function readBlockResponse(data) {
+    return readProto(data, (fieldNumber, value, blockResponse) => {
+        switch (fieldNumber) {
+            case 1:
+                blockResponse.block = readBlock(value);
+                break;
+            default:
+                throw new Error(`Unsupported BlockResponse field number: ${fieldNumber}`);
+        }
+    });
+}
+
+// Request to send a list of known healthy peers
+// (i.e. considered honest and available by the receiver).
+// max_peers limits the number of peers to send back.
+// max_direct_peers limits the number of direct peers to send back.
+// See PeersResponse below for the response.
+// message PeersRequest {
+//     optional uint32 max_peers = 1;
+//     optional uint32 max_direct_peers = 2;
+//   }
+function readPeersRequest(data) {
+    return readProto(data, (fieldNumber, value, peersRequest) => {
+        switch (fieldNumber) {
+            case 1:
+                peersRequest.max_peers = value;
+                break;
+            case 2:
+                peersRequest.max_direct_peers = value;
+                break;
+            default:
+                throw new Error(`Unsupported PeersRequest field number: ${fieldNumber}`);
+        }
+    });
+}
+
+// SyncAccountData message can represent:
+// - incremental sync (incremental = true, requesting_full_sync = false)
+// - full sync request (incremental = false, requesting_full_sync = true)
+// - full sync response (incremental = false, requesting_full_sync = false)
+// message SyncAccountsData {
+//     // Data about the (important) accounts,
+//     // which should be broadcasted to the whole network.
+//     // Contains AccountKeyPayload.account_data.
+//     repeated AccountKeySignedPayload accounts_data = 1;
+//     // Indicates whether this message is an incremental sync (true), or
+//     // a full sync (false). Useful for tracking time since the last full sync.
+//     bool incremental = 2;
+//     // Indicates that sender requests a full sync message in return.
+//     // Useful for soliciting a full sync periodically.
+//     bool requesting_full_sync = 3;
+//   }
+function readSyncAccountsData(data) {
+    return readProto(data, (fieldNumber, value, syncAccountsData) => {
+        switch (fieldNumber) {
+            case 1:
+                if (!syncAccountsData.accounts_data) {
+                    syncAccountsData.accounts_data = [];
+                }
+                syncAccountsData.accounts_data.push(readAccountKeySignedPayload(value));
+                break;
+            case 2:
+                syncAccountsData.incremental = value;
+                break;
+            case 3:
+                syncAccountsData.requesting_full_sync = value;
+                break;
+            default:
+                throw new Error(`Unsupported SyncAccountsData field number: ${fieldNumber}`);
+        }
+    });
+}
+
+// message AccountKeySignedPayload {
+//     // protobuf-serialized AccountKeyPayload, required.
+//     // It is passed in serialized form, because the protobuf encoding is non-deterministic.
+//     // In particular encode(decode(payload)) might not match the signature.
+//     bytes payload = 1;
+//     // Signature of the payload, required.
+//     Signature signature = 2;
+//     // TODO: this is a good place to add optional fields: account_id, account_public_key,
+//     // in case the signer of the message is not implied by the payload, or the context.
+//     // Add them if needed.
+//   }
+function readAccountKeySignedPayload(data) {
+    return readProto(data, (fieldNumber, value, accountKeySignedPayload) => {
+        switch (fieldNumber) {
+            case 1:
+                accountKeySignedPayload.payload = value;
+                break;
+            case 2:
+                accountKeySignedPayload.signature = value;
+                break;
+            default:
+                throw new Error(`Unsupported AccountKeySignedPayload field number: ${fieldNumber}`);
+        }
+    });
+}
+
+// message Timestamp {
+//     int64 seconds = 1;
+//     int32 nanos = 2;
+//   }
+function readTimestamp(data) {
+    return readProto(data, (fieldNumber, value, timestamp) => {
+        switch (fieldNumber) {
+            case 1:
+                timestamp.seconds = value;
+                break;
+            case 2:
+                timestamp.nanos = value;
+                break;
+            default:
+                throw new Error(`Unsupported Timestamp field number: ${fieldNumber}`);
+        }
+    });
+}
+
+function writeTimestamp(timestamp) {
+    const fields = [];
+    if (timestamp.seconds !== undefined) {
+        fields.push(writeProtoField(1, 0, timestamp.seconds));
+    }
+    if (timestamp.nanos !== undefined) {
+        fields.push(writeProtoField(2, 0, timestamp.nanos));
+    }
+
+    return Buffer.concat(fields);
+}
+
 // Basic information about the chain view maintained by a peer.
 // message PeerChainInfo {
 //     GenesisId genesis_id = 1;
@@ -260,7 +467,7 @@ function writePeerChainInfo(peerChainInfo) {
 //     // Hash of the genesis block(?) of the NEAR chain.
 //     CryptoHash hash = 2;
 //   }
-  
+
 function writeGenesisId(genesisId) {
     const fields = [];
     if (genesisId.chain_id) {
@@ -286,7 +493,7 @@ function writeGenesisId(genesisId) {
 //     }
 //     // Reason for rejecting the Handshake.
 //     Reason reason = 1;
-  
+
 //     // Data about the peer.
 //     PeerInfo peer_info = 2;
 //     // GenesisId of the NEAR chain that the peer belongs to.
@@ -322,24 +529,56 @@ function readHandshakeFailure(data) {
     });
 }
 
+// message RoutingTableUpdate {
+//     reserved 3,4;
+//     repeated Edge edges = 1;
+//     // list of known NEAR validator accounts
+//     repeated AnnounceAccount accounts = 2;
+//   }
+
+function readRoutingTableUpdate(data) {
+    return readProto(data, (fieldNumber, value, routingTableUpdate) => {
+        switch (fieldNumber) {
+            case 1:
+                if (!routingTableUpdate.edges) {
+                    routingTableUpdate.edges = [];
+                }
+                routingTableUpdate.edges.push(readEdge(value));
+                break;
+            case 2:
+                if (!routingTableUpdate.accounts) {
+                    routingTableUpdate.accounts = [];
+                }
+                routingTableUpdate.accounts.push(readAnnounceAccount(value));
+                break;
+            default:
+                throw new Error(`Unsupported RoutingTableUpdate field number: ${fieldNumber}`);
+        }
+    });
+}
+
 // Borsh-based messages
 
 const { serialize, deserialize } = require('borsh');
-const { BORSH_SCHEMA, EdgeInfo } = require('./network-borsh');
+const { BORSH_SCHEMA, Edge, EdgeInfo, AnnounceAccount, Block } = require('./network-borsh');
 const { PublicKey } = require('./data-model');
 
-function readPublicKey(data) {
-    let publicKey;
+function readWrappedBorsh(data, WrappedBorshClass) {
+    let wrappedBorsh;
     readProto(data, (fieldNumber, value, _) => {
         switch (fieldNumber) {
             case 1:
-                publicKey = deserialize(BORSH_SCHEMA, PublicKey, value);
+                wrappedBorsh = deserialize(BORSH_SCHEMA, WrappedBorshClass, value);
                 break;
             default:
-                throw new Error(`Unsupported PublicKey field number: ${fieldNumber}`);
+                throw new Error(`Unsupported field number: ${fieldNumber}`);
         }
     });
-    return publicKey;
+    return wrappedBorsh;
+}
+
+function readPublicKey(data) {
+    return readWrappedBorsh(data, PublicKey);
 }
 
 function writePublicKey(publicKey) {
@@ -352,5 +591,16 @@ function writePartialEdgeInfo(partialEdgeInfo) {
     return writeProtoField(1, 2, serialize(BORSH_SCHEMA, partialEdgeInfo));
 }
 
+function readEdge(data) {
+    return readWrappedBorsh(data, Edge);
+}
+
+function readAnnounceAccount(data) {
+    return readWrappedBorsh(data, AnnounceAccount);
+}
+
+function readBlock(data) {
+    return readWrappedBorsh(data, Block);
+}
 
 module.exports = { readPeerMessage, writePeerMessage };
