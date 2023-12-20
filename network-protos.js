@@ -114,6 +114,10 @@ function readPeerMessage(data) {
                 // tier1_handshake
                 result.handshake = readHandshake(value);
                 break;
+            case 28:
+                console.log('Skipping DistanceVector');
+                // TODO: Parse DistanceVector
+                break;
             default:
                 throw new Error(`Unsupported PeerMessage field number: ${fieldNumber}`);
         }
