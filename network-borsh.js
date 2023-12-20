@@ -63,7 +63,9 @@ class RoutedMessageBody extends Enum {}
 class RoutedMessageToSign extends BaseMessage {}
 class Approval extends BaseMessage {}
 class SignedTransaction extends BaseMessage {}
+class StateResponseInfo extends Enum {}
 class StateResponseInfoV1 extends BaseMessage {}
+class StateResponseInfoV2 extends BaseMessage {}
 class PartialEncodedChunkRequestMsg extends BaseMessage {}
 class PartialEncodedChunkResponseMsg extends BaseMessage {}
 class PartialEncodedChunkV1 extends BaseMessage {}
@@ -71,17 +73,24 @@ class PartialEncodedChunkV2 extends BaseMessage {}
 class PartialEncodedChunkPart extends BaseMessage {}
 class PingPong extends BaseMessage {}
 class PartialEncodedChunk extends Enum {}
-class StateResponseInfo extends BaseMessage {}
 class PartialEncodedChunkForwardMsg extends BaseMessage {}
 class StateRequestHeader extends BaseMessage {}
+class ShardStateSyncResponse extends Enum {}
 class ShardStateSyncResponseV1 extends BaseMessage {}
+class ShardStateSyncResponseV2 extends BaseMessage {}
+class ShardStateSyncResponseV3 extends BaseMessage {}
 class ShardStateSyncResponseHeaderV1 extends BaseMessage {}
+class ShardStateSyncResponseHeaderV2 extends BaseMessage {}
+class CachedParts extends Enum {}
+class BitArray extends BaseMessage {}
 class SyncPart extends BaseMessage {}
 class MerklePath extends BaseMessage {}
 class MerklePathItem extends BaseMessage {}
 class Direction extends Enum {}
 class UnitType extends BaseMessage {}
-class ShardChunk extends BaseMessage {}
+class ShardChunk extends Enum {}
+class ShardChunkV1 extends BaseMessage {}
+class ShardChunkV2 extends BaseMessage {}
 class Receipt extends BaseMessage {}
 class ReceiptEnum extends Enum {}
 class ActionReceipt extends BaseMessage {}
@@ -360,6 +369,22 @@ const BORSH_SCHEMA = new Map([...BASE_SCHEMA.entries(),
         }]],
         ['latest_protocol_verstion', 'u32'],
     ]}],
+    [ShardChunk, { kind: 'enum', field: 'enum', values: [
+        ['v1', ShardChunkV1],
+        ['v2', ShardChunkV2],
+    ]}],
+    [ShardChunkV1, { kind: 'struct', fields: [
+        ['chunk_hash', [32]],
+        ['header', ShardChunkHeaderV1],
+        ['transactions', [SignedTransaction]],
+        ['prev_outgoing_receipts', [Receipt]],
+    ]}],
+    [ShardChunkV2, { kind: 'struct', fields: [
+        ['chunk_hash', [32]],
+        ['header', ShardChunkHeader],
+        ['transactions', [SignedTransaction]],
+        ['prev_outgoing_receipts', [Receipt]],
+    ]}],
     [ShardChunkHeader, { kind: 'enum', field: 'enum', values: [
         ['v1', ShardChunkHeaderV1],
         ['v2', ShardChunkHeaderV2],
@@ -511,13 +536,37 @@ const BORSH_SCHEMA = new Map([...BASE_SCHEMA.entries(),
         ['sync_hash', [32]],
         ['state_response', ShardStateSyncResponseV1]
     ]}],
+    [StateResponseInfoV2, { kind: 'struct', fields: [
+        ['shard_id', 'u64'],
+        ['sync_hash', [32]],
+        ['state_response', ShardStateSyncResponse]
+    ]}],
+    [StateResponseInfo, { kind: 'enum', field: 'enum', values: [
+        ['v1', StateResponseInfoV1],
+        ['v2', StateResponseInfoV2],
+    ]}],
     [SyncPart, { kind: 'struct', fields: [
         ['part_id', 'u64'],
         ['data', ['u8']],
     ]}],
+    [ShardStateSyncResponse, { kind: 'enum', field: 'enum', values: [
+        ['v1', ShardStateSyncResponseV1],
+        ['v2', ShardStateSyncResponseV2],
+        ['v3', ShardStateSyncResponseV3],
+    ]}],
     [ShardStateSyncResponseV1, { kind: 'struct', fields: [
         ['header', { kind: 'option', type: ShardStateSyncResponseHeaderV1 }],
         ['part', { kind: 'option', type: SyncPart }],
+    ]}],
+    [ShardStateSyncResponseV2, { kind: 'struct', fields: [
+        ['header', { kind: 'option', type: ShardStateSyncResponseHeaderV2 }],
+        ['part', { kind: 'option', type: SyncPart }],
+    ]}],
+    [ShardStateSyncResponseV3, { kind: 'struct', fields: [
+        ['header', { kind: 'option', type: ShardStateSyncResponseHeaderV2 }],
+        ['part', { kind: 'option', type: SyncPart }],
+        ['cached_parts', { kind: 'option', type: CachedParts }],
+        ['can_generate', 'u8'],
     ]}],
     [Receipt, { kind: 'struct', fields: [
         ['predecessor_id', 'string'],
@@ -628,6 +677,24 @@ const BORSH_SCHEMA = new Map([...BASE_SCHEMA.entries(),
         ['root_proofs', [[RootProof]]], // TODO
         ['state_root_node', StateRootNode]
     ]}],
+    [ShardStateSyncResponseHeaderV2, { kind: 'struct', fields: [
+        ['chunk', ShardChunk],
+        ['chunk_proof', MerklePath],
+        ['prev_chunk_header', { kind: 'option', type: ShardChunkHeader}],
+        ['prev_chunk_proof', { kind: 'option', type: MerklePath }],
+        ['incoming_receipts_proofs', [ReceiptProofResponse]], // TODO
+        ['root_proofs', [[RootProof]]], // TODO
+        ['state_root_node', StateRootNode]
+    ]}],
+    [CachedParts, { kind: 'enum', field: 'enum', values: [
+        ['AllParts', UnitType],
+        ['SomeParts', UnitType],
+        ['BitArray', BitArray],
+    ]}],
+    [BitArray, { kind: 'struct', fields: [
+        ['data', ['u8']],
+        ['capacity', 'u64'],
+    ]}],
     [PartialEncodedChunk, { kind: 'enum', field: 'enum', values: [
         ['V1', PartialEncodedChunkV1],
         ['V2', PartialEncodedChunkV2]
@@ -697,4 +764,5 @@ module.exports = {
     AnnounceAccount,
     Block,
     PartialEncodedChunkRequestMsg,
+    TransactionReceipt,
 };

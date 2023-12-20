@@ -2,7 +2,7 @@
 const assert = require('assert');
 const { serialize, deserialize } = require('borsh');
 const { PublicKey } = require('./data-model');
-const { BORSH_SCHEMA, PingPong, RoutedMessageToSign, RoutedMessageBody, RoutedMessage, StateRequestHeader, PeerIdOrHash, PeerChainInfoV2, GenesisId, EdgeInfo, EdgeInfoToSign, Signature, PartialEncodedChunkRequestMsg } = require('./network-borsh'); 
+const { BORSH_SCHEMA, PingPong, RoutedMessageToSign, RoutedMessageBody, RoutedMessage, StateRequestHeader, PeerIdOrHash, PeerChainInfoV2, GenesisId, EdgeInfo, EdgeInfoToSign, Signature, PartialEncodedChunkRequestMsg, TransactionReceipt } = require('./network-borsh'); 
 const { readPeerMessage, writePeerMessage } = require('./network-protos');
 
 const ed = require('@noble/ed25519');
@@ -45,7 +45,7 @@ const target_peer_id = PublicKey.fromString(process.env.TARGET_PEER_ID);
 let sender_peer_id;
 
 const NODE_ADDRESS = process.env.NODE_ADDRESS || '127.0.0.1'
-const NUM_TOTAL_PARTS = 50;
+const NUM_TOTAL_PARTS = 200;
 const NUM_DATA_PARTS = Math.floor((NUM_TOTAL_PARTS - 1) / 3);
 
 const socket = net.connect(24567, NODE_ADDRESS, async () => {
@@ -179,8 +179,8 @@ eventEmitter.on('message', async message => {
         console.log('block_response', message.block_response);
 
         // TODO: Adjust following
-        const header = message.block_response.block.v2.header.v3;
-        console.log('header', message.block_response.block.v2.header);
+        const header = message.block_response.block.v3.header.v4;
+        console.log('header', message.block_response.block.v3.header);
         console.log('block', bs58.encode(header.prev_hash), header.inner_lite.height.toString());
         // console.log(bs58.encode(header.inner_lite.prev_state_root));
         // console.log('header', header);
@@ -202,10 +202,11 @@ eventEmitter.on('message', async message => {
         //     })
         // });
 
-        const { chunks } = message.block_response.block.v2;
+        const { body: { chunks } } = message.block_response.block.v3;
 
         for (let chunk of chunks) {
             const hash = chunkHash(chunk);
+            console.log('chunkHash', hash);
             chunkHeaders[bs58.encode(hash)] = chunk;
             sendRoutedMessage({
                 partial_encoded_chunk_request: new PartialEncodedChunkRequestMsg({
@@ -218,21 +219,24 @@ eventEmitter.on('message', async message => {
     }
 
     if (message.routed) {
-        console.log('routed', message.routed.body.enum);
+        // console.log('routed', message.routed.body.enum);
+        console.log('routed', message.routed);
 
+        const borsh = deserialize(BORSH_SCHEMA, RoutedMessage, message.routed.borsh);
+        console.log('routed.borsh', borsh);
         const {
             body: {
                 state_response_info,
                 partial_encoded_chunk_response,
             }
-        } = message.routed;
+        } = borsh;
 
         if (state_response_info) {
             console.log('state_response_info', state_response_info);
         }
 
         if (partial_encoded_chunk_response) {
-            // console.log('partial_encoded_chunk_response', partial_encoded_chunk_response);
+            console.log('partial_encoded_chunk_response', partial_encoded_chunk_response);
             // console.log('parts', partial_encoded_chunk_response.parts.map(({ part }) => Buffer.from(part).toString('hex')));
             const { chunk_hash } = partial_encoded_chunk_response;
             const chunk = chunkHeaders[bs58.encode(chunk_hash)];
@@ -240,10 +244,17 @@ eventEmitter.on('message', async message => {
                 console.error('cannot find chunk header:', bs58.encode(chunk_hash))
                 return;
             }
+            console.log('chunk.v3', chunk.v3);
+            console.log('chunk.v3.inner', chunk.v3.inner);
 
-            const { encoded_length } = chunk.v2.inner;
+            if (partial_encoded_chunk_response.parts.length !== NUM_DATA_PARTS) {
+                console.error('unexpected number of parts:', partial_encoded_chunk_response.parts.length);
+                return;
+            }
+
+            const { encoded_length } = chunk.v3.inner.v2;
             const allParts = Buffer.concat(partial_encoded_chunk_response.parts.map(({ part }) => Buffer.from(part)));
-            const { transactions, receipts } = deserialize(BORSH_SCHEMA, TransactionReceipt, allParts.slice(0, encoded_length));
+            const { transactions, receipts } = deserialize(BORSH_SCHEMA, TransactionReceipt, allParts.slice(0, encoded_length.toNumber()));
             console.log('transactions', transactions);
             console.log('receipts', receipts);
         }
