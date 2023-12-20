@@ -31,14 +31,18 @@ class BlockRequest extends BaseMessage {}
 class Block extends Enum {}
 class BlockV1 extends BaseMessage {}
 class BlockV2 extends BaseMessage {}
+class BlockV3 extends BaseMessage {}
+class BlockBody extends BaseMessage {}
 class BlockHeader extends Enum {}
 class BlockHeaderV1 extends BaseMessage {}
 class BlockHeaderV2 extends BaseMessage {}
 class BlockHeaderV3 extends BaseMessage {}
+class BlockHeaderV4 extends BaseMessage {}
 class BlockHeaderInnerLite extends BaseMessage {}
 class BlockHeaderInnerRest extends BaseMessage {}
 class BlockHeaderInnerRestV2 extends BaseMessage {}
 class BlockHeaderInnerRestV3 extends BaseMessage {}
+class BlockHeaderInnerRestV4 extends BaseMessage {}
 class ShardChunkHeader extends Enum {}
 class ShardChunkHeaderV1 extends BaseMessage {}
 class ShardChunkHeaderV2 extends BaseMessage {}
@@ -200,6 +204,7 @@ const BORSH_SCHEMA = new Map([...BASE_SCHEMA.entries(),
     [Block, { kind: 'enum', field: 'enum', values: [
         ['v1', BlockV1],
         ['v2', BlockV2],
+        ['v3', BlockV3],
     ]}],
     [BlockV1, { kind: 'struct', fields: [
         ['header', BlockHeader],
@@ -215,10 +220,21 @@ const BORSH_SCHEMA = new Map([...BASE_SCHEMA.entries(),
         ['vrf_value', [32]],
         ['vrf_proof', [64]],
     ]}],
+    [BlockV3, { kind: 'struct', fields: [
+        ['header', BlockHeader],
+        ['body', BlockBody],
+    ]}],
+    [BlockBody, { kind: 'struct', fields: [
+        ['chunks', [ShardChunkHeader]],
+        ['challenges', []], // TODO
+        ['vrf_value', [32]],
+        ['vrf_proof', [64]],
+    ]}],
     [BlockHeader, { kind: 'enum', field: 'enum', values: [
         ['v1', BlockHeaderV1],
         ['v2', BlockHeaderV2],
-        ['v3', BlockHeaderV3]
+        ['v3', BlockHeaderV3],
+        ['v4', BlockHeaderV4],
     ]}],
     [BlockHeaderV1, { kind: 'struct', fields: [
         ['prev_hash', [32]],
@@ -236,6 +252,12 @@ const BORSH_SCHEMA = new Map([...BASE_SCHEMA.entries(),
         ['prev_hash', [32]],
         ['inner_lite', BlockHeaderInnerLite],
         ['inner_rest', BlockHeaderInnerRestV3],
+        ['signature', Signature],
+    ]}],
+    [BlockHeaderV4, { kind: 'struct', fields: [
+        ['prev_hash', [32]],
+        ['inner_lite', BlockHeaderInnerLite],
+        ['inner_rest', BlockHeaderInnerRestV4],
         ['signature', Signature],
     ]}],
     [BlockHeaderInnerLite, { kind: 'struct', fields: [
@@ -296,6 +318,32 @@ const BORSH_SCHEMA = new Map([...BASE_SCHEMA.entries(),
         ['validator_proposals', [ValidatorStake]],
         ['chunk_mask', ['u8']],
         ['gas_price', 'u128'],
+        ['total_supply', 'u128'],
+        ['challenges_result', []], // TODO
+        ['last_final_block', [32]],
+        ['last_ds_final_block', [32]],
+        ['block_ordinal', 'u64'],
+        ['prev_height', 'u64'],
+        ['epoch_sync_data_hash', {
+            'kind': 'option',
+            'type': [32]
+        }],
+        ['approvals', [{
+            'kind': 'option',
+            'type': Signature
+        }]],
+        ['latest_protocol_verstion', 'u32'],
+    ]}],
+    [BlockHeaderInnerRestV4, { kind: 'struct', fields: [
+        ['block_body_hash', [32]],
+        ['prev_chunk_outgoing_receipts_root', [32]],
+        ['chunk_headers_root', [32]],
+        ['chunk_tx_root', [32]],
+        ['challenges_root', [32]],
+        ['random_value', [32]],
+        ['prev_validator_proposals', [ValidatorStake]],
+        ['chunk_mask', ['u8']],
+        ['next_gas_price', 'u128'],
         ['total_supply', 'u128'],
         ['challenges_result', []], // TODO
         ['last_final_block', [32]],
