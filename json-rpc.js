@@ -109,18 +109,13 @@ const handleError = async ({ ctx, accountId, blockHeight, error }) => {
     ctx.throw(400, message);
 }
 
-const parseBlockIndex = async (ctx) => {
-    const { finality, block_id } = ctx.request.body.params;
-    // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
-    if (typeof block_id == 'string') {
-        // TODO: Maintain block hash -> block height mapping
-        await proxyJson(ctx);
-        return false;
-    }
-
-    ctx.blockHeight = block_id;
-    return true;
+const rpcResult = (ctx, result) => {
+    ctx.body = {
+        jsonrpc: '2.0',
+        result,
+        id: ctx.request.body.id
+    };
 }
 
 const handleJsonRpc = async ctx => {
@@ -131,32 +126,54 @@ const handleJsonRpc = async ctx => {
     ctx.request.body = JSON.parse((await getRawBody(ctx.req)).toString('utf8'));
 
     const { body } = ctx.request;
-    if (body?.method == 'query' && body?.params?.request_type == 'call_function') {
-        const { account_id: accountId, method_name: methodName, args_base64 } = body.params;
-        await parseBlockIndex(ctx);
-        await callViewFunction(ctx, { accountId, methodName, args: Buffer.from(args_base64, 'base64') });
-        return;
-    }
 
-    if (body?.method == 'query' && body?.params?.request_type == 'view_account') {
-        const { account_id: accountId } = body.params;
-        await parseBlockIndex(ctx);
-        await viewAccount(ctx, { accountId });
-        return;
-    }
+    if (body?.method == 'query') {
+        let accountId;
+        const { finality, block_id } = body.params;
+        // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
-    if (body?.method == 'query' && body?.params?.length) {
-        const query = body.params[0];
-        if (query?.startsWith('account/')) {
-            const [, accountId] = query.split('/');
-            await viewAccount(ctx, { accountId });
+        if (typeof block_id == 'string') {
+            // TODO: Maintain block hash -> block height mapping
+            await proxyJson(ctx);
             return;
         }
 
-        if (query?.startsWith('call/')) {
-            const [, accountId, methodName] = query.split('/');
-            const args = bs58.decode(body.params[1], 'base64');
-            await callViewFunction(ctx, { accountId, methodName, args });
+        const blockHeight = await resolveBlockHeight(block_id);
+        debug('blockHeight', blockHeight);
+
+        try {
+            if (body?.params?.request_type == 'call_function') {
+                const { account_id, method_name: methodName, args_base64 } = body.params;
+                accountId = account_id;
+                rpcResult(ctx, await callViewFunction({ blockHeight, accountId, methodName, args: Buffer.from(args_base64, 'base64') }));
+                return;
+            }
+
+            if (body?.params?.request_type == 'view_account') {
+                const { account_id } = body.params;
+                accountId = account_id;
+                rpcResult(ctx, await viewAccount({ blockHeight, accountId }));
+                return;
+            }
+
+            if (body?.params?.length) {
+                const query = body.params[0];
+                if (query?.startsWith('account/')) {
+                    [, accountId] = query.split('/');
+                    rpcResult(ctx, await viewAccount({ blockHeight, accountId }));
+                    return;
+                }
+
+                if (query?.startsWith('call/')) {
+                    let methodName;
+                    [, accountId, methodName] = query.split('/');
+                    const args = bs58.decode(body.params[1], 'base64');
+                    rpcResult(ctx, await callViewFunction({ blockHeight, accountId, methodName, args }));
+                    return;
+                }
+            }
+        } catch (error) {
+            await handleError({ ctx, accountId, blockHeight, error });
             return;
         }
     }
@@ -164,60 +181,35 @@ const handleJsonRpc = async ctx => {
     await proxyJson(ctx);
 };
 
-const callViewFunction = async (ctx,  { accountId, methodName, args }) => {
-    let { blockHeight } = ctx;
-    try {
-        blockHeight = await resolveBlockHeight(blockHeight);
-        debug('blockHeight', blockHeight);
-
-        const { result, logs, blockHeight: resolvedBlockHeight } = await runContract(accountId, methodName, args, blockHeight);
-        const resultBuffer = Buffer.from(result);
-        ctx.body = {
-            jsonrpc: '2.0',
-            result: {
-                result: Array.from(resultBuffer),
-                logs,
-                block_height: parseInt(resolvedBlockHeight)
-                // TODO: block_hash
-            },
-            id: ctx.request.body.id
-        };
-        return;
-    } catch (error) {
-        await handleError({ ctx, accountId, blockHeight, error });
-    }
+const callViewFunction = async ({ blockHeight, accountId, methodName, args }) => {
+    const { result, logs, blockHeight: resolvedBlockHeight } = await runContract(accountId, methodName, args, blockHeight);
+    const resultBuffer = Buffer.from(result);
+    return {
+        result: Array.from(resultBuffer),
+        logs,
+        block_height: parseInt(resolvedBlockHeight)
+        // TODO: block_hash
+    };
 }
 
-const viewAccount = async (ctx, { accountId }) => {
-    let { blockHeight } = ctx;
-    try {
-        blockHeight = await resolveBlockHeight(blockHeight);
-        debug('blockHeight', blockHeight);
-
-        debug('find account data', accountId);
-        const compKey = accountKey(accountId);
-        const accountData = await storage.getLatestData(compKey, blockHeight);
-        debug('account data loaded', accountId);
-        if (!accountData) {
-            throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);
-        }
-
-        const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
-        ctx.body = {
-            jsonrpc: '2.0',
-            result: {
-                amount: amount.toString(),
-                locked: locked.toString(),
-                code_hash: bs58.encode(code_hash),
-                storage_usage: parseInt(storage_usage.toString()),
-                block_height: parseInt(blockHeight)
-                // TODO: block_hash
-            },
-            id: ctx.request.body.id
-        };
-    } catch (error) {
-        await handleError({ ctx, accountId: accountId, blockHeight, error });
+const viewAccount = async ({ blockHeight, accountId }) => {
+    debug('find account data', accountId);
+    const compKey = accountKey(accountId);
+    const accountData = await storage.getLatestData(compKey, blockHeight);
+    debug('account data loaded', accountId);
+    if (!accountData) {
+        throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);
     }
+
+    const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
+    return {
+        amount: amount.toString(),
+        locked: locked.toString(),
+        code_hash: bs58.encode(code_hash),
+        storage_usage: parseInt(storage_usage.toString()),
+        block_height: parseInt(blockHeight)
+        // TODO: block_hash
+    };
 }
 
 module.exports = { handleJsonRpc, proxyJson };
