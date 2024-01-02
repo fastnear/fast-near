@@ -110,13 +110,62 @@ const handleError = async ({ ctx, blockHeight, error }) => {
     ctx.throw(400, message);
 }
 
+const LRU = require('lru-cache');
+const cache = new LRU({
+    // TODO: Adjust cache size and max age
+    max: 1000,
+    // 1 second
+    maxAge: 1000
+});
 
-const rpcResult = (ctx, result) => {
-    ctx.body = {
-        jsonrpc: '2.0',
-        result,
-        id: ctx.request.body.id
-    };
+const rpcResult = (id, result) => ({
+    jsonrpc: '2.0',
+    result,
+    id
+});
+
+const withJsonRpcCache = async (ctx, next) => {
+    const { body } = ctx.request;
+    const cacheKey = JSON.stringify({ method: body.method, params: body.params });
+    debug('cacheKey', cacheKey);
+    let resultPromise = cache.get(cacheKey);
+    let cacheHit = !!resultPromise;
+    if (cacheHit) {
+        debug('cache hit', cacheKey);
+    }
+
+    if (!resultPromise) {
+        resultPromise = (async () => {
+            await next();
+            console.log('ctx.body', ctx.body);
+            return ctx.body;
+        })();
+    }
+
+    if (!cacheHit) {
+        cache.set(cacheKey, resultPromise);
+    }
+
+    let resultBody = await resultPromise;
+    console.log('cacheHit', cacheHit);
+    console.log('resultBody', resultBody);
+    if (!cacheHit) {
+        ctx.type = 'json';
+        ctx.body = resultBody;
+        cache.set(cacheKey, resultBody);
+    } else {
+        if (Buffer.isBuffer(resultBody)) {
+            resultBody = JSON.parse(resultBody.toString('utf8'));
+        }
+
+        const { result, error } = resultBody;
+        ctx.body = { jsonrpc: '2.0', result, error, id: ctx.request.body.id };
+    }
+}
+
+const parseJsonBody = async (ctx, next) => {
+    ctx.request.body = JSON.parse((await getRawBody(ctx.req)).toString('utf8'));
+    await next();
 }
 
 const handleJsonRpc = async ctx => {
@@ -124,35 +173,34 @@ const handleJsonRpc = async ctx => {
         return await proxyJson(ctx);
     }
 
-    ctx.request.body = JSON.parse((await getRawBody(ctx.req)).toString('utf8'));
-
     const { body } = ctx.request;
+    try {
+        if (body?.method == 'query') {
+            const { finality, block_id } = body.params;
+            // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
-    if (body?.method == 'query') {
-        const { finality, block_id } = body.params;
-        // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
+            if (typeof block_id == 'string') {
+                // TODO: Maintain block hash -> block height mapping
+                await proxyJson(ctx);
+            } else {
+                const blockHeight = await resolveBlockHeight(block_id);
+                debug('blockHeight', blockHeight);
 
-        if (typeof block_id == 'string') {
-            // TODO: Maintain block hash -> block height mapping
-            await proxyJson(ctx);
-            return;
+                const id = ctx.request.body.id;
+                ctx.body = rpcResult(id, await handleQuery({ blockHeight, body }));
+                return;
+            }
         }
 
-        const blockHeight = await resolveBlockHeight(block_id);
-        debug('blockHeight', blockHeight);
-
-        try {
-            return rpcResult(ctx, await handleQuery({ blockHeight, body }));
-        } catch (error) {
-            await handleError({ ctx, blockHeight, error });
-            return;
-        }
+        await proxyJson(ctx);
+    } catch (error) {
+        await handleError({ ctx, blockHeight: null, error });
     }
-
-    await proxyJson(ctx);
 };
 
 async function handleQuery({ blockHeight, body }) {
+    debug('handleQuery', blockHeight, body);
+
     if (body?.params?.request_type == 'call_function') {
         const { account_id, method_name: methodName, args_base64 } = body.params;
         return await callViewFunction({ blockHeight, accountId: account_id, methodName, args: Buffer.from(args_base64, 'base64') });
@@ -209,4 +257,4 @@ const viewAccount = async ({ blockHeight, accountId }) => {
     };
 }
 
-module.exports = { handleJsonRpc, proxyJson };
+module.exports = { parseJsonBody, withJsonRpcCache, handleJsonRpc, proxyJson };

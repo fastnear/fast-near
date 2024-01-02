@@ -191,8 +191,8 @@ router.get('/healthz', async ctx => {
     ctx.status = 204; // No Content
 });
 
-const { proxyJson, handleJsonRpc } = require('./json-rpc');
-router.post('/', handleJsonRpc);
+const { parseJsonBody, withJsonRpcCache, proxyJson, handleJsonRpc } = require('./json-rpc');
+router.post('/', parseJsonBody, withJsonRpcCache, handleJsonRpc);
 router.get('/(status|metrics|health)', proxyJson);
 
 app
