@@ -19,9 +19,8 @@ const ARCHIVAL_NODE_URL = process.env.FAST_NEAR_ARCHIVAL_NODE_URL || 'https://rp
 
 const proxyJson = async (ctx, { archival = false } = {}) => {
     const nodeUrl = archival ? ARCHIVAL_NODE_URL : NODE_URL;
-    console.log('proxyJson', ctx.request.method, nodeUrl);
     const rawBody = ctx.request.body ? JSON.stringify(ctx.request.body) : await getRawBody(ctx.req);
-    debug('proxyJson', ctx.request.method, ctx.request.path, rawBody.toString('utf8'));
+    debug('proxyJson', ctx.request.method, ctx.request.path, nodeUrl, rawBody.toString('utf8'));
     ctx.type = 'json';
     ctx.body = Buffer.from(await (await fetch(`${nodeUrl}${ctx.request.path}`, {
         method: ctx.request.method,
@@ -59,7 +58,7 @@ const legacyError = ({ id, message }) => {
 const ALWAYS_PROXY = ['yes', 'true'].includes((process.env.FAST_NEAR_ALWAYS_PROXY || 'no').trim().toLowerCase());
 
 const handleError = async ({ ctx, blockHeight, error }) => {
-    console.log('handleError', error);
+    debug('handleError', error);
     const { body } = ctx.request;
     const accountId = error.accountId;
 
@@ -137,7 +136,6 @@ const withJsonRpcCache = async (ctx, next) => {
     if (!resultPromise) {
         resultPromise = (async () => {
             await next();
-            console.log('ctx.body', ctx.body);
             return ctx.body;
         })();
     }
