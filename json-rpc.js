@@ -147,8 +147,6 @@ const withJsonRpcCache = async (ctx, next) => {
     }
 
     let resultBody = await resultPromise;
-    console.log('cacheHit', cacheHit);
-    console.log('resultBody', resultBody);
     if (!cacheHit) {
         ctx.type = 'json';
         ctx.body = resultBody;
