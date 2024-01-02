@@ -17,17 +17,17 @@ let contractCache = new LRU({
 
 let workerPool;
 
-async function getWasmModule(contractId, blockHeight) {
-    const debug = require('debug')(`host:${contractId}`);
-    debug('getWasmModule', contractId, blockHeight);
+async function getWasmModule(accountId, blockHeight) {
+    const debug = require('debug')(`host:${accountId}`);
+    debug('getWasmModule', accountId, blockHeight);
 
-    const accountDataKey = accountKey(contractId);
+    const accountDataKey = accountKey(accountId);
 
     debug('load account data')
     const accountData = await storage.getLatestData(accountDataKey, blockHeight);
     debug('accountData', accountData);
     if (!accountData) {
-        throw new FastNEARError('accountNotFound', `Account not found: ${contractId} at ${blockHeight} block height`);
+        throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`, { accountId, blockHeight });
     }
 
     const { code_hash } = deserialize(BORSH_SCHEMA, Account, accountData);
@@ -35,7 +35,7 @@ async function getWasmModule(contractId, blockHeight) {
     const codeHashStr = bs58.encode(codeHash);
 
     if (NO_CODE_HASH.equals(codeHash)) {
-        throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId}, block height: ${blockHeight}, code hash: ${codeHashStr}`);
+        throw new FastNEARError('codeNotFound', `Cannot find contract code: ${accountId}, block height: ${blockHeight}, code hash: ${codeHashStr}`, { accountId, blockHeight, codeHashStr });
     }
 
     const cacheKey = codeHashStr;
@@ -48,7 +48,7 @@ async function getWasmModule(contractId, blockHeight) {
         const wasmData = await storage.getBlob(codeHash);
         if (!wasmData) {
             // TODO: Should this be fatal error because shoudn't happen with consistent data?
-            throw new FastNEARError('codeNotFound', `Cannot find contract code: ${contractId}, block height: ${blockHeight}, code hash: ${codeHashStr}`);
+            throw new FastNEARError('codeNotFound', `Cannot find contract code: ${accountId}, block height: ${blockHeight}, code hash: ${codeHashStr}`, { accountId, blockHeight, codeHashStr });
         }
         debug('wasmData.length', wasmData.length);
         

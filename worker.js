@@ -14,12 +14,12 @@ const MAX_U64 = 18446744073709551615n;
 
 const notImplemented = (name) => (...args) => {
     debug('notImplemented', name, 'args', args);
-    throw new FastNEARError('notImplemented', 'method not implemented: ' + name);
+    throw new FastNEARError('notImplemented', 'method not implemented: ' + name, { methodName: name });
 };
 
 const prohibitedInView = (name) => (...args) => {
     debug('prohibitedInView', name, 'args', args);
-    throw new FastNEARError('notImplemented', 'method not available for view calls: ' + name);
+    throw new FastNEARError('notImplemented', 'method not available for view calls: ' + name, { methodName: name });
 };
 
 const imports = (ctx) => {

@@ -58,9 +58,10 @@ const legacyError = ({ id, message }) => {
 
 const ALWAYS_PROXY = ['yes', 'true'].includes((process.env.FAST_NEAR_ALWAYS_PROXY || 'no').trim().toLowerCase());
 
-const handleError = async ({ ctx, accountId, blockHeight, error }) => {
+const handleError = async ({ ctx, blockHeight, error }) => {
     console.log('handleError', error);
     const { body } = ctx.request;
+    const accountId = error.accountId;
 
     // TODO: Match error handling? Structured errors? https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
     const message = error.toString();
@@ -128,7 +129,6 @@ const handleJsonRpc = async ctx => {
     const { body } = ctx.request;
 
     if (body?.method == 'query') {
-        let accountId;
         const { finality, block_id } = body.params;
         // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
@@ -142,44 +142,41 @@ const handleJsonRpc = async ctx => {
         debug('blockHeight', blockHeight);
 
         try {
-            if (body?.params?.request_type == 'call_function') {
-                const { account_id, method_name: methodName, args_base64 } = body.params;
-                accountId = account_id;
-                rpcResult(ctx, await callViewFunction({ blockHeight, accountId, methodName, args: Buffer.from(args_base64, 'base64') }));
-                return;
-            }
-
-            if (body?.params?.request_type == 'view_account') {
-                const { account_id } = body.params;
-                accountId = account_id;
-                rpcResult(ctx, await viewAccount({ blockHeight, accountId }));
-                return;
-            }
-
-            if (body?.params?.length) {
-                const query = body.params[0];
-                if (query?.startsWith('account/')) {
-                    [, accountId] = query.split('/');
-                    rpcResult(ctx, await viewAccount({ blockHeight, accountId }));
-                    return;
-                }
-
-                if (query?.startsWith('call/')) {
-                    let methodName;
-                    [, accountId, methodName] = query.split('/');
-                    const args = bs58.decode(body.params[1], 'base64');
-                    rpcResult(ctx, await callViewFunction({ blockHeight, accountId, methodName, args }));
-                    return;
-                }
-            }
+            return rpcResult(ctx, await handleQuery({ blockHeight, body }));
         } catch (error) {
-            await handleError({ ctx, accountId, blockHeight, error });
+            await handleError({ ctx, blockHeight, error });
             return;
         }
     }
 
     await proxyJson(ctx);
 };
+
+async function handleQuery({ blockHeight, body }) {
+    if (body?.params?.request_type == 'call_function') {
+        const { account_id, method_name: methodName, args_base64 } = body.params;
+        return await callViewFunction({ blockHeight, accountId: account_id, methodName, args: Buffer.from(args_base64, 'base64') });
+    }
+
+    if (body?.params?.request_type == 'view_account') {
+        const { account_id } = body.params;
+        return await viewAccount({ blockHeight, accountId: account_id });
+    }
+
+    if (body?.params?.length) {
+        const query = body.params[0];
+        if (query?.startsWith('account/')) {
+            const [, accountId] = query.split('/');
+            return await viewAccount({ blockHeight, accountId });
+        }
+
+        if (query?.startsWith('call/')) {
+            const [, accountId, methodName] = query.split('/');
+            const args = bs58.decode(body.params[1], 'base64');
+            return await callViewFunction({ blockHeight, accountId, methodName, args });
+        }
+    }
+}
 
 const callViewFunction = async ({ blockHeight, accountId, methodName, args }) => {
     const { result, logs, blockHeight: resolvedBlockHeight } = await runContract(accountId, methodName, args, blockHeight);
@@ -198,7 +195,7 @@ const viewAccount = async ({ blockHeight, accountId }) => {
     const accountData = await storage.getLatestData(compKey, blockHeight);
     debug('account data loaded', accountId);
     if (!accountData) {
-        throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`);
+        throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`, { accountId, blockHeight });
     }
 
     const { amount, locked, code_hash, storage_usage } = deserialize(BORSH_SCHEMA, Account, accountData);
