@@ -166,7 +166,7 @@ if (!bucketName) {
 
 sync(bucketName, parseInt(startAfter || "0"), parseInt(limit || "1000"))
     .catch((error) => {
-        console.error(error);
+        console.error('Exiting because of error', error);
         process.exit(1);
     });
 
