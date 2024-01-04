@@ -54,10 +54,6 @@ async function listObjects(client, { bucketName, startAfter, maxKeys }) {
 
 async function getObject(client, { bucketName, key }) {
     return withRetries(async () => {
-        if (Math.random() < 0.01) {
-            throw new Error('Random error');
-        }
-
         return await client.send(
             new GetObjectCommand({
                 Bucket: bucketName,
