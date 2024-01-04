@@ -24,8 +24,9 @@ async function sync(bucketName, startAfter, limit = 1000) {
         await fs.mkdir(`${dstDir}/${i}`, { recursive: true });
     }
 
+    let listObjects;
     do {
-        const listObjects = await client.send(
+        listObjects = await client.send(
             new ListObjectsV2Command({
                 Bucket: bucketName,
                 MaxKeys: limit,
@@ -36,7 +37,7 @@ async function sync(bucketName, startAfter, limit = 1000) {
         );
         const blockNumbers = (listObjects.CommonPrefixes || []).map((p) => parseInt(p.Prefix.split('/')[0]));
 
-        for (const blockNumber of blockNumbers) {
+        await Promise.all(blockNumbers.map(async (blockNumber) => {
             const blockHeight = normalizeBlockHeight(blockNumber);
             const blockData = await client.send(
                 new GetObjectCommand({
@@ -52,12 +53,12 @@ async function sync(bucketName, startAfter, limit = 1000) {
                 chunks.push(chunk);
             }
             const blockBuffer = Buffer.concat(chunks);
-            fs.writeFile(`${dstDir}/block/${blockHeight}.json`, blockBuffer);
-            const block = JSON.parse(blockBuffer.toString('utf8'));
+            await fs.writeFile(`${dstDir}/block/${blockHeight}.json`, blockBuffer);
 
+            const block = JSON.parse(blockBuffer.toString('utf8'));
             console.log(block.header.height, block.header.hash, block.chunks.length);
 
-            for (let i = 0; i < block.chunks.length; i++) {
+            await Promise.all(block.chunks.map(async (_, i) => {
                 const chunkData = await client.send(
                     new GetObjectCommand({
                         Bucket: bucketName,
@@ -68,15 +69,15 @@ async function sync(bucketName, startAfter, limit = 1000) {
 
                 const chunkReadable = chunkData.Body;
 
-                // await fs.writeFile(`${dstDir}/shard_${i}/${blockHeight}.json`, chunkBuffer);
                 await fs.writeFile(`${dstDir}/${i}/${blockHeight}.json`, chunkReadable);
-            }
-        }
+            }));
+        }));
 
+        startAfter = blockNumbers[blockNumbers.length - 1] + 1;
     } while (listObjects.IsTruncated);
 }
 
-sync('near-lake-data-mainnet', 100_000_000)
+sync('near-lake-data-mainnet', 100_000_000, 20)
     .catch((error) => {
         console.error(error);
         process.exit(1);
