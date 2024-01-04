@@ -45,54 +45,15 @@ async function* blockNumbersStream(client, bucketName, startAfter, pageSize = 50
     } while (listObjects.IsTruncated);
 }
 
-async function* chunkStream(stream, chunkSize) {
-    let chunk = [];
-    for await (const item of stream) {
-        chunk.push(item);
-        if (chunk.length >= chunkSize) {
-            yield chunk;
-            chunk = [];
-        }
-    }
-    if (chunk.length) {
-        yield chunk;
-    }
-}
-
-async function sync(bucketName, startAfter, limit = 1000) {
-    const client = new S3Client({
-        region: 'eu-central-1',
-        requestHandler: new NodeHttpHandler({
-            httpAgent,
-            httpsAgent,
-        }),
-    });
-
-    const dstDir = `./lake-data/${bucketName}`;
-    const MAX_SHARDS = 4;
-    const PAGE_SIZE = 1000;
-    const CHUNK_SIZE = 32;
-
+async function *blockPromises(client, bucketName, startAfter, limit = 1000) {
     const endAt = startAfter + limit;
-    console.log(`Syncing ${bucketName} from ${startAfter} to ${endAt}`);
 
-    const timeStarted = Date.now();
-    let blocksProcessed = 0;
-
-    // mkdir -p necessary folders 
-    await fs.mkdir(`${dstDir}/block`, { recursive: true });
-    for (let i = 0; i < MAX_SHARDS; i++) {
-        await fs.mkdir(`${dstDir}/${i}`, { recursive: true });
-    }
-
-    // Iterate blockNumbers stream one chunk at a time
-    for await (const blockNumbers of chunkStream(blockNumbersStream(client, bucketName, startAfter, PAGE_SIZE), CHUNK_SIZE)) {
-        const filteredBlockNumbers = blockNumbers.filter((blockNumber) => blockNumber < endAt);
-        if (!filteredBlockNumbers.length) {
+    for await (const blockNumber of blockNumbersStream(client, bucketName, startAfter)) {
+        if (blockNumber >= endAt) {
             break;
         }
 
-        await Promise.all(filteredBlockNumbers.map(async (blockNumber) => {
+        const promise = (async () => {
             const blockHeight = normalizeBlockHeight(blockNumber);
             const blockData = await client.send(
                 new GetObjectCommand({
@@ -108,29 +69,70 @@ async function sync(bucketName, startAfter, limit = 1000) {
                 chunks.push(chunk);
             }
             const blockBuffer = Buffer.concat(chunks);
-            await fs.writeFile(`${dstDir}/block/${blockHeight}.json`, blockBuffer);
-
             const block = JSON.parse(blockBuffer.toString('utf8'));
-            console.log(block.header.height, block.header.hash, block.chunks.length, `Speed: ${blocksProcessed / ((Date.now() - timeStarted) / 1000)} blocks/s`);
 
-            await Promise.all(block.chunks.map(async (_, i) => {
-                const chunkData = await client.send(
-                    new GetObjectCommand({
-                        Bucket: bucketName,
-                        Key: `${blockHeight}/shard_${i}.json`,
-                        RequestPayer: 'requester',
-                    })
-                );
+            return { block: blockBuffer, blockHeight, shards: await Promise.all(
+                block.chunks.map(async (_, i) => {
+                    const chunkData = await client.send(
+                        new GetObjectCommand({
+                            Bucket: bucketName,
+                            Key: `${blockHeight}/shard_${i}.json`,
+                            RequestPayer: 'requester',
+                        })
+                    );
 
-                const chunkReadable = chunkData.Body;
+                    return chunkData.Body;
+                }))
+            };
+        })();
 
-                await fs.writeFile(`${dstDir}/${i}/${blockHeight}.json`, chunkReadable);
-            }));
+        // NOTE: Wrapping into object to avoid promise resolution
+        yield { promise, blockNumber };
+    }
+}
+
+async function sync(bucketName, startAfter, limit = 1000) {
+    const client = new S3Client({
+        region: 'eu-central-1',
+        requestHandler: new NodeHttpHandler({
+            httpAgent,
+            httpsAgent,
+        }),
+    });
+
+    const dstDir = `./lake-data/${bucketName}`;
+    const MAX_SHARDS = 4;
+
+    const timeStarted = Date.now();
+    let blocksProcessed = 0;
+
+    // mkdir -p necessary folders
+    await fs.mkdir(`${dstDir}/block`, { recursive: true });
+    for (let i = 0; i < MAX_SHARDS; i++) {
+        await fs.mkdir(`${dstDir}/${i}`, { recursive: true });
+    }
+
+    const writeQueue = [];
+    const MAX_WRITE_QUEUE = 32;
+
+    for await (const blockPromise of blockPromises(client, bucketName, startAfter, limit)) {
+        if (writeQueue.length >= MAX_WRITE_QUEUE) {
+            await Promise.race(writeQueue);
+        }
+
+        const task = (async () => {
+            const { block, blockHeight, shards } = await blockPromise.promise;
+
+            await fs.writeFile(`${dstDir}/block/${blockHeight}.json`, block);
+            for (let i = 0; i < shards.length; i++) {
+                await fs.writeFile(`${dstDir}/${i}/${blockHeight}.json`, shards[i]);
+            }
 
             blocksProcessed++;
-        }));
-
-        startAfter = blockNumbers[blockNumbers.length - 1] + 1;
+            writeQueue.splice(writeQueue.indexOf(task), 1);
+            console.log(blockHeight, `Speed: ${blocksProcessed / ((Date.now() - timeStarted) / 1000)} blocks/s`);
+        })();
+        writeQueue.push(task);
     }
 }
 
