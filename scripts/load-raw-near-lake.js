@@ -98,6 +98,7 @@ async function sync(bucketName, startAfter, limit = 1000) {
             httpAgent,
             httpsAgent,
         }),
+        maxAttempts: 3,
     });
 
     const dstDir = `./lake-data/${bucketName}`;
