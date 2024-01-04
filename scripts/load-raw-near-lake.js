@@ -82,7 +82,13 @@ async function sync(bucketName, startAfter, limit = 1000) {
     } while (listObjects.IsTruncated);
 }
 
-sync('near-lake-data-mainnet', 100_000_000, 50)
+const [, , bucketName, startAfter, limit] = process.argv;
+if (!bucketName) {
+    console.error('Usage: node scripts/load-raw-near-lake.js <bucketName> [startAfter] [limit]');
+    process.exit(1);
+}
+
+sync('near-lake-data-mainnet', startAfter || 0, limit || 50)
     .catch((error) => {
         console.error(error);
         process.exit(1);
