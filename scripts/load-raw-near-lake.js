@@ -5,9 +5,46 @@ const {
 } = require('@aws-sdk/client-s3');
 
 const fs = require('fs/promises');
+const { parse } = require('path');
 
 function normalizeBlockHeight(number) {
     return number.toString().padStart(12, '0');
+}
+
+async function* blockNumbersStream(client, bucketName, startAfter, pageSize = 50) {
+    let listObjects;
+    do {
+        listObjects = await client.send(
+            new ListObjectsV2Command({
+                Bucket: bucketName,
+                MaxKeys: pageSize,
+                Delimiter: '/',
+                StartAfter: normalizeBlockHeight(startAfter),
+                RequestPayer: 'requester',
+            })
+        );
+        const blockNumbers = (listObjects.CommonPrefixes || []).map((p) => parseInt(p.Prefix.split('/')[0]));
+
+        for (const blockNumber of blockNumbers) {
+            yield blockNumber;
+        }
+
+        startAfter = blockNumbers[blockNumbers.length - 1] + 1;
+    } while (listObjects.IsTruncated);
+}
+
+async function* chunkStream(stream, chunkSize) {
+    let chunk = [];
+    for await (const item of stream) {
+        chunk.push(item);
+        if (chunk.length >= chunkSize) {
+            yield chunk;
+            chunk = [];
+        }
+    }
+    if (chunk.length) {
+        yield chunk;
+    }
 }
 
 async function sync(bucketName, startAfter, limit = 1000) {
@@ -17,6 +54,11 @@ async function sync(bucketName, startAfter, limit = 1000) {
 
     const dstDir = `./lake-data/${bucketName}`;
     const MAX_SHARDS = 4;
+    const PAGE_SIZE = 1000;
+    const CHUNK_SIZE = 32;
+
+    const endAt = startAfter + limit;
+    console.log(`Syncing ${bucketName} from ${startAfter} to ${endAt}`);
 
     const timeStarted = Date.now();
     let blocksProcessed = 0;
@@ -27,20 +69,14 @@ async function sync(bucketName, startAfter, limit = 1000) {
         await fs.mkdir(`${dstDir}/${i}`, { recursive: true });
     }
 
-    let listObjects;
-    do {
-        listObjects = await client.send(
-            new ListObjectsV2Command({
-                Bucket: bucketName,
-                MaxKeys: limit,
-                Delimiter: '/',
-                StartAfter: normalizeBlockHeight(startAfter),
-                RequestPayer: 'requester',
-            })
-        );
-        const blockNumbers = (listObjects.CommonPrefixes || []).map((p) => parseInt(p.Prefix.split('/')[0]));
+    // Iterate blockNumbers stream one chunk at a time
+    for await (const blockNumbers of chunkStream(blockNumbersStream(client, bucketName, startAfter, PAGE_SIZE), CHUNK_SIZE)) {
+        const filteredBlockNumbers = blockNumbers.filter((blockNumber) => blockNumber < endAt);
+        if (!filteredBlockNumbers.length) {
+            break;
+        }
 
-        await Promise.all(blockNumbers.map(async (blockNumber) => {
+        await Promise.all(filteredBlockNumbers.map(async (blockNumber) => {
             const blockHeight = normalizeBlockHeight(blockNumber);
             const blockData = await client.send(
                 new GetObjectCommand({
@@ -79,7 +115,7 @@ async function sync(bucketName, startAfter, limit = 1000) {
         }));
 
         startAfter = blockNumbers[blockNumbers.length - 1] + 1;
-    } while (listObjects.IsTruncated);
+    }
 }
 
 const [, , bucketName, startAfter, limit] = process.argv;
@@ -88,7 +124,7 @@ if (!bucketName) {
     process.exit(1);
 }
 
-sync('near-lake-data-mainnet', startAfter || 0, limit || 50)
+sync(bucketName, parseInt(startAfter || "0"), parseInt(limit || "1000"))
     .catch((error) => {
         console.error(error);
         process.exit(1);
