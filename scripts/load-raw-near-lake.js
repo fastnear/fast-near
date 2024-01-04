@@ -5,7 +5,19 @@ const {
 } = require('@aws-sdk/client-s3');
 
 const fs = require('fs/promises');
-const { parse } = require('path');
+
+// Setup keep-alive agents for AWS
+const { NodeHttpHandler } = require('@smithy/node-http-handler');
+const { Agent: HttpAgent } = require('http');
+const { Agent: HttpsAgent } = require('https');
+const httpAgent = new HttpAgent({ keepAlive: true });
+const httpsAgent = new HttpsAgent({ keepAlive: true });
+
+// Avoid DNS lookups for every request
+const CacheableLookup = require('cacheable-lookup');
+const cacheable = new CacheableLookup();
+cacheable.install(httpAgent);
+cacheable.install(httpsAgent);
 
 function normalizeBlockHeight(number) {
     return number.toString().padStart(12, '0');
@@ -50,6 +62,10 @@ async function* chunkStream(stream, chunkSize) {
 async function sync(bucketName, startAfter, limit = 1000) {
     const client = new S3Client({
         region: 'eu-central-1',
+        requestHandler: new NodeHttpHandler({
+            httpAgent,
+            httpsAgent,
+        }),
     });
 
     const dstDir = `./lake-data/${bucketName}`;
