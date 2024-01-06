@@ -23,6 +23,7 @@
     "@subspace/reed-solomon-erasure.wasm": "^0.2.5",
     "borsh": "^0.6.0",
     "cacheable-lookup": "6",
+    "compressing": "^1.10.0",
     "csv-stringify": "^6.2.1",
     "debug": "^4.3.2",
     "koa": "^2.13.4",

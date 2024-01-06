@@ -1,5 +1,7 @@
 node_modules
 lmdb-data
+lake-data
+lake-data-compressed
 .nyc_output
 .DS_Store
 .env
