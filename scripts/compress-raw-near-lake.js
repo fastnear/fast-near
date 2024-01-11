@@ -10,7 +10,8 @@ function normalizeBlockHeight(number) {
 
 async function compress(bucketName, startAfter, limit) {
     for (let i = 0; i < limit; i += FILES_PER_ARCHIVE) {
-        console.log(i);
+        const blockHeight = normalizeBlockHeight(startAfter + i);
+        console.log(blockHeight);
 
         // TODO: Make dynamic
         const numShards = 4;
@@ -18,11 +19,12 @@ async function compress(bucketName, startAfter, limit) {
             const archiveStream = new compressing.tgz.Stream();
             for (let j = 0; j < FILES_PER_ARCHIVE; j++) {
                 const inFolder = `./lake-data/${bucketName}/${folder}`;
-                archiveStream.addEntry(`${inFolder}/${normalizeBlockHeight(startAfter + i + j)}.json`, { relativePath: `${normalizeBlockHeight(startAfter + i + j)}.json` });
+                const blockHeight = normalizeBlockHeight(startAfter + i + j);
+                archiveStream.addEntry(`${inFolder}/${blockHeight}.json`, { relativePath: `${blockHeight}.json` });
             }
             const outFolder = `./lake-data-compressed/${bucketName}/${folder}`;
             await fs.promises.mkdir(outFolder, { recursive: true });            
-            const outPath = `${outFolder}/${normalizeBlockHeight(startAfter + i)}.tgz`;
+            const outPath = `${outFolder}/${blockHeight}.tgz`;
             const outStream = fs.createWriteStream(outPath);
             await pipeline(archiveStream, outStream);
         }
