@@ -20,7 +20,14 @@ async function compress(bucketName, startAfter, limit) {
             for (let j = 0; j < FILES_PER_ARCHIVE; j++) {
                 const inFolder = `./lake-data/${bucketName}/${folder}`;
                 const blockHeight = normalizeBlockHeight(startAfter + i + j);
-                archiveStream.addEntry(`${inFolder}/${blockHeight}.json`, { relativePath: `${blockHeight}.json` });
+
+                const filePath = `${inFolder}/${blockHeight}.json`;
+                if (!fs.existsSync(filePath)) {
+                    console.log(`File ${filePath} does not exist, skipping block height ${blockHeight}`);
+                    continue;
+                }
+
+                archiveStream.addEntry(filePath, { relativePath: `${blockHeight}.json` });
             }
             const outFolder = `./lake-data-compressed/${bucketName}/${folder}`;
             await fs.promises.mkdir(outFolder, { recursive: true });            
