@@ -29,7 +29,9 @@ async function compress(bucketName, startAfter, limit) {
 
                 archiveStream.addEntry(filePath, { relativePath: `${blockHeight}.json` });
             }
-            const outFolder = `./lake-data-compressed/${bucketName}/${folder}`;
+
+            const [prefix1, prefix2] = blockHeight.match(/^(.{6})(.{3})/).slice(1);
+            const outFolder = `./lake-data-compressed/${bucketName}/${folder}/${prefix1}/${prefix2}`;
             await fs.promises.mkdir(outFolder, { recursive: true });            
             const outPath = `${outFolder}/${blockHeight}.tgz`;
             const outStream = fs.createWriteStream(outPath);
