@@ -74,13 +74,18 @@ async function getObject(client, { bucketName, key }) {
     });
 }
 
-async function* blockNumbersStream(client, bucketName, startAfter, pageSize = 50) {
+async function* blockNumbersStream(client, bucketName, startAfter, limit, pageSize = 250) {
     let listObjectsResult;
+    const endAt = startAfter + limit;
     do {
         listObjectsResult = await listObjects(client, { bucketName, startAfter: normalizeBlockHeight(startAfter), maxKeys: pageSize });
         const blockNumbers = (listObjectsResult.CommonPrefixes || []).map((p) => parseInt(p.Prefix.split('/')[0]));
 
         for (const blockNumber of blockNumbers) {
+            if (parseInt(blockNumber, 10) >= endAt) {
+                return;
+            }
+
             yield blockNumber;
         }
 
@@ -96,64 +101,44 @@ async function asBuffer(readable) {
     return Buffer.concat(chunks);
 }
 
-async function *blockPromises(client, bucketName, startAfter, limit = 1000) {
-    const endAt = startAfter + limit;
-
-    for await (const blockNumber of blockNumbersStream(client, bucketName, startAfter)) {
-        if (blockNumber >= endAt) {
-            break;
-        }
-
-        const promise = (async () => {
-            const blockHeight = normalizeBlockHeight(blockNumber);
-            console.log(blockHeight, 'start');
-            console.time(blockHeight);
-            try {
-            const blockData = await getObject(client, { bucketName, key: `${blockHeight}/block.json` });
-
-            const blockBuffer = await asBuffer(blockData.Body);
-            const block = JSON.parse(blockBuffer.toString('utf8'));
-
-            return { block: blockBuffer, blockHeight, shards: await Promise.all(
-                block.chunks.map(async (_, i) => {
-                    const chunkData = await getObject(client, { bucketName, key: `${blockHeight}/shard_${i}.json` });
-
-                    return chunkData.Body;
-                    // return await asBuffer(chunkData.Body);
-                }))
-            };
-        } finally {
-            console.timeEnd(blockHeight);
-        }
-        })();
-
-        // NOTE: Wrapping into object to avoid promise resolution
-        yield { promise, blockNumber };
-    }
-}
-
-async function *chunkByBlockNumber(blockPromises, chunkSize = 5) {
-    // Iterate through block promises and group them by block number rounded to chunkSize
+async function *chunkBlockNumbers(blockNumbers, chunkSize = 5) {
+    // Iterate through block numbers and group them by block number rounded to chunkSize
     let lastBlockNumber = null;
     let items = [];
 
-    for await (const blockPromise of blockPromises) {
-        const blockNumberRounded = Math.floor(blockPromise.blockNumber / chunkSize) * chunkSize;
+    for await (const blockNumber of blockNumbers) {
+        const blockNumberRounded = Math.floor(blockNumber / chunkSize) * chunkSize;
         if (lastBlockNumber === null) {
             lastBlockNumber = blockNumberRounded;
         }
 
         if (blockNumberRounded > lastBlockNumber) {
-            yield { blockNumber: lastBlockNumber, items };
+            yield items;
             lastBlockNumber = blockNumberRounded;
             items = [];
         }
 
-        items.push(blockPromise);
+        items.push(blockNumber);
+
     }
 
     if (items.length > 0) {
-        yield { blockNumber: lastBlockNumber, items };
+        yield items;
+    }
+}
+
+async function withTimeMeasure(name, fn, timeout = 15000) {
+    // console.time(name);
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+        console.warn(`${name} took more than ${Date.now() - startTime}ms`);
+    }, timeout);
+
+    try {
+        return await fn();
+    } finally {
+        clearInterval(interval);
+        // console.timeEnd(name);
     }
 }
 
@@ -173,28 +158,29 @@ async function sync(bucketName, startAfter, limit = 1000) {
 
     const timeStarted = Date.now();
     let blocksProcessed = 0;
+    let getFileCount = 0;
 
     const writeQueue = [];
-    const MAX_WRITE_QUEUE = 16;
+    const MAX_WRITE_QUEUE = 128;
 
-    for await (const { blockNumber, items } of chunkByBlockNumber(blockPromises(client, bucketName, startAfter, limit), FILES_PER_ARCHIVE)) {
+    for await (const blockNumbers of chunkBlockNumbers(blockNumbersStream(client, bucketName, startAfter, limit), FILES_PER_ARCHIVE)) {
+        console.log('writeQueue', writeQueue.length, 'getFileCount', getFileCount);
+
         if (writeQueue.length >= MAX_WRITE_QUEUE) {
-            console.time('await writeQueue');
-            // await Promise.race(writeQueue);
-            await writeQueue.shift();
-            console.timeEnd('await writeQueue');
+            await withTimeMeasure('await writeQueue', async () => {
+                await writeQueue.shift();
+            });
         }
 
-        console.time(`task ${blockNumber}`);
-        const task = (async () => {
-            const blocks = await Promise.all(items.map(p => p.promise));
+        const blockNumber = Math.floor(blockNumbers[0] / FILES_PER_ARCHIVE) * FILES_PER_ARCHIVE;
+        const task = withTimeMeasure(`task ${blockNumber}`, async () => {
             const blockHeight = normalizeBlockHeight(blockNumber);
             const [prefix1, prefix2] = blockHeight.match(/^(.{6})(.{3})/).slice(1);
 
             async function writeArchive(folder, entries) {
                 const outFolder = `${dstDir}/${folder}/${prefix1}/${prefix2}`;
                 const outPath = `${outFolder}/${normalizeBlockHeight(blockHeight)}.tgz`;
-                console.time(outPath);
+                // console.time(outPath);
                 const archiveStream = new compressing.tgz.Stream();
                 for (let { data, blockHeight } of entries) {
                     archiveStream.addEntry(data, {
@@ -206,20 +192,52 @@ async function sync(bucketName, startAfter, limit = 1000) {
                 await fs.mkdir(outFolder, { recursive: true });
                 const outStream = createWriteStream(outPath);
                 await pipeline(archiveStream, outStream);
-                console.timeEnd(outPath);
+                // console.timeEnd(outPath);
             }
 
-            await writeArchive('block', blocks.map(({ block, blockHeight }) => ({ data: block, blockHeight })));
-            const maxShards = Math.max(...blocks.map(b => b.shards.length));
-            await Promise.all(Array.from({ length: maxShards }, (_, i) => writeArchive(i, blocks.map(({ shards, blockHeight }) => ({ data: shards[i], blockHeight })))));
+            async function getFile(fileName, blockNumber) {
+                getFileCount++;
+                try {
+                    const blockHeight = normalizeBlockHeight(blockNumber);
+                    const blockResponse = await getObject(client, { bucketName, key: `${blockHeight}/${fileName}` });
+                    const data = await asBuffer(blockResponse.Body);
+                    return { data, blockHeight };
+                } finally {
+                    getFileCount--;
+                    // console.log(`getFileCount: ${getFileCount}`);
+                }
+            }
+
+            const blocks = await withTimeMeasure(`${blockNumber} block`, async () => {
+                // const blocks = await Promise.all(blockNumbers.map((blockNumber) => getFile('block.json', blockNumber)));
+                const blocks = [];
+                for (let blockNumber of blockNumbers) {
+                    blocks.push(await getFile('block.json', blockNumber));
+                }
+                await writeArchive('block', blocks)
+                return blocks;
+            });
+
+            const maxShards = Math.max(...blocks.map(({ data }) => JSON.parse(data.toString('utf8')).chunks.length));
+
+            for (let i = 0; i < maxShards; i++) {
+                await withTimeMeasure(`${blockNumber} shard ${i}`, async () => {
+                    // const shardChunks = await Promise.all(blockNumbers.map((blockNumber) => getFile(`shard_${i}.json`, blockNumber)));
+                    const shardChunks = [];
+                    for (let blockNumber of blockNumbers) {
+                        shardChunks.push(await getFile(`shard_${i}.json`, blockNumber));
+                    }
+                    await writeArchive(i, shardChunks);
+                });
+            }
 
             blocksProcessed += blocks.length;
-            // writeQueue.splice(writeQueue.indexOf(task), 1);
             console.log(blockHeight, `Speed: ${blocksProcessed / ((Date.now() - timeStarted) / 1000)} blocks/s`);
-            console.timeEnd(`task ${blockNumber}`);
-        })();
+        });
         writeQueue.push(task);
     }
+
+    await Promise.all(writeQueue);
 }
 
 const [, , bucketName, startAfter, limit] = process.argv;
