@@ -232,7 +232,10 @@ async function sync(bucketName, startAfter, limit = 1000) {
             }
 
             blocksProcessed += blocks.length;
-            console.log(blockHeight, `Speed: ${blocksProcessed / ((Date.now() - timeStarted) / 1000)} blocks/s`);
+            const timeElapsed = Date.now() - timeStarted;
+            const speed = blocksProcessed / (timeElapsed / 1000);
+            const eta = Math.round((limit - blocksProcessed) / speed);
+            console.log(blockHeight, `Speed: ${speed} blocks/s`, `ETA: ${eta}s`);
         });
         writeQueue.push(task);
     }
