@@ -134,15 +134,15 @@ async function writeChangesFile(outPath, changesByAccount) {
                 offset = buffer.writeUInt8(changes.length, offset);
                 for (let change of changes) {
                     offset = buffer.writeInt32LE(change, offset);
-                }
 
-                // TODO: Adjust this as needed
-                if (offset > PAGE_SIZE - 1000) {
-                    console.log('Writing', outPath, offset);
-                    await new Promise((resolve, reject) => {
-                        outStream.write(buffer.slice(0, offset), e => e ? reject(e) : resolve());
-                    });
-                    offset = 0;
+                    // TODO: Adjust this as needed
+                    if (offset > PAGE_SIZE - 1000) {
+                        console.log('Writing', outPath, offset);
+                        await new Promise((resolve, reject) => {
+                            outStream.write(buffer.slice(0, offset), e => e ? reject(e) : resolve());
+                        });
+                        offset = 0;
+                    }
                 }
             }
         }
