@@ -102,8 +102,12 @@ async function writeChanges(outFolder, changesByAccount) {
         delete changesByAccount[accountId];
     }
 
-
     await writeChangesFile(`${outFolder}/changes.dat`, changesByAccount);
+
+    // TODO: Remove this debuggin code
+    for await (const { accountId, key, changes } of readChangesFile(`${outFolder}/changes.dat`)) {
+        console.log('readChangesFile:', accountId, key, changes);
+    }
 }
 
 const PAGE_SIZE = 64 * 1024;
@@ -272,43 +276,57 @@ function changeKey(type, changeData) {
 async function *readChangesFile(inPath) {
     const file = await open(inPath, 'r');
 
-    const int32Buffer = Buffer.alloc(4);
-    async function readInt32() {
-        await file.read({ buffer: int32Buffer, length: 4 });
-        return int32Buffer.readUInt32LE(0);
+    const buffer = Buffer.alloc(PAGE_SIZE);
+    let offset = 0;
+
+    function readInt32() {
+        const result = buffer.readInt32LE(offset);
+        offset += 4;
+        return result;
     }
 
-    const int16Buffer = Buffer.alloc(2);
-    async function readUInt16() {
-        await file.read({ buffer: int16Buffer, length: 2 });
-        return int16Buffer.readUInt16LE(0);
+    function readUInt16() {
+        const result = buffer.readUInt16LE(offset);
+        offset += 2;
+        return result;
     }
 
-    async function readString() {
-        const length = await readUInt16();
+    function readString() {
+        if (offset + 2 >= PAGE_SIZE) {
+            return null;
+        }
+        
+        const length = readUInt16();
         if (length === 0) {
             return null;
         }
 
-        const buffer = Buffer.alloc(length);
-        await file.read({ buffer, length });
-        return buffer.toString('utf-8');
+        const result = buffer.toString('utf-8', offset, offset + length);
+        offset += length;
+        return result;
     }
 
-    // TODO: Iterate through pages
-    let accountId;
-    while (accountId = await readString()) {
-        let key;
-        while (key = await readString()) {
-            const changes = accountChanges[key] || [];
-            const count = await readUInt16();
-            for (let i = 0; i < count; i++) {
-                changes.push(await readInt32());
+    let position = 0;
+    let bytesRead;
+    do {
+        ({ bytesRead } = await file.read({ buffer, length: PAGE_SIZE, position }));
+
+        let accountId;
+        while (accountId = readString()) {
+            let key;
+            while (key = readString()) {
+                const count = readUInt16();
+                const changes = new Array(count);
+                for (let i = 0; i < count; i++) {
+                    changes[i] = readInt32();
+                }
+
+                yield { accountId, key, changes };
             }
-
-            yield { accountId, key, changes };
         }
-    }
+
+        position += PAGE_SIZE;
+    } while (bytesRead === PAGE_SIZE);
 }
 
 function normalizeBlockHeight(number) {
