@@ -90,7 +90,6 @@ async function main() {
 const MIN_CHANGES_PER_FILE = 1000;
 
 async function writeChanges(outFolder, changesByAccount) {
-    console.log('changesByAccount', changesByAccount);
     for (let accountId in changesByAccount) {
         const accountChanges = changesByAccount[accountId];
         const totalChanges = Object.values(accountChanges).reduce((sum, changes) => sum + changes.length, 0);
@@ -145,7 +144,8 @@ async function writeChangesFile(outPath, changesByAccount) {
         }
     }
 
-    for (let accountId in changesByAccount) {
+    const sortedAccountIds = Object.keys(changesByAccount).sort();
+    for (let accountId of sortedAccountIds) {
         const accountIdLength = Buffer.byteLength(accountId) + 2;
         if (offset + accountIdLength >= PAGE_SIZE) {
             await flushPage(accountId);
@@ -154,10 +154,10 @@ async function writeChangesFile(outPath, changesByAccount) {
         }
 
         const accountChanges = changesByAccount[accountId];
+        const sortedKeys = Object.keys(accountChanges).sort();
 
-        // TODO: Align all changes by page size, start new page with account id
         // NOTE: This is needed to avoid reading the whole file to find account changes
-        for (let key in accountChanges) {
+        for (let key of sortedKeys) {
             const allChanges = accountChanges[key];
 
             // NOTE: Changes arrays are split into chunks of up to 0xFF items
