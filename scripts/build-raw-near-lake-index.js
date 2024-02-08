@@ -19,15 +19,9 @@ async function main() {
 
     for (let shard of shards) {
         console.log('Processing shard', shard);
-
-        const unmerged = [];
-        for await (const changesByAccount of changesByAccountStream(shard, startBlockNumber, endBlockNumber)) {
-            unmerged.push(changesByAccount);
-        }
-
-        const allChangesByAccount = mergeChangesByAccount(unmerged);
-        // console.log('allChangesByAccount', allChangesByAccount);
-
+        const allChangesByAccount = await reduceStream(
+            changesByAccountStream(shard, startBlockNumber, endBlockNumber),
+            (a, b) => merge(a, b, mergeChanges));
         await writeChanges(`${dstDir}/${shard}`, allChangesByAccount);
     }
 
@@ -130,7 +124,6 @@ async function writeChangesFile(outPath, changesByAccount) {
     async function flushPage(accountId) {
         console.log('Writing', outPath, accountId, offset);
 
-        // TODO: Make sure that at least 4 zeros indicate the end of the page
         // Fill the rest of the page with zeros
         buffer.fill(0, offset);
 
@@ -185,7 +178,11 @@ async function writeChangesFile(outPath, changesByAccount) {
             }
         }
 
-        writeUInt16(0);
+        if (offset + 2 < PAGE_SIZE) {
+            // Write zero length string to indicate no more keys for this account
+            // If it doesn't fit page gonna be flushed on next iteration anyway
+            writeUInt16(0);
+        }
     }
 
     await flushPage();
@@ -205,6 +202,37 @@ function reduceRecursive(items, fn) {
         reduceRecursive(items.slice(items.length / 2), fn));
 }
 
+async function reduceStream(stream, fn) {
+    // TODO: Adjust / pass as option
+    const CHUNK_SIZE = 1000;
+    // TODO: Adjust chunk size dynamically as the stream progresses?
+
+    const chunk = [];
+    let result;
+    for await (const item of stream) {
+        chunk.push(item);
+
+        if (chunk.length >= CHUNK_SIZE) {
+            if (result === undefined) {
+                result = reduceRecursive(chunk, fn);
+            } else {
+                result = fn(result, reduceRecursive(chunk, fn));
+            }
+            chunk.length = 0;
+        }
+    }
+
+    if (chunk.length === 0) {
+        return result;
+    }
+
+    if (result === undefined) {
+        return reduceRecursive(chunk, fn);
+    }
+
+    return fn(result, reduceRecursive(chunk, fn));
+}
+
 function merge(a, b, fn) {
     for (k in b) {
         if (a[k]) {
@@ -214,10 +242,6 @@ function merge(a, b, fn) {
         }
     }
     return a;
-}
-
-function mergeChangesByAccount(changesByAccountList) {
-    return reduceRecursive(changesByAccountList, (a, b) => merge(a, b, mergeChanges));
 }
 
 function mergeChanges(a, b) {
@@ -295,7 +319,7 @@ async function *readChangesFile(inPath) {
         if (offset + 2 >= PAGE_SIZE) {
             return null;
         }
-        
+
         const length = readUInt16();
         if (length === 0) {
             return null;
