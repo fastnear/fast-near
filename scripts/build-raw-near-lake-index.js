@@ -203,21 +203,24 @@ function reduceRecursive(items, fn) {
 }
 
 async function reduceStream(stream, fn) {
-    // TODO: Adjust / pass as option
-    const CHUNK_SIZE = 1000;
-    // TODO: Adjust chunk size dynamically as the stream progresses?
+    // TODO: Adjust / pass as option?
+    const MAX_CHUNK_SIZE = 8 * 1024;
+    let chunkSize = 16
+    let processed = 0;
 
     const chunk = [];
     let result;
     for await (const item of stream) {
         chunk.push(item);
 
-        if (chunk.length >= CHUNK_SIZE) {
+        if (chunk.length >= chunkSize) {
             if (result === undefined) {
                 result = reduceRecursive(chunk, fn);
             } else {
                 result = fn(result, reduceRecursive(chunk, fn));
             }
+            processed += chunk.length;
+            chunkSize = Math.min(MAX_CHUNK_SIZE, processed);
             chunk.length = 0;
         }
     }
