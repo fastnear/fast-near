@@ -180,8 +180,10 @@ async function writeChangesFile(outPath, changesByAccount) {
                     changes = changes.slice(0, maxChangesLength);
                 }
                 writeVarint(changes.length);
+                let prevChange = 0;
                 for (let change of changes) {
-                    writeVarint(change);
+                    writeVarint(change - prevChange);
+                    prevChange = change;
                 }
                 i += changes.length;
             }
@@ -365,6 +367,9 @@ async function *readChangesFile(inPath) {
                 const changes = new Array(count);
                 for (let i = 0; i < count; i++) {
                     changes[i] = readVarint();
+                    if (i > 0) {
+                        changes[i] += changes[i - 1];
+                    }
                 }
 
                 yield { accountId, key, changes };
