@@ -340,6 +340,7 @@ async function *readChangesFile(inPath) {
     let bytesRead;
     do {
         ({ bytesRead } = await file.read({ buffer, length: PAGE_SIZE, position }));
+        buffer.fill(0, bytesRead);
         offset = 0;
 
         let accountId;
