@@ -63,7 +63,9 @@ async function main() {
                 for (let { type, change } of state_changes) {
                     const { account_id, ...changeData } = change;
                     const accountChanges = changesByAccount[account_id];
-                    const key = changeKey(type, changeData);
+                    // TODO: Avoid conversion to string key
+                    const keyBytes = changeKey(type, changeData);
+                    const key = keyBytes.toString('base64');
                     if (!accountChanges) {
                         changesByAccount[account_id] = { [key]: [blockHeight] };
                     } else {
@@ -124,9 +126,11 @@ async function writeChangesFile(outPath, changesByAccount) {
         offset++;
     }
 
-    function writeString(value) {
+    function writeBuffer(value) {
         writeVarint(value.length);
-        offset += buffer.write(value, offset);
+        const valueBuffer = Buffer.from(value);
+        valueBuffer.copy(buffer, offset);
+        offset += valueBuffer.length;
     }
 
     async function flushPage(accountId) {
@@ -142,7 +146,7 @@ async function writeChangesFile(outPath, changesByAccount) {
         offset = 0;
 
         if (!isLastPage) {
-            writeString(accountId);
+            writeBuffer(accountId);
         }
     }
 
@@ -152,15 +156,16 @@ async function writeChangesFile(outPath, changesByAccount) {
         if (offset + accountIdLength >= PAGE_SIZE) {
             await flushPage(accountId);
         } else {
-            writeString(accountId);
+            writeBuffer(accountId);
         }
-
         const accountChanges = changesByAccount[accountId];
         const sortedKeys = Object.keys(accountChanges).sort();
 
         // NOTE: This is needed to avoid reading the whole file to find account changes
-        for (let key of sortedKeys) {
-            const allChanges = accountChanges[key];
+        for (let keyStr of sortedKeys) {
+            // TODO: Avoid conversion to string key
+            const keyBytes = Buffer.from(keyStr, 'base64');
+            const allChanges = accountChanges[keyStr];
 
             // NOTE: Changes arrays are split into chunks of up to 0xFF items
             // TODO: Use 0xFFFF instead of 0xFF
@@ -168,13 +173,14 @@ async function writeChangesFile(outPath, changesByAccount) {
             for (let i = 0; i < allChanges.length; ) {
                 let changes = allChanges.slice(i, i + MAX_CHANGES_PER_RECORD);
 
-                const keyLength = Buffer.byteLength(key) + 2;
+                const keyLength = keyBytes.length + 2;
                 const minChangesLength = 2 + 4 * 8; // 8 changes
                 if (offset + keyLength + minChangesLength > PAGE_SIZE) {
                     await flushPage(accountId);
                 }
-                writeString(key);
+                writeBuffer(keyBytes);
 
+                // TODO: Calculate actual varint length
                 const maxChangesLength = Math.floor((buffer.length - offset - 2) / 4);
                 if (changes.length > maxChangesLength) {
                     changes = changes.slice(0, maxChangesLength);
@@ -192,7 +198,7 @@ async function writeChangesFile(outPath, changesByAccount) {
         if (offset + 2 < PAGE_SIZE) {
             // Write zero length string to indicate no more keys for this account
             // If it doesn't fit page gonna be flushed on next iteration anyway
-            writeString('');
+            writeBuffer('');
         }
     }
 
@@ -291,21 +297,25 @@ function mergeSortedArrays(a, b) {
     return result;
 }
 
-function changeKey(type, changeData) {
+function changeKey(type, { public_key, key_base64 } ) {
     // TODO: Adjust this as needed
     switch (type) {
         case 'account_update':
         case 'account_deletion':
-            return 'a:';
+            return Buffer.from('a');
         case 'access_key_update':
-        case 'access_key_deletion':
-            return `k:${changeData.public_key}`;
+        case 'access_key_deletion': {
+            if (public_key.startsWith('ed25519:')) {
+                return Buffer.concat([Buffer.from('e'), bs58.decode(public_key.slice(8))]);
+            }
+            return Buffer.from(`k${changeData.public_key}`);
+        }
         case 'data_update':
         case 'data_deletion':
-            return `d:${changeData.key_base64}`;
+            return Buffer.concat([Buffer.from('d'), Buffer.from(key_base64, 'base64')]);
         case 'contract_code_update':
         case 'contract_code_deletion':
-            return 'c:';
+            return Buffer.from('c');
         default:
             throw new Error(`Unknown type ${type}`);
     }
@@ -334,7 +344,8 @@ function readPage(buffer) {
         }
     }
 
-    function readString() {
+    function readBuffer() {
+        // TODO: Is +2 correct here for varint length?
         if (offset + 2 >= PAGE_SIZE) {
             return null;
         }
@@ -344,16 +355,20 @@ function readPage(buffer) {
             return null;
         }
 
-        const result = buffer.toString('utf-8', offset, offset + length);
+        const result = buffer.slice(offset, offset + length);
         offset += length;
         return result;
+    }
+
+    function readString() {
+        return readBuffer()?.toString('utf-8');
     }
 
     const result = [];
     let accountId;
     while (accountId = readString()) {
         let key;
-        while (key = readString()) {
+        while (key = readBuffer()) {
             const count = readVarint();
             const changes = new Array(count);
             for (let i = 0; i < count; i++) {
