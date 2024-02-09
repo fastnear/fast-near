@@ -129,12 +129,13 @@ async function writeChangesFile(outPath, changesByAccount) {
         // Fill the rest of the page with zeros
         buffer.fill(0, offset);
 
+        const isLastPage = !accountId;
         await new Promise((resolve, reject) => {
-            outStream.write(buffer, e => e ? reject(e) : resolve());
+            outStream.write(isLastPage ? buffer.subarray(0, offset) : buffer, e => e ? reject(e) : resolve());
         });
         offset = 0;
 
-        if (accountId) {
+        if (!isLastPage) {
             writeString(accountId);
         }
     }
