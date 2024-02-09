@@ -311,10 +311,7 @@ function changeKey(type, changeData) {
     }
 }
 
-async function *readChangesFile(inPath) {
-    const file = await open(inPath, 'r');
-
-    const buffer = Buffer.alloc(PAGE_SIZE);
+function readPage(buffer) {
     let offset = 0;
 
     function readVarint() {
@@ -352,29 +349,38 @@ async function *readChangesFile(inPath) {
         return result;
     }
 
+    const result = [];
+    let accountId;
+    while (accountId = readString()) {
+        let key;
+        while (key = readString()) {
+            const count = readVarint();
+            const changes = new Array(count);
+            for (let i = 0; i < count; i++) {
+                changes[i] = readVarint();
+                if (i > 0) {
+                    changes[i] += changes[i - 1];
+                }
+            }
+
+            result.push({ accountId, key, changes });
+        }
+    }
+    return result;
+}
+
+async function *readChangesFile(inPath) {
+    const file = await open(inPath, 'r');
+
+    const buffer = Buffer.alloc(PAGE_SIZE);
+
     let position = 0;
     let bytesRead;
     do {
         ({ bytesRead } = await file.read({ buffer, length: PAGE_SIZE, position }));
         buffer.fill(0, bytesRead);
-        offset = 0;
 
-        let accountId;
-        while (accountId = readString()) {
-            let key;
-            while (key = readString()) {
-                const count = readVarint();
-                const changes = new Array(count);
-                for (let i = 0; i < count; i++) {
-                    changes[i] = readVarint();
-                    if (i > 0) {
-                        changes[i] += changes[i - 1];
-                    }
-                }
-
-                yield { accountId, key, changes };
-            }
-        }
+        yield *readPage(buffer);
 
         position += PAGE_SIZE;
     } while (bytesRead === PAGE_SIZE);
