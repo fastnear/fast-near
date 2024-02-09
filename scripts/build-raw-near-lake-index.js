@@ -114,12 +114,18 @@ async function writeChangesFile(outPath, changesByAccount) {
     const buffer = Buffer.alloc(PAGE_SIZE);
     let offset = 0;
 
-    function writeUInt16(value) {
-        offset = buffer.writeUInt16LE(value, offset);
+    function writeVarint(value) {
+        while (value >= 0x80) {
+            buffer.writeUInt8((value & 0x7F) | 0x80, offset);
+            value = value >>> 7;
+            offset++;
+        }
+        buffer.writeUInt8(value & 0x7F, offset);
+        offset++;
     }
 
     function writeString(value) {
-        writeUInt16(value.length);
+        writeVarint(value.length);
         offset += buffer.write(value, offset);
     }
 
@@ -173,9 +179,9 @@ async function writeChangesFile(outPath, changesByAccount) {
                 if (changes.length > maxChangesLength) {
                     changes = changes.slice(0, maxChangesLength);
                 }
-                writeUInt16(changes.length);
+                writeVarint(changes.length);
                 for (let change of changes) {
-                    offset = buffer.writeInt32LE(change, offset);
+                    writeVarint(change);
                 }
                 i += changes.length;
             }
@@ -184,7 +190,7 @@ async function writeChangesFile(outPath, changesByAccount) {
         if (offset + 2 < PAGE_SIZE) {
             // Write zero length string to indicate no more keys for this account
             // If it doesn't fit page gonna be flushed on next iteration anyway
-            writeUInt16(0);
+            writeString('');
         }
     }
 
@@ -309,16 +315,24 @@ async function *readChangesFile(inPath) {
     const buffer = Buffer.alloc(PAGE_SIZE);
     let offset = 0;
 
-    function readInt32() {
-        const result = buffer.readInt32LE(offset);
-        offset += 4;
-        return result;
-    }
+    function readVarint() {
+        const result = buffer.readUInt8(offset);
+        offset++;
+        if (result < 0x80) {
+            return result;
+        }
 
-    function readUInt16() {
-        const result = buffer.readUInt16LE(offset);
-        offset += 2;
-        return result;
+        let value = result & 0x7F;
+        let shift = 7;
+        while (true) {
+            const byte = buffer.readUInt8(offset);
+            offset++;
+            value |= (byte & 0x7F) << shift;
+            if (byte < 0x80) {
+                return value;
+            }
+            shift += 7;
+        }
     }
 
     function readString() {
@@ -326,7 +340,7 @@ async function *readChangesFile(inPath) {
             return null;
         }
 
-        const length = readUInt16();
+        const length = readVarint();
         if (length === 0) {
             return null;
         }
@@ -347,10 +361,10 @@ async function *readChangesFile(inPath) {
         while (accountId = readString()) {
             let key;
             while (key = readString()) {
-                const count = readUInt16();
+                const count = readVarint();
                 const changes = new Array(count);
                 for (let i = 0; i < count; i++) {
-                    changes[i] = readInt32();
+                    changes[i] = readVarint();
                 }
 
                 yield { accountId, key, changes };
