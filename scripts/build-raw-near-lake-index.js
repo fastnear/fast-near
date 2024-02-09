@@ -1,6 +1,6 @@
 
 const fs = require('fs');
-const { writeFile, open } = require('fs/promises');
+const { writeFile, open, mkdir } = require('fs/promises');
 const zlib = require('zlib');
 const tar = require('tar-stream');
 
@@ -22,7 +22,7 @@ async function main() {
         const allChangesByAccount = await reduceStream(
             changesByAccountStream(shard, startBlockNumber, endBlockNumber),
             (a, b) => merge(a, b, mergeChanges));
-        await writeChanges(`${dstDir}/${shard}`, allChangesByAccount);
+        await writeChanges(`${dstDir}/${shard}/index`, allChangesByAccount);
     }
 
     async function *changesByAccountStream(shard, startBlockNumber, endBlockNumber) {
@@ -84,6 +84,8 @@ async function main() {
 const MIN_CHANGES_PER_FILE = 1000;
 
 async function writeChanges(outFolder, changesByAccount) {
+    await mkdir(outFolder, { recursive: true });
+
     for (let accountId in changesByAccount) {
         const accountChanges = changesByAccount[accountId];
         const totalChanges = Object.values(accountChanges).reduce((sum, changes) => sum + changes.length, 0);
