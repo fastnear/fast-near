@@ -1,3 +1,6 @@
+const { BORSH_SCHEMA, PublicKey } = require('./data-model');
+const { serialize } = require('borsh');
+
 const ACCOUNT_SCOPE = 'a';
 const DATA_SCOPE = 'd';
 const ACCESS_KEY_SCOPE = 'k';
@@ -5,7 +8,7 @@ const ACCESS_KEY_SCOPE = 'k';
 // TODO: Check if these still needed, if needed - refactor with _SCOPE constants
 const accountKey = accountId => Buffer.from(`a:${accountId}`);
 const dataKey = (accountId, storageKey) => Buffer.concat([Buffer.from(`d:${accountId}:`), storageKey]);
-const accessKeyKey = (accountId, storageKey) => Buffer.concat([Buffer.from(`k:${accountId}:`), storageKey]);
+const accessKeyKey = (accountId, publicKey) => Buffer.concat([Buffer.from(`k:${accountId}:`), serialize(BORSH_SCHEMA, PublicKey.fromString(publicKey))]);
 
 const allKeysKey = (scope, accountId) => Buffer.from(`k:${scope}:${accountId}`);
 

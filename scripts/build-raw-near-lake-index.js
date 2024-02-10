@@ -3,7 +3,9 @@ const fs = require('fs');
 const { writeFile, open, mkdir } = require('fs/promises');
 const zlib = require('zlib');
 const tar = require('tar-stream');
-const bs58 = require('bs58');
+
+const { BORSH_SCHEMA, PublicKey } = require('../data-model');
+const { serialize } = require('borsh');
 
 async function main() {
 
@@ -110,6 +112,13 @@ async function writeChanges(outFolder, changesByAccount) {
     for await (const { accountId, key, changes } of readChangesFile(`${outFolder}/changes.dat`)) {
         console.log('readChangesFile:', accountId, key, changes);
     }
+}
+
+function shardForAccount(accountId) {
+    // TODO: Don't hardcode this
+    // NOTE: This needs to match nearcore logic here: https://github.com/near/nearcore/blob/c6afdd71005a0f9b3e57244188ca02b97eeb0395/core/primitives/src/shard_layout.rs#L239
+    const boundaryAccounts = ["aurora", "aurora-0", "kkuuue2akv_1630967379.near"];
+    return boundaryAccounts.findIndex(boundaryAccount => accountId < boundaryAccount);
 }
 
 const PAGE_SIZE = 64 * 1024;
@@ -305,10 +314,10 @@ function changeKey(type, { public_key, key_base64 } ) {
             return Buffer.from('a');
         case 'access_key_update':
         case 'access_key_deletion': {
-            if (public_key.startsWith('ed25519:')) {
-                return Buffer.concat([Buffer.from('e'), bs58.decode(public_key.slice(8))]);
-            }
-            return Buffer.from(`k${changeData.public_key}`);
+            return Buffer.concat([
+                Buffer.from(`k`),
+                serialize(BORSH_SCHEMA, PublicKey.fromString(public_key))
+            ]);
         }
         case 'data_update':
         case 'data_deletion':

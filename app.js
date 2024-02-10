@@ -12,9 +12,9 @@ const isJSON = require('./utils/is-json');
 const { runContract, getWasmModule } = require('./run-contract');
 const storage = require('./storage');
 const { accountKey, accessKeyKey } = require('./storage-keys');
-const { deserialize, serialize } = require('borsh');
+const { deserialize } = require('borsh');
 const bs58 = require('bs58');
-const { BORSH_SCHEMA, Account, AccessKey, PublicKey } = require('./data-model');
+const { BORSH_SCHEMA, Account, AccessKey, } = require('./data-model');
 
 const parseQueryArgs = async (ctx, next) => {
     // TODO: Refactor/merge with web4?
@@ -148,7 +148,7 @@ router.get('/account/:accountId/key/:publicKey', resolveBlockHeight, async ctx =
     const { accountId, publicKey } = ctx.params;
 
     // TODO: Refactor with JSON-RPC version and other similar methods?
-    const storageKey = accessKeyKey(accountId, serialize(BORSH_SCHEMA, PublicKey.fromString(publicKey)));
+    const storageKey = accessKeyKey(accountId, publicKey);
     const data = await storage.getLatestData(storageKey, ctx.blockHeight);
     if (!data) {
         ctx.throw(404);
