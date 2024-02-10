@@ -163,8 +163,6 @@ function readPage(buffer) {
     return result;
 }
 
-const MAX_ACCOUNT_ID_LENGTH = 64 + 2;
-
 async function *readChangesFile(inPath, { accountId, keyPrefix }) {
     const file = await open(inPath, 'r');
     try {
@@ -178,11 +176,22 @@ async function *readChangesFile(inPath, { accountId, keyPrefix }) {
             let right = Math.floor(size / PAGE_SIZE);
             while (left < right) {
                 const mid = left + Math.floor((right - left) / 2);
-                await file.read({ buffer, length: MAX_ACCOUNT_ID_LENGTH, position: mid * PAGE_SIZE });
+                // TODO: Check if reading less than PAGE_SIZE helpful - in that case maybe decrease PAGE_SIZE?
+                await file.read({ buffer, length: PAGE_SIZE, position: mid * PAGE_SIZE });
 
                 const reader = new BufferReader(buffer);
                 const midAccountId = reader.readString();
-                if (midAccountId >= accountId) {
+
+                let higherOrEqual = midAccountId >= accountId;
+                if (keyPrefix && midAccountId === accountId) {
+                    const key = reader.readBuffer();
+                    const cmp = keyPrefix.compare(key.subarray(0, keyPrefix.length));
+                    if (cmp > 0) {
+                        higherOrEqual = false;
+                    }
+                }
+
+                if (higherOrEqual) {
                     right = mid;
                 } else {
                     left = mid + 1;
@@ -202,13 +211,13 @@ async function *readChangesFile(inPath, { accountId, keyPrefix }) {
             if (!accountId) {
                 yield *readPage(buffer);
             } else {
+                console.log('position', position.toString(16));
                 const items = readPage(buffer);
                 for (let item of items) {
                     if (item.accountId === accountId) {
                         needToSkip = false;
 
-                        // TODO: Binary search for the key as well (esp if multipage accounts)?
-                        // TODO: Or maybe just take into account when searching for account page (parsing one page linearly is fine)
+                        // TODO: Binary search for the key as well? Note that we already take it into account when searching for the page
                         if (keyPrefix) {
                             const { key } = item;
                             const cmp = keyPrefix.compare(key.subarray(0, keyPrefix.length));
