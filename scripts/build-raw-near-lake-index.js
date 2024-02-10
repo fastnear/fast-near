@@ -3,6 +3,7 @@ const fs = require('fs');
 const { writeFile, open, mkdir } = require('fs/promises');
 const zlib = require('zlib');
 const tar = require('tar-stream');
+const bs58 = require('bs58');
 
 async function main() {
 
