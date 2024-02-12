@@ -26,7 +26,6 @@ async function main() {
 
     async function *changesByAccountStream(shard, startBlockNumber, endBlockNumber) {
         const blocksStream = readBlocks(dstDir, shard, startBlockNumber, endBlockNumber);
-        const changesByAccount = {};
         for await (const { data } of blocksStream) {
             const { state_changes, chunk } = JSON.parse(data.toString('utf-8'));
             if (!chunk) {
@@ -34,7 +33,7 @@ async function main() {
             }
 
             const blockHeight = chunk.header.height_included;
-
+            const changesByAccount = {};
             for (let { type, change } of state_changes) {
                 const { account_id, ...changeData } = change;
                 const accountChanges = changesByAccount[account_id];
@@ -51,13 +50,13 @@ async function main() {
                     }
                 }
             }
-        }
 
-        for (let accountChanges of Object.values(changesByAccount)) {
-            accountChanges.sort((a, b) => a.key.compare(b.key));
-        }
+            for (let accountChanges of Object.values(changesByAccount)) {
+                accountChanges.sort((a, b) => a.key.compare(b.key));
+            }
 
-        yield changesByAccount;
+            yield changesByAccount;
+        }
     }
 }
 
@@ -91,7 +90,8 @@ async function writeChanges(outFolder, changesByAccount) {
 
     for await (const { accountId, key, changes } of readChangesFile(`${outFolder}/app.nearcrowd.near.dat`, {
             accountId: 'app.nearcrowd.near',
-            keyPrefix: Buffer.from('6b00', 'hex'),
+            keyPrefix: Buffer.from('a'),
+            // keyPrefix: Buffer.from('6b00', 'hex'),
             // keyPrefix: Buffer.from('64', 'hex'),
             // keyPrefix: Buffer.from('6474', 'hex'),
         })) {
