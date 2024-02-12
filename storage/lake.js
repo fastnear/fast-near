@@ -1,5 +1,5 @@
 const fs = require('fs/promises');
-const { readChangesFile } = require('./lake/changes-index');
+const { readChangesFile, changeKey, changeValue } = require('./lake/changes-index');
 const { readBlocks } = require('./lake/archive');
 
 class LakeStorage {
@@ -7,8 +7,8 @@ class LakeStorage {
     dataDir = './lake-data/near-lake-data-mainnet';
 
     getLatestBlockHeight() {
-        // TODO
-        notImplemented();
+        // TODO: Don't hardcode this
+        return 110_999_999;
     }
 
     setLatestBlockHeight(blockHeight) {
@@ -28,10 +28,9 @@ class LakeStorage {
         const { accountId, key } = parseCompKey(compKey);
         const shard = shardForAccount(accountId);
 
-        let indexFile = `${this.dataDir}/${shard}/${accountId}.dat`;
-        // check if the file exists
-        if (!await fs.access(indexFile).catch(() => null)) {
-            indexFile = `${this.dataDir}/${shard}/changes.dat`;
+        let indexFile = `${this.dataDir}/${shard}/index/${accountId}.dat`;
+        if (!await fileExists(indexFile)) {
+            indexFile = `${this.dataDir}/${shard}/index/changes.dat`;
         }
 
         const changesStream = readChangesFile(indexFile, { accountId, keyPrefix: key });
@@ -42,12 +41,12 @@ class LakeStorage {
         }
     }
 
-    getData(compKey, blockHeight) {
+    async getData(compKey, blockHeight) {
         const { accountId, key } = parseCompKey(compKey);
         const shard = shardForAccount(accountId);
 
-        for await (const { data, blockHeight } of readBlocks(this.dataDir, shard, blockHeight, blockHeight)) {
-            if (blockHeight !== blockHeight) {
+        for await (const { data, blockHeight: currentHeight } of readBlocks(this.dataDir, shard, blockHeight, blockHeight)) {
+            if (currentHeight !== blockHeight) {
                 continue;
             }
 
@@ -64,8 +63,7 @@ class LakeStorage {
 
                 const k = changeKey(type, changeData);
                 if (k.equals(key)) {
-                    console.log('found data', changeData);
-                    return changeData;
+                    return changeValue(type, changeData);
                 }
             }
         }
@@ -73,9 +71,9 @@ class LakeStorage {
         return null;
     }
 
-    getLatestData(compKey, blockHeight) {
-        const dataBlockHeight = this.getLatestDataBlockHeight(compKey, blockHeight);
-        return dataBlockHeight && this.getData(compKey, dataBlockHeight);
+    async getLatestData(compKey, blockHeight) {
+        const dataBlockHeight = await this.getLatestDataBlockHeight(compKey, blockHeight);
+        return dataBlockHeight && await this.getData(compKey, dataBlockHeight);
     }
 
     setData(batch, scope, accountId, storageKey, blockHeight, data) {
@@ -133,7 +131,8 @@ function notImplemented() {
 
 function parseCompKey(compKey) {
     const type = compKey.subarray(0, 1);
-    const offset = compKey.indexOf(':', 2);
+    let offset = compKey.indexOf(':', 2);
+    offset = offset === -1 ? compKey.length : offset;
     const accountId = compKey.toString('utf8', 2, offset);
     const key = Buffer.concat([type, compKey.slice(offset + 1)]);
     return { accountId, key, type };
@@ -145,3 +144,14 @@ function shardForAccount(accountId) {
     const boundaryAccounts = ["aurora", "aurora-0", "kkuuue2akv_1630967379.near"];
     return boundaryAccounts.findIndex(boundaryAccount => accountId < boundaryAccount);
 }
+
+async function fileExists(file) {
+    try {
+        await fs.access(file);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+module.exports = { LakeStorage };

@@ -1,6 +1,10 @@
 const fs = require('fs');
 const { open } = require('fs/promises');
 
+const { serialize } = require('borsh');
+const bs58 = require('bs58');
+const { BORSH_SCHEMA, Account, AccessKey, AccessKeyPermission, PublicKey, FunctionCallPermission, FullAccessPermission } = require('../../data-model');
+
 const PAGE_SIZE = 64 * 1024;
 
 async function writeChangesFile(outPath, changesByAccount) {
@@ -211,7 +215,6 @@ async function *readChangesFile(inPath, { accountId, keyPrefix }) {
             if (!accountId) {
                 yield *readPage(buffer);
             } else {
-                console.log('position', position.toString(16));
                 const items = readPage(buffer);
                 for (let item of items) {
                     if (item.accountId === accountId) {
@@ -250,7 +253,68 @@ async function *readChangesFile(inPath, { accountId, keyPrefix }) {
     }
 }
 
+function changeKey(type, { public_key, key_base64 } ) {
+    // TODO: Adjust this as needed
+    switch (type) {
+        case 'account_update':
+        case 'account_deletion':
+            return Buffer.from('a');
+        case 'access_key_update':
+        case 'access_key_deletion': {
+            return Buffer.concat([
+                Buffer.from(`k`),
+                serialize(BORSH_SCHEMA, PublicKey.fromString(public_key))
+            ]);
+        }
+        case 'data_update':
+        case 'data_deletion':
+            return Buffer.concat([Buffer.from('d'), Buffer.from(key_base64, 'base64')]);
+        case 'contract_code_update':
+        case 'contract_code_deletion':
+            return Buffer.from('c');
+        default:
+            throw new Error(`Unknown type ${type}`);
+    }
+}
+
+function changeValue(type, data) {
+    if (type.endsWith('_deletion')) {
+        return null;
+    }
+
+    switch (type) {
+        case 'account_update': {
+            const { amount, code_hash, locked, storage_usage } = data;
+            return serialize(BORSH_SCHEMA, new Account({amount, code_hash: bs58.decode(code_hash), locked, storage_usage }));
+        }
+        case 'access_key_update': {
+            const { access_key: { nonce, permission } } = data;
+            // NOTE: nonce.toString() is a hack to make stuff work, near-lake shouldn't use number for u64 values as it results in data loss
+            const accessKey = new AccessKey({
+                nonce: nonce.toString(),
+                permission: new AccessKeyPermission(
+                    permission === 'FullAccess'
+                        ? { fullAccess: new FullAccessPermission() }
+                        : { functionCall: new FunctionCallPermission(permission.FunctionCall) })
+            });
+            return serialize(BORSH_SCHEMA, accessKey);
+        }
+        case 'data_update': {
+            const { value_base64 } = data;
+            return Buffer.from(value_base64, 'base64');
+        }
+        case 'contract_code_update': {
+            const { code_base64 } = data;
+            return Buffer.from(code_base64, 'base64');
+        }
+        default:
+            throw new Error(`Unknown type ${type}`);
+    }
+}
+
 module.exports = {
     writeChangesFile,
     readChangesFile,
+    changeKey,
+    changeValue,
 };

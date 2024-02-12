@@ -1,10 +1,7 @@
 
 const { mkdir } = require('fs/promises');
 
-const { BORSH_SCHEMA, PublicKey } = require('../data-model');
-const { serialize } = require('borsh');
-
-const { writeChangesFile, readChangesFile } = require('../storage/lake/changes-index');
+const { writeChangesFile, readChangesFile, changeKey } = require('../storage/lake/changes-index');
 const { readBlocks } = require('../storage/lake/archive');
 
 async function main() {
@@ -83,7 +80,21 @@ async function writeChanges(outFolder, changesByAccount) {
     await writeChangesFile(`${outFolder}/changes.dat`, changesByAccount);
 
     // TODO: Remove this debuggin code
-    for await (const { accountId, key, changes } of readChangesFile(`${outFolder}/changes.dat`)) {
+    // for await (const { accountId, key, changes } of readChangesFile(`${outFolder}/changes.dat`, {
+    //         // accountId: 'atocha.octopus-registry.near',
+    //         // keyPrefix: Buffer.from('64', 'hex'),
+    //         accountId: '4eeeda737da24f64610731c8b140174a981b8efebcf4437d8e6ad9fb0ad8abdd',
+    //         keyPrefix: Buffer.from('6b004eee', 'hex'),
+    //     })) {
+    //     console.log('readChangesFile:', accountId, key, changes);
+    // }
+
+    for await (const { accountId, key, changes } of readChangesFile(`${outFolder}/app.nearcrowd.near.dat`, {
+            accountId: 'app.nearcrowd.near',
+            keyPrefix: Buffer.from('6b00', 'hex'),
+            // keyPrefix: Buffer.from('64', 'hex'),
+            // keyPrefix: Buffer.from('6474', 'hex'),
+        })) {
         console.log('readChangesFile:', accountId, key, changes);
     }
 }
@@ -179,30 +190,6 @@ function mergeSortedArrays(a, b, fn = (a, b) => a < b ? -1 : a > b ? 1 : 0) {
     }
 
     return result;
-}
-
-function changeKey(type, { public_key, key_base64 } ) {
-    // TODO: Adjust this as needed
-    switch (type) {
-        case 'account_update':
-        case 'account_deletion':
-            return Buffer.from('a');
-        case 'access_key_update':
-        case 'access_key_deletion': {
-            return Buffer.concat([
-                Buffer.from(`k`),
-                serialize(BORSH_SCHEMA, PublicKey.fromString(public_key))
-            ]);
-        }
-        case 'data_update':
-        case 'data_deletion':
-            return Buffer.concat([Buffer.from('d'), Buffer.from(key_base64, 'base64')]);
-        case 'contract_code_update':
-        case 'contract_code_deletion':
-            return Buffer.from('c');
-        default:
-            throw new Error(`Unknown type ${type}`);
-    }
 }
 
 if (process.argv.length < 3) {
