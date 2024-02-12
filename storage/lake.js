@@ -142,7 +142,8 @@ function shardForAccount(accountId) {
     // TODO: Don't hardcode this
     // NOTE: This needs to match nearcore logic here: https://github.com/near/nearcore/blob/c6afdd71005a0f9b3e57244188ca02b97eeb0395/core/primitives/src/shard_layout.rs#L239
     const boundaryAccounts = ["aurora", "aurora-0", "kkuuue2akv_1630967379.near"];
-    return boundaryAccounts.findIndex(boundaryAccount => accountId < boundaryAccount);
+    const index = boundaryAccounts.findIndex(boundaryAccount => accountId < boundaryAccount);
+    return index < 0 ? boundaryAccounts.length : index;
 }
 
 async function fileExists(file) {
