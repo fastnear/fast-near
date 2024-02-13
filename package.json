@@ -45,7 +45,8 @@
     "test:e2e": "test/e2e.sh",
     "test:all": "yarn test && yarn test:e2e",
     "test:all:lmdb": "FAST_NEAR_STORAGE_TYPE=lmdb yarn test:all",
-    "test:ci": "yarn test:all && yarn test:all:lmdb",
+    "test:e2e:lake": "FAST_NEAR_STORAGE_TYPE=lake yarn test:e2e",
+    "test:ci": "yarn test:all && yarn test:all:lmdb && yarn test:e2e:lake",
     "coverage": "npx nyc yarn test:all"
   },
   "devDependencies": {

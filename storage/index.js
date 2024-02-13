@@ -10,10 +10,20 @@ const storageType = process.env.FAST_NEAR_STORAGE_TYPE || 'redis';
 
 const ENABLE_CACHE = ['no', 'false', '0'].indexOf((process.env.FAST_NEAR_ENABLE_CACHE || 'true').trim().toLowerCase()) === -1;
 
-const debugStorage = new DebugStorage(
-    storageType === 'lmdb'
-        ? new LMDBStorage()
-        : new RedisStorage());
+const debugStorage = new DebugStorage(createStorage(storageType));
+
+function createStorage(storageType) {
+    switch (storageType) {
+        case 'lmdb':
+            return new LMDBStorage();
+        case 'redis':
+            return new RedisStorage();
+        case 'lake':
+            return new LakeStorage();
+        default:
+            throw new Error('Unknown storage type: ' + storageType);
+    }
+}
 
 module.exports = 
     ENABLE_CACHE
