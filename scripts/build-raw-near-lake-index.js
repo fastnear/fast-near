@@ -14,8 +14,7 @@ async function main() {
     const dstDir = `./lake-data/${bucketName}`;
     // TODO: Make shards dynamic, allow to filter by shard
     // TODO: Should index smth from 'block' as well? (e.g. block.header.timestamp)
-    // const shards = ['0', '1', '2', '3'];
-    const shards = ['0'];
+    const shards = ['0', '1', '2', '3'];
 
     for (let shard of shards) {
         console.log('Processing shard', shard);
