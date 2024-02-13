@@ -7,6 +7,18 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --his
 # Make sure different key types supported
 node scripts/load-from-near-lake.js near-lake-data-mainnet --batch-size 10 --history-length 1 --start-block-height 71745488 --limit 5 --dump-changes
 
+# Import NEAR Lake data into ./lake-data
+node scripts/load-raw-near-lake.js near-lake-data-mainnet 66377251 5
+
+# Index NEAR Lake data
+node scripts/build-raw-near-lake-index.js near-lake-data-mainnet 66377251 5
+
+# Fail if index not created
+if [ ! -f ./lake-data/near-lake-data-mainnet/0/index/changes.dat ]; then
+  echo "Expected ./lake-data/near-lake-data-mainnet/0/index/changes.dat to be created"
+  exit 1
+fi
+
 # Try compressing history
 node scripts/compress-history.js
 
