@@ -178,7 +178,7 @@ router.get('/account/:accountId/key/:publicKey', resolveBlockHeight, async ctx =
     };
 });
 
-const MAX_BLOCK_LAG_TIME_MS = 20000;
+const MAX_BLOCK_LAG_TIME_MS = 60_000;
 router.get('/healthz', async ctx => {
     const latestBlockHeight = await storage.getLatestBlockHeight();
     const latestBlockTimestamp = (await storage.getBlockTimestamp(latestBlockHeight)) / 1000000;
