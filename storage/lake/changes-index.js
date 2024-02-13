@@ -78,9 +78,10 @@ async function writeChangesFile(outPath, changesByAccount) {
                     changes = changes.slice(0, maxChangesLength);
                 }
                 writeVarint(changes.length);
-                let prevChange = 0;
-                for (let change of changes) {
-                    writeVarint(change - prevChange);
+                let prevChange = changes[0];
+                writeVarint(prevChange);
+                for (let change of changes.slice(1)) {
+                    writeVarint(prevChange - change);
                     prevChange = change;
                 }
                 i += changes.length;
@@ -157,7 +158,7 @@ function readPage(buffer) {
             for (let i = 0; i < count; i++) {
                 changes[i] = reader.readVarint();
                 if (i > 0) {
-                    changes[i] += changes[i - 1];
+                    changes[i] = changes[i - 1] - changes[i];
                 }
             }
 
@@ -167,7 +168,7 @@ function readPage(buffer) {
     return result;
 }
 
-async function *readChangesFile(inPath, { accountId, keyPrefix }) {
+async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight }) {
     const file = await open(inPath, 'r');
     try {
         const buffer = Buffer.alloc(PAGE_SIZE);
@@ -192,6 +193,15 @@ async function *readChangesFile(inPath, { accountId, keyPrefix }) {
                     const cmp = keyPrefix.compare(key.subarray(0, keyPrefix.length));
                     if (cmp > 0) {
                         higherOrEqual = false;
+                    }
+
+                    if (cmp === 0 && blockHeight) {
+                        const changesLength = reader.readVarint();
+                        const firstChange = reader.readVarint();
+                        console.log('accountId', accountId, 'keyPrefix', keyPrefix, 'blockHeight', blockHeight, 'firstChange', firstChange, 'changesLength', changesLength);
+                        if (firstChange > blockHeight) {
+                            higherOrEqual = false;
+                        }
                     }
                 }
 

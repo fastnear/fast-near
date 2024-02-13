@@ -85,6 +85,7 @@ async function main() {
 
             for (let accountChanges of Object.values(changesByAccount)) {
                 accountChanges.sort((a, b) => a.key.compare(b.key));
+                accountChanges.forEach(({ changes }) => changes.reverse());
             }
 
             yield changesByAccount;
@@ -205,7 +206,7 @@ function mergeObjects(a, b, fn) {
 function mergeChanges(a, b) {
     return mergeSortedArrays(a, b,
         (a, b) => a.key.compare(b.key),
-        (a, b) => ({ key: a.key, changes: mergeSortedArrays(a.changes, b.changes) }));
+        (a, b) => ({ key: a.key, changes: mergeSortedArrays(a.changes, b.changes, (a, b) => b - a) }));
 }
 
 function mergeSortedArrays(a, b, compareFn = (a, b) => a < b ? -1 : a > b ? 1 : 0, mergeFn = (a, b) => a) {

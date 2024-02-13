@@ -33,15 +33,12 @@ class LakeStorage {
             indexFile = `${this.dataDir}/${shard}/index/changes.dat`;
         }
 
-        const changesStream = readChangesFile(indexFile, { accountId, keyPrefix: key });
-        let result;
+        const changesStream = readChangesFile(indexFile, { accountId, keyPrefix: key, blockHeight });
         for await (const { key: k, changes } of changesStream) {
-            // TODO: Reverse the order of changes in index to make it easier to find the last change?
             if (k.equals(key)) {
-                result = changes.findLast(bh => bh <= blockHeight);
+                return changes.find(bh => bh <= blockHeight);
             }
         }
-        return result;
     }
 
     async getData(compKey, blockHeight) {
