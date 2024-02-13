@@ -87,9 +87,9 @@ class LakeStorage {
         readOnly();
     }
 
-    getBlob(hash) {
-        // TODO
-        notImplemented();
+    async getBlob(hash) {
+        console.log('getBlob', hash.toString('hex'));
+        return await fs.readFile(`${this.dataDir}/blob/${hash.toString('hex')}.wasm`);
     }
 
     setBlob(batch, data) {
