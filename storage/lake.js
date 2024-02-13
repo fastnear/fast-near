@@ -16,8 +16,9 @@ class LakeStorage {
     }
 
     getBlockTimestamp(blockHeight) {
-        // TODO
-        notImplemented();
+        // TODO: Real implementation
+        return 0;
+        // notImplemented();
     }
 
     setBlockTimestamp(blockHeight, timestamp) {
@@ -85,8 +86,15 @@ class LakeStorage {
     }
 
     async getBlob(hash) {
-        console.log('getBlob', hash.toString('hex'));
-        return await fs.readFile(`${this.dataDir}/blob/${hash.toString('hex')}.wasm`);
+        try {
+            console.log('getBlob', hash.toString('hex'));
+            return await fs.readFile(`${this.dataDir}/blob/${hash.toString('hex')}.wasm`);
+        } catch (e) {
+            if (e.code === 'ENOENT') {
+                return null;
+            }
+            throw e;
+        }
     }
 
     setBlob(batch, data) {
