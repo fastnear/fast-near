@@ -59,6 +59,11 @@ async function main() {
             const blockHeight = chunk.header.height_included;
             const changesByAccount = {};
             for (let { type, change } of state_changes) {
+                // NOTE: No need to index as code hash is in account_update and code is extracted as blobs
+                if (type === 'contract_code_update') {
+                    continue;
+                }
+
                 const { account_id, ...changeData } = change;
                 const accountChanges = changesByAccount[account_id];
                 const key = changeKey(type, changeData);
