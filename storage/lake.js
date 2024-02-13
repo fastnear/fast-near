@@ -34,11 +34,14 @@ class LakeStorage {
         }
 
         const changesStream = readChangesFile(indexFile, { accountId, keyPrefix: key });
+        let result;
         for await (const { key: k, changes } of changesStream) {
+            // TODO: Reverse the order of changes in index to make it easier to find the last change?
             if (k.equals(key)) {
-                return changes.findLast(bh => bh <= blockHeight);
+                result = changes.findLast(bh => bh <= blockHeight);
             }
         }
+        return result;
     }
 
     async getData(compKey, blockHeight) {
