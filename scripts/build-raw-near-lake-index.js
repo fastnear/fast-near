@@ -68,7 +68,10 @@ async function main() {
                 } else {
                     const index = accountChanges.findIndex(({ key: k }) => k.equals(key));
                     if (index !== -1) {
-                        accountChanges[index].changes.push(blockHeight);
+                        const changes = accountChanges[index].changes;
+                        if (changes.at(-1) !== blockHeight) {
+                            changes.push(blockHeight);
+                        }
                     } else {
                         accountChanges.push({ key, changes: [blockHeight] });
                     }
