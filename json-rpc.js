@@ -60,7 +60,7 @@ const ALWAYS_PROXY = ['yes', 'true'].includes((process.env.FAST_NEAR_ALWAYS_PROX
 const handleError = async ({ ctx, blockHeight, error }) => {
     debug('handleError', error);
     const { body } = ctx.request;
-    const accountId = error.accountId;
+    const accountId = error.data?.accountId;
 
     // TODO: Match error handling? Structured errors? https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
     const message = error.toString();
