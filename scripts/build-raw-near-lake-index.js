@@ -195,15 +195,17 @@ function mergeObjects(a, b, fn) {
 }
 
 function mergeChanges(a, b) {
-    return mergeSortedArrays(a, b, (a, b) => a.key.compare(b.key));
+    return mergeSortedArrays(a, b,
+        (a, b) => a.key.compare(b.key),
+        (a, b) => ({ key: a.key, changes: mergeSortedArrays(a.changes, b.changes) }));
 }
 
-function mergeSortedArrays(a, b, fn = (a, b) => a < b ? -1 : a > b ? 1 : 0) {
+function mergeSortedArrays(a, b, compareFn = (a, b) => a < b ? -1 : a > b ? 1 : 0, mergeFn = (a, b) => a) {
     const result = [];
     let i = 0;
     let j = 0;
     while (i < a.length && j < b.length) {
-        const comparison = fn(a[i], b[j]);
+        const comparison = compareFn(a[i], b[j]);
         if (comparison < 0) {
             result.push(a[i]);
             i++;
@@ -211,7 +213,7 @@ function mergeSortedArrays(a, b, fn = (a, b) => a < b ? -1 : a > b ? 1 : 0) {
             result.push(b[j]);
             j++;
         } else {
-            result.push(a[i]);
+            result.push(mergeFn(a[i], b[j]));
             i++;
             j++;
         }
