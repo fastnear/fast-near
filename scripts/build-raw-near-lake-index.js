@@ -1,6 +1,7 @@
 
-const { mkdir } = require('fs/promises');
+const { mkdir, writeFile } = require('fs/promises');
 
+const sha256 = require('../utils/sha256');
 const { writeChangesFile, readChangesFile, changeKey } = require('../storage/lake/changes-index');
 const { readBlocks } = require('../storage/lake/archive');
 
@@ -18,16 +19,39 @@ async function main() {
 
     for (let shard of shards) {
         console.log('Processing shard', shard);
-        const allChangesByAccount = await reduceStream(
-            changesByAccountStream(shard, startBlockNumber, endBlockNumber),
+        const blocksStream = readBlocks(dstDir, shard, startBlockNumber, endBlockNumber);
+        const parseBlocksStream = mapStream(blocksStream, ({ data }) => JSON.parse(data.toString('utf-8')));
+
+        const [stream1, stream2] = ReadableStream.from(parseBlocksStream).tee();
+        const allChangesByAccountPromise = reduceStream(
+            changesByAccountStream(stream1),
             (a, b) => mergeObjects(a, b, mergeChanges));
+
+        const blobDir = `${dstDir}/blob`;
+        await mkdir(blobDir, { recursive: true });
+        const blobsPromise = consumeStream(mapStream(stream2, async ({ state_changes, chunk }) => {
+            if (!chunk) {
+                return;
+            }
+
+            for (let { type, change } of state_changes) {
+                if (type === 'contract_code_update') {
+                    const { code_base64 } = change;
+                    const code = Buffer.from(code_base64, 'base64');
+                    const hash = sha256(code).toString('hex');
+                    console.log('contract', change.account_id, hash);
+                    const blobPath = `${blobDir}/${hash}.wasm`;
+                    await writeFile(blobPath, code);
+                }
+            }
+        }));
+
+        const [allChangesByAccount, ] = await Promise.all([allChangesByAccountPromise, blobsPromise]);
         await writeChanges(`${dstDir}/${shard}/index`, allChangesByAccount);
     }
 
-    async function *changesByAccountStream(shard, startBlockNumber, endBlockNumber) {
-        const blocksStream = readBlocks(dstDir, shard, startBlockNumber, endBlockNumber);
-        for await (const { data } of blocksStream) {
-            const { state_changes, chunk } = JSON.parse(data.toString('utf-8'));
+    async function *changesByAccountStream(blocksStream) {
+        for await (const { state_changes, chunk } of blocksStream) {
             if (!chunk) {
                 continue;
             }
@@ -145,6 +169,18 @@ async function reduceStream(stream, fn) {
     }
 
     return fn(result, reduceRecursive(chunk, fn));
+}
+
+async function *mapStream(stream, fn) {
+    for await (const item of stream) {
+        yield await fn(item);
+    }
+}
+
+async function consumeStream(stream) {
+    for await (const _ of stream) {
+        // Do nothing
+    }
 }
 
 function mergeObjects(a, b, fn) {
