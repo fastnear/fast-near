@@ -88,8 +88,6 @@ node scripts/load-from-near-lake.js near-lake-data-mainnet --exclude aurora.* --
 
 Currently there are such options to dump data loaded from NEAR Lake:
 - `--dump-changes` - dumps state changes into storage. Use `FAST_NEAR_STORAGE_TYPE` to specify storage type. Defaults to `redis`
-- `--dump-questdb` - dumps receipts into QuestDB (https://questdb.io/)
-- `--dump-estuary` - dumps blocks into IPFS using Estuary (https://estuary.tech/)
 
 ## Load data from a local node
 
@@ -100,12 +98,10 @@ See https://github.com/vgrichina/near-state-indexer for Rust implementation runn
 ## Environment variables
 
 - `PORT` - port to listen on (default: `3000`)
-- `ESTUARY_TOKEN` - token to use for Estuary IPFS upload. See https://docs.estuary.tech/tutorial-get-an-api-key for more information. 
 - `FAST_NEAR_STORAGE_TYPE` - storage type to use (default: `redis`). Supported values: `redis`, `lmdb`.
 - `FAST_NEAR_ENABLE_CACHE` - enable client-side caching (default: `true`).
 - `FAST_NEAR_LMDB_PATH` - path to LMDB database (default: `./lmdb-data`). This is only used if `FAST_NEAR_STORAGE_TYPE` is set to `lmdb`.
 - `FAST_NEAR_REDIS_URL` - Redis URL (default: `redis://localhost:6379`)
-- `FAST_NEAR_QUESTDB_URL` - QuestDB URL (default: `http://localhost:9000`)
 - `FAST_NEAR_NODE_URL` - NEAR RPC endpoint (default: `https://rpc.mainnet.near.org`). This is only used as a fallback for JSON-RPC endpoint.
 - `FAST_NEAR_ARCHIVAL_NODE_URL` - NEAR RPC endpoint for archival node (default: `https://rpc.mainnet.internal.near.org`). This is only used as a fallback for JSON-RPC endpoint for data unavailable in Redis or on non-archival RPC.
 - `FAST_NEAR_ALWAYS_PROXY` - Always proxy JSON-RPC requests to `FAST_NEAR_NODE_URL` (default: `false`).
