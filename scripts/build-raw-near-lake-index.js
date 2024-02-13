@@ -39,7 +39,7 @@ async function main() {
                     const { code_base64 } = change;
                     const code = Buffer.from(code_base64, 'base64');
                     const hash = sha256(code).toString('hex');
-                    console.log('contract', change.account_id, hash);
+                    console.log('contract', chunk.header.height_included, change.account_id, hash);
                     const blobPath = `${blobDir}/${hash}.wasm`;
                     await writeFile(blobPath, code);
                 }
@@ -111,25 +111,6 @@ async function writeChanges(outFolder, changesByAccount) {
 
     await writeChangesFile(`${outFolder}/changes.dat`, changesByAccount);
 
-    // TODO: Remove this debuggin code
-    // for await (const { accountId, key, changes } of readChangesFile(`${outFolder}/changes.dat`, {
-    //         // accountId: 'atocha.octopus-registry.near',
-    //         // keyPrefix: Buffer.from('64', 'hex'),
-    //         accountId: '4eeeda737da24f64610731c8b140174a981b8efebcf4437d8e6ad9fb0ad8abdd',
-    //         keyPrefix: Buffer.from('6b004eee', 'hex'),
-    //     })) {
-    //     console.log('readChangesFile:', accountId, key, changes);
-    // }
-
-    for await (const { accountId, key, changes } of readChangesFile(`${outFolder}/app.nearcrowd.near.dat`, {
-            accountId: 'app.nearcrowd.near',
-            keyPrefix: Buffer.from('a'),
-            // keyPrefix: Buffer.from('6b00', 'hex'),
-            // keyPrefix: Buffer.from('64', 'hex'),
-            // keyPrefix: Buffer.from('6474', 'hex'),
-        })) {
-        console.log('readChangesFile:', accountId, key, changes);
-    }
 }
 
 function reduceRecursive(items, fn) {
