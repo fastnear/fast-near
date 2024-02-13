@@ -187,33 +187,29 @@ async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight }) {
                 const reader = new BufferReader(buffer);
                 const midAccountId = reader.readString();
 
-                let higherOrEqual = midAccountId >= accountId;
-                if (keyPrefix && midAccountId === accountId) {
+                let cmp = midAccountId > accountId ? 1 : (midAccountId < accountId ? -1 : 0);
+                if (keyPrefix && cmp === 0) {
                     const key = reader.readBuffer();
-                    const cmp = keyPrefix.compare(key.subarray(0, keyPrefix.length));
-                    if (cmp > 0) {
-                        higherOrEqual = false;
-                    }
+                    cmp = -keyPrefix.compare(key.subarray(0, keyPrefix.length));
+                    console.log('keyPrefix', keyPrefix, 'key', key, 'cmp', cmp);
 
                     if (cmp === 0 && blockHeight) {
                         const changesLength = reader.readVarint();
                         const firstChange = reader.readVarint();
                         console.log('accountId', accountId, 'keyPrefix', keyPrefix, 'blockHeight', blockHeight, 'firstChange', firstChange, 'changesLength', changesLength);
-                        if (firstChange > blockHeight) {
-                            higherOrEqual = false;
-                        }
+                        cmp = blockHeight - firstChange;
                     }
                 }
 
-                if (higherOrEqual) {
-                    right = mid;
-                } else {
+                console.log('left', left, 'mid', mid, 'right', right, 'midAccountId', midAccountId, accountId);
+                if (cmp < 0) {
                     left = mid + 1;
+                } else {
+                    right = mid;
                 }
-                console.log('left', left, 'right', right, 'midAccountId', midAccountId, accountId);
             }
 
-            position = left * PAGE_SIZE;
+            position = Math.max(0, (left - 1) * PAGE_SIZE);
         }
 
         let needToSkip = !!accountId;
@@ -226,10 +222,9 @@ async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight }) {
                 yield *readPage(buffer);
             } else {
                 const items = readPage(buffer);
+                console.log('readPage', position.toString(16),  items[0].accountId);
                 for (let item of items) {
                     if (item.accountId === accountId) {
-                        needToSkip = false;
-
                         // TODO: Binary search for the key as well? Note that we already take it into account when searching for the page
                         if (keyPrefix) {
                             const { key } = item;
@@ -246,11 +241,7 @@ async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight }) {
                         }
                     }
 
-                    if (needToSkip) {
-                        continue;
-                    }
-
-                    if (item.accountId !== accountId) {
+                    if (item.accountId > accountId) {
                         return;
                     }
                 }
