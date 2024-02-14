@@ -168,7 +168,7 @@ function readPage(buffer) {
     return result;
 }
 
-async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight }) {
+async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight } = {}) {
     const file = await open(inPath, 'r');
     try {
         const buffer = Buffer.alloc(PAGE_SIZE);
