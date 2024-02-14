@@ -3,7 +3,7 @@ const fs = require('fs/promises');
 
 const { writeChangesFile, readChangesFile, mergeChangesFiles } = require('../storage/lake/changes-index');
 
-function roundtripTest(test, fileName) {
+const roundtrip = customTest((test, fileName) => {
     test(`roundtrip ${fileName}`, async t => {
         const indexFileName = `test/data/lake/index/${fileName}`;
         const changes = await readStream(await readChangesFile(indexFileName));
@@ -13,18 +13,39 @@ function roundtripTest(test, fileName) {
         t.deepEqual(tempChanges, changes);
         t.ok((await fs.readFile(tempFileName)).equals(await fs.readFile(indexFileName)));
     });
-}
-function roundtrip(fileName) {
-    roundtripTest(test, fileName);
-}
-roundtrip.only = function(fileName) {
-    roundtripTest(test.only, fileName);
-};
+});
 
 roundtrip('app.nearcrowd.near.dat');
 roundtrip('asset-manager.orderly-network.near.dat');
 roundtrip('changes.dat');
 
+const indexLookup = customTest((test, fileName, options, validateFn) => {
+    test(`test filter ${fileName} ${options.accountId} ${options.keyPrefix} ${options.blockHeight}`, async t => {
+        const indexFileName = `test/data/lake/index/${fileName}`;
+        const changes = await readStream(await readChangesFile(indexFileName, options));
+        validateFn(t, changes);
+    });
+});
+
+indexLookup('changes.dat', { accountId: '1bc0252107b4d6d0e797d371a9f1f0ffc6026da2f040a97f15eccc2f5dbe1ab2' }, (t, changes) => {
+    t.equals(changes.length, 2);
+    t.equals(changes[0].accountId, '1bc0252107b4d6d0e797d371a9f1f0ffc6026da2f040a97f15eccc2f5dbe1ab2');
+    t.equals(changes[0].key.toString('hex'), '61');
+    t.deepEqual(changes[0].changes, [110012726, 110012724]);
+    t.equals(changes[1].accountId, '1bc0252107b4d6d0e797d371a9f1f0ffc6026da2f040a97f15eccc2f5dbe1ab2');
+    t.equals(changes[1].key.toString('hex'), '6b001bc0252107b4d6d0e797d371a9f1f0ffc6026da2f040a97f15eccc2f5dbe1ab2');
+    t.deepEqual(changes[1].changes, [110012724]);
+});
+
+function customTest(fn) {
+    const result = function(...args) {
+        fn(test, ...args);
+    }
+    result.only = function(...args) {
+        fn(test.only, ...args);
+    }
+    return result;
+}
 
 async function readStream(stream) {
     const chunks = [];
