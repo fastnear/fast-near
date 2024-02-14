@@ -212,7 +212,6 @@ async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight }) {
             position = Math.max(0, (left - 1) * PAGE_SIZE);
         }
 
-        let needToSkip = !!accountId;
         let bytesRead;
         do {
             ({ bytesRead } = await file.read({ buffer, length: PAGE_SIZE, position }));
