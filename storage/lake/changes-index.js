@@ -135,7 +135,7 @@ class BufferReader {
             return null;
         }
 
-        const result = this.buffer.slice(this.offset, this.offset + length);
+        const result = Buffer.from(this.buffer.subarray(this.offset, this.offset + length));
         this.offset += length;
         return result;
     }
