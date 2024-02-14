@@ -60,7 +60,8 @@ while {![end]} {
                     sectionvalue $changes_count
                     set prev_change [varint "0"]
                     for {set i 1} {$i < $changes_count} {incr i} {
-                        varint "$i" $prev_change
+                        set cur_change [varint "$i" $prev_change]
+                        set prev_change $cur_change
                     }
                 }
             }
