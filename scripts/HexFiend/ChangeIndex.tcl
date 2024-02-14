@@ -8,7 +8,9 @@ proc varint {name {delta 0}} {
         set value [expr {$value | (($byte & 0x7f) << $shift)}]
         set shift [expr {$shift + 7}]
         if {($byte & 0x80) == 0} {
-            set value [expr {$value + $delta}]
+            if {$delta != 0} {
+                set value [expr {$delta - $value}]
+            }
             if {$name ne ""} {
                 entry $name $value [expr {[pos] - $start_offset}] $start_offset
             }
