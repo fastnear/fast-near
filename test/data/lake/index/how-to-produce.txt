@@ -1,0 +1,9 @@
+
+node scripts/build-raw-near-lake-index.js near-lake-data-mainnet 110012000 1000
+
+Used to produce changes.dat
+
+node scripts/build-raw-near-lake-index.js near-lake-data-mainnet 110012000 1000
+
+Used to produce app.nearcrowd.near.dat, asset-manager.orderly-network.near.dat
+
