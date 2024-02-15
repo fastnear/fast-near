@@ -287,6 +287,51 @@ function filterByBlockHeight(item, blockHeight) {
     const index = item.changes.findIndex(change => change <= blockHeight);
     return { ...item, changes: item.changes.slice(index) };
 }
+
+async function mergeChangesFiles(outPath, inPaths, filter) {
+    const streams = inPaths.map(inPath => readChangesFile(inPath, filter));
+    const mergedStream = mergeChangesStreams(streams);
+    // TODO: When to close the stream?
+    await writeChangesStream(fs.createWriteStream(outPath), mergedStream);
+}
+
+async function *mergeChangesStreams(streams) {
+    const readers = streams.map(stream => stream.next());
+    const values = await Promise.all(readers);
+    const results = values.map(({ value }) => value);
+
+    while (results.some(result => result !== undefined)) {
+        const minResult = results.reduce((minResult, result) => {
+            if (minResult === undefined) {
+                return result;
+            } else if (result === undefined) {
+                return minResult;
+            }
+
+            let cmp = result.accountId < minResult.accountId ? -1 : (result.accountId > minResult.accountId ? 1 : 0);
+            if (cmp === 0) {
+                cmp = result.key.compare(minResult.key);
+                if (cmp === 0) {
+                    cmp = result.changes[0] - minResult.changes[0];
+                }
+            }
+
+            if (cmp <= 0) {
+                return result;
+            } else if (cmp > 0) {
+                return minResult;
+            }
+        }, undefined);
+
+        yield minResult;
+
+        const minIndex = results.indexOf(minResult);
+        readers[minIndex] = streams[minIndex].next();
+        results[minIndex] = (await readers[minIndex]).value;
+    }
+}
+
+
 function changeKey(type, { public_key, key_base64 } ) {
     // TODO: Adjust this as needed
     switch (type) {
@@ -349,6 +394,7 @@ function changeValue(type, data) {
 module.exports = {
     writeChangesFile,
     readChangesFile,
+    mergeChangesFiles,
     changeKey,
     changeValue,
 };

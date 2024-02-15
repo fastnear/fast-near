@@ -3,9 +3,11 @@ const fs = require('fs/promises');
 
 const { writeChangesFile, readChangesFile, mergeChangesFiles } = require('../storage/lake/changes-index');
 
+const ROOT_DIR = 'test/data/lake/index';
+
 const roundtrip = customTest((test, fileName) => {
     test(`roundtrip ${fileName}`, async t => {
-        const indexFileName = `test/data/lake/index/${fileName}`;
+        const indexFileName = `${ROOT_DIR}/${fileName}`;
         const changes = await readStream(await readChangesFile(indexFileName));
         const tempFileName = `${indexFileName}.tmp`;
         await writeChangesFile(tempFileName, convertChanges(changes));
@@ -57,6 +59,16 @@ indexLookup('app.nearcrowd.near.dat', { accountId: 'app.nearcrowd.near', keyPref
     t.equals(changes[0].key.toString('hex'), '647001000000');
     t.deepEqual(changes[0].changes, [110012395, 110012391]);
 });
+
+test.only('trivial merge', async t => {
+    await mergeChangesFiles(
+        `${ROOT_DIR}/merged.dat.tmp`, [
+            `${ROOT_DIR}/app.nearcrowd.near.dat`,
+            `${ROOT_DIR}/asset-manager.orderly-network.near.dat`
+        ]);
+    t.ok(await fs.readFile(`${ROOT_DIR}/merged.dat.tmp`));
+});
+
 
 function customTest(fn) {
     const result = function(...args) {
