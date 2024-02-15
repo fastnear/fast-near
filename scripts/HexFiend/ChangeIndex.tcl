@@ -38,12 +38,19 @@ proc buffer {name} {
     return $value
 }
 
+set PAGE_SIZE [expr {64 * 1024}]
+
 while {![end]} {
     section -collapsed "Account" {
         set account [account_id "account"]
         if {$account eq ""} {
+            # if pos not at the end of the page, round it up
+            if {[pos] % $PAGE_SIZE != 0} {
+                goto [expr {int([pos] / $PAGE_SIZE) * $PAGE_SIZE + $PAGE_SIZE}]
+            }
+
             endsection
-            break
+            continue
         }
         sectionvalue $account
 
