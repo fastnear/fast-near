@@ -47,7 +47,7 @@ while {![end]} {
         }
         sectionvalue $account
 
-        while {1} {
+        while {![end]} {
             section "Key" {
                 set key [buffer "key"]
                 if {[string length $key] == 0} {
@@ -55,7 +55,7 @@ while {![end]} {
                     break
                 }
                 sectionvalue $key
-                section "Changes" {
+                section -collapsed "Changes" {
                     set changes_count [varint "count"]
                     sectionvalue $changes_count
                     set prev_change [varint "0"]

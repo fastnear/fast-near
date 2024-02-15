@@ -11,6 +11,21 @@ async function writeChangesFile(outPath, changesByAccount) {
     console.log('writeChangesFile', outPath, Object.keys(changesByAccount).length);
 
     const outStream = fs.createWriteStream(outPath);
+
+    async function *changesStream() {
+        const sortedAccountIds = Object.keys(changesByAccount).sort();
+        for (let accountId of sortedAccountIds) {
+            const accountChanges = changesByAccount[accountId];
+            for (let { key, changes } of accountChanges) {
+                yield { accountId, key, changes };
+            }
+        }
+    }
+
+    await writeChangesStream(outStream, changesStream());
+}
+
+async function writeChangesStream(outStream, changesStream) {
     const buffer = Buffer.alloc(PAGE_SIZE);
     let offset = 0;
 
@@ -32,7 +47,7 @@ async function writeChangesFile(outPath, changesByAccount) {
     }
 
     async function flushPage(accountId) {
-        console.log('Writing', outPath, accountId, offset);
+        console.log('Writing', accountId, offset);
 
         // Fill the rest of the page with zeros
         buffer.fill(0, offset);
@@ -48,50 +63,49 @@ async function writeChangesFile(outPath, changesByAccount) {
         }
     }
 
-    const sortedAccountIds = Object.keys(changesByAccount).sort();
-    for (let accountId of sortedAccountIds) {
-        const accountIdLength = Buffer.byteLength(accountId) + 2;
-        if (offset + accountIdLength >= PAGE_SIZE) {
-            await flushPage(accountId);
-        } else {
-            writeBuffer(accountId);
-        }
-
-        const accountChanges = changesByAccount[accountId];
-        for (let { key, changes: allChanges } of accountChanges) {
-            // NOTE: Changes arrays are split into chunks of up to 0xFF items
-            // TODO: Use 0xFFFF instead of 0xFF
-            const MAX_CHANGES_PER_RECORD = 0xFF;
-            for (let i = 0; i < allChanges.length; ) {
-                let changes = allChanges.slice(i, i + MAX_CHANGES_PER_RECORD);
-
-                const keyLength = key.length + 2;
-                const minChangesLength = 2 + 4 * 8; // 8 changes
-                if (offset + keyLength + minChangesLength > PAGE_SIZE) {
-                    await flushPage(accountId);
+    let lastAccountId;
+    for await (let { accountId, key, changes: allChanges } of changesStream) {
+        if (accountId !== lastAccountId) { 
+            const accountIdLength = Buffer.byteLength(accountId) + 2;
+            const lastKeyLength = 2;
+            if (offset + lastKeyLength + accountIdLength >= PAGE_SIZE) {
+                await flushPage(accountId);
+            } else {
+                if (lastAccountId) {
+                    // Write zero length string to indicate no more keys for this account
+                    writeBuffer('');
                 }
-                writeBuffer(key);
-
-                // TODO: Calculate actual varint length
-                const maxChangesLength = Math.floor((buffer.length - offset - 2) / 4);
-                if (changes.length > maxChangesLength) {
-                    changes = changes.slice(0, maxChangesLength);
-                }
-                writeVarint(changes.length);
-                let prevChange = changes[0];
-                writeVarint(prevChange);
-                for (let change of changes.slice(1)) {
-                    writeVarint(prevChange - change);
-                    prevChange = change;
-                }
-                i += changes.length;
+                writeBuffer(accountId);
             }
+            lastAccountId = accountId;
         }
 
-        if (offset + 2 < PAGE_SIZE) {
-            // Write zero length string to indicate no more keys for this account
-            // If it doesn't fit page gonna be flushed on next iteration anyway
-            writeBuffer('');
+        // NOTE: Changes arrays are split into chunks of up to 0xFF items
+        // TODO: Use 0xFFFF instead of 0xFF
+        const MAX_CHANGES_PER_RECORD = 0xFF;
+        for (let i = 0; i < allChanges.length; ) {
+            let changes = allChanges.slice(i, i + MAX_CHANGES_PER_RECORD);
+
+            const keyLength = key.length + 2;
+            const minChangesLength = 2 + 4 * 8; // 8 changes
+            if (offset + keyLength + minChangesLength > PAGE_SIZE) {
+                await flushPage(accountId);
+            }
+            writeBuffer(key);
+
+            // TODO: Calculate actual varint length
+            const maxChangesLength = Math.floor((buffer.length - offset - 2) / 4);
+            if (changes.length > maxChangesLength) {
+                changes = changes.slice(0, maxChangesLength);
+            }
+            writeVarint(changes.length);
+            let prevChange = changes[0];
+            writeVarint(prevChange);
+            for (let change of changes.slice(1)) {
+                writeVarint(prevChange - change);
+                prevChange = change;
+            }
+            i += changes.length;
         }
     }
 
