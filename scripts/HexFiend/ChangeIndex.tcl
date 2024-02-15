@@ -20,27 +20,35 @@ proc varint {name {delta 0}} {
     }
 }
 
-proc account_id {} {
+proc account_id {name} {
     set length [varint ""]
     if {$length == 0} {
         return ""
     }
-    return [str $length "utf8"]
+    if {$name ne ""} {
+       return [str $length "utf8" $name]
+    } else {
+       return [str $length "utf8"]
+    }
 }
 
-proc buffer {} {
+proc buffer {name} {
     set length [varint ""]
     if {$length == 0} {
         return ""
     }
-    set value [hex $length]
-    return $value
+    if {$name ne ""} {
+       return [hex $length $name]
+    } else {
+       return [hex $length]
+    }
 }
 
 set PAGE_SIZE [expr {64 * 1024}]
 
 while {![end]} {
-    set account [account_id]
+    set saved_pos [pos]
+    set account [account_id ""]
     if {$account eq ""} {
         # if pos not at the end of the page, round it up
         if {[pos] % $PAGE_SIZE != 0} {
@@ -49,16 +57,22 @@ while {![end]} {
 
         continue
     }
+    goto $saved_pos
+
     section -collapsed "Account" {
         sectionvalue $account
+        account_id "account_id"
 
         while {![end]} {
-            set key [buffer]
+            set saved_pos [pos]
+            set key [buffer ""]
             if {[string length $key] == 0} {
                 break
             }
+            goto $saved_pos
             section "Key" {
                 sectionvalue $key
+                buffer "key"
                 section -collapsed "Changes" {
                     set changes_count [varint "count"]
                     sectionvalue $changes_count
