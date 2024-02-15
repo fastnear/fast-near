@@ -218,6 +218,7 @@ async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight } = 
             buffer.fill(0, bytesRead);
 
             if (!accountId) {
+                // TOOD: Shoud this also filter by block height?
                 yield *readPage(buffer);
             } else {
                 const items = readPage(buffer);
@@ -229,14 +230,20 @@ async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight } = 
                             const { key } = item;
                             const cmp = keyPrefix.compare(key.subarray(0, keyPrefix.length));
                             if (cmp === 0) {
-                                yield item;
+                                item = filterByBlockHeight(item, blockHeight);
+                                if (item.changes.length > 0) {
+                                    yield item;
+                                }
                             }
 
                             if (cmp < 0) {
                                 return;
                             }
                         } else {
-                            yield item;
+                            item = filterByBlockHeight(item, blockHeight);
+                            if (item.changes.length > 0) {
+                                yield item;
+                            }
                         }
                     }
 
@@ -253,6 +260,19 @@ async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight } = 
     }
 }
 
+function filterByBlockHeight(item, blockHeight) {
+    if (!blockHeight) {
+        return item;
+    }
+
+    const lastChange = item.changes.at(-1);
+    if (blockHeight < lastChange) {
+        return { ...item, changes: [] }
+    }
+
+    const index = item.changes.findIndex(change => change <= blockHeight);
+    return { ...item, changes: item.changes.slice(index) };
+}
 function changeKey(type, { public_key, key_base64 } ) {
     // TODO: Adjust this as needed
     switch (type) {

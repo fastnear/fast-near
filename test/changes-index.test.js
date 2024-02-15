@@ -37,6 +37,27 @@ indexLookup('changes.dat', { accountId: '1bc0252107b4d6d0e797d371a9f1f0ffc6026da
     t.deepEqual(changes[1].changes, [110012724]);
 });
 
+indexLookup('changes.dat', { accountId: '00eisrqqfpdj.users.kaiching', keyPrefix: Buffer.from('6B00', 'hex') }, (t, changes) => {
+    t.equals(changes.length, 1);
+    t.equals(changes[0].accountId, '00eisrqqfpdj.users.kaiching');
+    t.equals(changes[0].key.toString('hex'), '6b00197e30ace8b1e60a9501f8a26d67168be2320fe3b1ff92f7d03fa1fe2d434677');
+    t.deepEqual(changes[0].changes, [110012886]);
+});
+
+indexLookup('app.nearcrowd.near.dat', { accountId: 'app.nearcrowd.near', keyPrefix: Buffer.from('6474', 'hex') }, (t, changes) => {
+    t.equals(changes.length, 6692);
+    t.equals(changes[0].accountId, 'app.nearcrowd.near');
+    t.equals(changes[0].key.toString('hex'), '6474010000006200acd60000000000');
+    t.deepEqual(changes[0].changes, [110012583]);
+});
+
+indexLookup('app.nearcrowd.near.dat', { accountId: 'app.nearcrowd.near', keyPrefix: Buffer.from('6470', 'hex'), blockHeight: 110012395 }, (t, changes) => {
+    t.equals(changes.length, 2);
+    t.equals(changes[0].accountId, 'app.nearcrowd.near');
+    t.equals(changes[0].key.toString('hex'), '647001000000');
+    t.deepEqual(changes[0].changes, [110012395, 110012391]);
+});
+
 function customTest(fn) {
     const result = function(...args) {
         fn(test, ...args);
