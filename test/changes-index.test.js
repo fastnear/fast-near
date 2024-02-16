@@ -7,13 +7,12 @@ const ROOT_DIR = 'test/data/lake/index';
 
 const roundtrip = customTest((test, fileName) => {
     test(`roundtrip ${fileName}`, async t => {
-        const indexFileName = `${ROOT_DIR}/${fileName}`;
-        const changes = await readStream(await readChangesFile(indexFileName));
-        const tempFileName = `${indexFileName}.tmp`;
+        const changes = await readChanges(fileName);
+        const tempFileName = `${fileName}.tmp`;
         await writeChangesFile(tempFileName, convertChanges(changes));
-        const tempChanges = await readStream(await readChangesFile(tempFileName));
+        const tempChanges = await readChanges(tempFileName);
         t.deepEqual(tempChanges, changes);
-        t.ok((await fs.readFile(tempFileName)).equals(await fs.readFile(indexFileName)));
+        t.ok((await fs.readFile(`${ROOT_DIR}/${tempFileName}`)).equals(await fs.readFile(`${ROOT_DIR}/${fileName}`)));
     });
 });
 
@@ -23,8 +22,7 @@ roundtrip('changes.dat');
 
 const indexLookup = customTest((test, fileName, options, validateFn) => {
     test(`test filter ${fileName} ${options.accountId} ${options.keyPrefix} ${options.blockHeight}`, async t => {
-        const indexFileName = `test/data/lake/index/${fileName}`;
-        const changes = await readStream(await readChangesFile(indexFileName, options));
+        const changes = await readChanges(fileName, options);
         validateFn(t, changes);
     });
 });
@@ -68,9 +66,42 @@ test('trivial merge', async t => {
             `${ROOT_DIR}/app.nearcrowd.near.dat`,
             `${ROOT_DIR}/asset-manager.orderly-network.near.dat`
         ]);
-    t.ok(await fs.readFile(`${ROOT_DIR}/merged.dat.tmp`));
+    const mergedData = await fs.readFile(`${ROOT_DIR}/merged.dat.tmp`); 
+    t.ok(mergedData.length > 0);
+    await fs.unlink(`${ROOT_DIR}/merged.dat.tmp`);
+     
+    // merge in opposite order should give same result
+    await mergeChangesFiles(
+        `${ROOT_DIR}/merged.dat.tmp`, [
+            `${ROOT_DIR}/asset-manager.orderly-network.near.dat`,
+            `${ROOT_DIR}/app.nearcrowd.near.dat`
+        ]);
+    const mergedData2 = await fs.readFile(`${ROOT_DIR}/merged.dat.tmp`);
+    t.ok(mergedData2.length > 0);
+    t.ok(mergedData.equals(mergedData2));
+
+    // verify that merge has all data
+    const mergedChanges = await readChanges('merged.dat.tmp');
+    const appChanges = await readChanges('app.nearcrowd.near.dat');
+    const assetChanges = await readChanges('asset-manager.orderly-network.near.dat');
+    t.equals(mergedChanges.length, appChanges.length + assetChanges.length);
+    const mergedStrings = mergedChanges.map(changesAsString);
+    const appStrings = appChanges.map(changesAsString);
+    const assetStrings = assetChanges.map(changesAsString);
+    t.deepEqual(mergedStrings, appStrings.concat(assetStrings));
+    // very all data sorted
+    t.deepEqual([...mergedStrings].sort(), mergedStrings);
+    t.deepEqual([...appStrings].sort(), appStrings);
+    t.deepEqual([...assetStrings].sort(), assetStrings);
 });
 
+async function readChanges(fileName, options) {
+    return await readStream(await readChangesFile(`${ROOT_DIR}/${fileName}`, options));
+}
+
+function changesAsString({ accountId, key, changes }) {
+    return `${accountId} ${key.toString('hex')} ${10_000_000_000 - changes[0]}`;
+}
 
 function customTest(fn) {
     const result = function(...args) {
