@@ -60,7 +60,9 @@ indexLookup('app.nearcrowd.near.dat', { accountId: 'app.nearcrowd.near', keyPref
     t.deepEqual(changes[0].changes, [110012395, 110012391]);
 });
 
-test.only('trivial merge', async t => {
+// TODO: Force finding page in the middle of index
+
+test('trivial merge', async t => {
     await mergeChangesFiles(
         `${ROOT_DIR}/merged.dat.tmp`, [
             `${ROOT_DIR}/app.nearcrowd.near.dat`,
