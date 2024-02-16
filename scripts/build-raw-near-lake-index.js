@@ -2,8 +2,10 @@
 const { mkdir, writeFile } = require('fs/promises');
 
 const sha256 = require('../utils/sha256');
-const { writeChangesFile, readChangesFile, changeKey } = require('../storage/lake/changes-index');
+const { writeChangesFile, readChangesFile, changeKey, mergeChangesFiles } = require('../storage/lake/changes-index');
 const { readBlocks } = require('../storage/lake/archive');
+
+const BLOCKS_PER_BATCH = 10000;
 
 async function main() {
 
@@ -12,25 +14,42 @@ async function main() {
     const startBlockNumber = startAfter ? parseInt(startAfter, 10) : 0;
     const endBlockNumber = startBlockNumber + parseInt(limit, 10);
     const dstDir = `./lake-data/${bucketName}`;
-    // TODO: Make shards dynamic, allow to filter by shard
     // TODO: Should index smth from 'block' as well? (e.g. block.header.timestamp)
-    const shards = ['0', '1', '2', '3'];
+    const shards = (process.env.FAST_NEAR_SHARDS || '0,1,2,3').split(',');
 
     for (let shard of shards) {
         console.log('Processing shard', shard);
-        const blocksStream = readBlocks(dstDir, shard, startBlockNumber, endBlockNumber);
-        const parseBlocksStream = mapStream(blocksStream, ({ data }) => JSON.parse(data.toString('utf-8')));
 
-        const [stream1, stream2] = ReadableStream.from(parseBlocksStream).tee();
-        const allChangesByAccountPromise = reduceStream(
-            changesByAccountStream(stream1),
-            (a, b) => mergeObjects(a, b, mergeChanges));
+        const indexDirs = [];
+        for (let start = startBlockNumber; start < endBlockNumber; start += BLOCKS_PER_BATCH) {
+            const end = Math.min(start + BLOCKS_PER_BATCH, endBlockNumber);
+            console.log('Processing batch', start, end);
 
+            const blocksStream = readBlocks(dstDir, shard, start, end);
+            const parseBlocksStream = mapStream(blocksStream, ({ data }) => JSON.parse(data.toString('utf-8')));
+            const [stream1, stream2] = ReadableStream.from(parseBlocksStream).tee();
+
+            const allChangesByAccountPromise = reduceStream(
+                changesByAccountStream(stream1),
+                (a, b) => mergeObjects(a, b, mergeChanges));
+            const blobsPromise = extractBlobs(stream2);
+
+            const [allChangesByAccount, ] = await Promise.all([allChangesByAccountPromise, blobsPromise]);
+            const indexDir = `${dstDir}/${shard}/index/${start}`;
+            indexDirs.push(indexDir);
+            await writeChanges(indexDir, allChangesByAccount);
+        }
+
+        // TODO: Merge separate account index files as well
+        await mergeChangesFiles(`${dstDir}/${shard}/index/changes.dat`, indexDirs.map(dir => `${dir}/changes.dat`));
+    }
+
+    async function extractBlobs(blocksStream) {
         const blobDir = `${dstDir}/blob`;
         await mkdir(blobDir, { recursive: true });
-        const blobsPromise = consumeStream(mapStream(stream2, async ({ state_changes, chunk }) => {
+        for await (const { state_changes, chunk } of blocksStream) {
             if (!chunk) {
-                return;
+                continue;
             }
 
             for (let { type, change } of state_changes) {
@@ -43,10 +62,7 @@ async function main() {
                     await writeFile(blobPath, code);
                 }
             }
-        }));
-
-        const [allChangesByAccount, ] = await Promise.all([allChangesByAccountPromise, blobsPromise]);
-        await writeChanges(`${dstDir}/${shard}/index`, allChangesByAccount);
+        }
     }
 
     async function *changesByAccountStream(blocksStream) {
