@@ -60,43 +60,40 @@ indexLookup('app.nearcrowd.near.dat', { accountId: 'app.nearcrowd.near', keyPref
 
 // TODO: Force finding page in the middle of index
 
-test('trivial merge', async t => {
-    await mergeChangesFiles(
-        `${ROOT_DIR}/merged.dat.tmp`, [
-            `${ROOT_DIR}/app.nearcrowd.near.dat`,
-            `${ROOT_DIR}/asset-manager.orderly-network.near.dat`
-        ]);
-    const mergedData = await fs.readFile(`${ROOT_DIR}/merged.dat.tmp`); 
-    t.ok(mergedData.length > 0);
-    await fs.unlink(`${ROOT_DIR}/merged.dat.tmp`);
-     
-    // merge in opposite order should give same result
-    await mergeChangesFiles(
-        `${ROOT_DIR}/merged.dat.tmp`, [
-            `${ROOT_DIR}/asset-manager.orderly-network.near.dat`,
-            `${ROOT_DIR}/app.nearcrowd.near.dat`
-        ]);
-    const mergedData2 = await fs.readFile(`${ROOT_DIR}/merged.dat.tmp`);
-    t.ok(mergedData2.length > 0);
-    t.ok(mergedData.equals(mergedData2));
+const merge = customTest((test, fileNames, options) => {
+    test(`merge ${fileNames.join(', ')}`, async t => {
+        await mergeChangesFiles(
+            `${ROOT_DIR}/merged.dat.tmp`, fileNames.map(fileName => `${ROOT_DIR}/${fileName}`), options);
+        const mergedData = await fs.readFile(`${ROOT_DIR}/merged.dat.tmp`);
+        t.ok(mergedData.length > 0);
+        await fs.unlink(`${ROOT_DIR}/merged.dat.tmp`);
 
-    // verify that merge has all data
-    const mergedChanges = await readChanges('merged.dat.tmp');
-    const appChanges = await readChanges('app.nearcrowd.near.dat');
-    const assetChanges = await readChanges('asset-manager.orderly-network.near.dat');
-    t.equals(mergedChanges.length, appChanges.length + assetChanges.length);
-    const mergedStrings = mergedChanges.map(changesAsString);
-    const appStrings = appChanges.map(changesAsString);
-    const assetStrings = assetChanges.map(changesAsString);
-    t.deepEqual(mergedStrings, appStrings.concat(assetStrings));
-    // very all data sorted
-    t.deepEqual([...mergedStrings].sort(), mergedStrings);
-    t.deepEqual([...appStrings].sort(), appStrings);
-    t.deepEqual([...assetStrings].sort(), assetStrings);
+        // merge in opposite order should give same result
+        await mergeChangesFiles(
+            `${ROOT_DIR}/merged.dat.tmp`, fileNames.slice().reverse().map(fileName => `${ROOT_DIR}/${fileName}`), options);
+        const mergedData2 = await fs.readFile(`${ROOT_DIR}/merged.dat.tmp`);
+        t.ok(mergedData2.length > 0);
+        t.ok(mergedData.equals(mergedData2));
+
+        const mergedStrings = await readChangesStrings('merged.dat.tmp', options);
+        const strings = await Promise.all(fileNames.map(fileName => readChangesStrings(fileName, options)));
+        // verify that merge has all data
+        t.deepEqual(mergedStrings, strings.flat().sort());
+        // verify all data sorted
+        t.deepEqual([...mergedStrings].sort(), mergedStrings);
+        t.deepEqual(strings.map(s => [...s].sort()), strings);
+    });
 });
+
+merge(['app.nearcrowd.near.dat', 'asset-manager.orderly-network.near.dat']);
+merge(['app.nearcrowd.near.dat', 'changes.dat'], { accountId: 'app.nearcrowd.near' });
 
 async function readChanges(fileName, options) {
     return await readStream(await readChangesFile(`${ROOT_DIR}/${fileName}`, options));
+}
+
+async function readChangesStrings(fileName, options) {
+    return (await readChanges(fileName, options)).map(changesAsString);
 }
 
 function changesAsString({ accountId, key, changes }) {
