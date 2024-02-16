@@ -130,7 +130,7 @@ function testRequestImpl(test, testName, url, expectedStatus, expectedOutput, in
 }
 const testRequest = customTest(testRequestImpl);
 
-testRequest.only('load data normally',
+testRequest('load data normally',
     '/account/test.near/view/fibonacci',
     200, Buffer.from([13, 0, 0, 0, 0, 0, 0, 0,]), Buffer.from([7]), async () => {
     await handleStreamerMessage(STREAMER_MESSAGE);
