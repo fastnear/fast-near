@@ -9,6 +9,7 @@ test.onFinish(async () => {
     await redis.shutdown();
 });
 
+const { customTest } = require('./utils/custom-test');
 const { dumpChangesToStorage: handleStreamerMessage } = require('../scripts/load-from-near-lake');
 const storage = require('../storage');
 const app = require('../app');
@@ -100,7 +101,7 @@ const STREAMER_MESSAGE = {
     }],
 }
 
-function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, initFn) {
+function testRequestImpl(test, testName, url, expectedStatus, expectedOutput, input, initFn) {
     test(testName, async t => {
         t.teardown(() => storage.clearDatabase());
         await initFn();
@@ -127,38 +128,39 @@ function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, i
         }
     });
 }
+const testRequest = customTest(testRequestImpl);
 
-testRequestImpl('load data normally',
+testRequest.only('load data normally',
     '/account/test.near/view/fibonacci',
     200, Buffer.from([13, 0, 0, 0, 0, 0, 0, 0,]), Buffer.from([7]), async () => {
     await handleStreamerMessage(STREAMER_MESSAGE);
 });
 
-testRequestImpl('load data excluding test.near',
+testRequest('load data excluding test.near',
     '/account/test.near/view/fibonacci',
     404, 'accountNotFound: Account not found: test.near at 1 block height', Buffer.from([7]), async () => {
     await handleStreamerMessage(STREAMER_MESSAGE, { exclude: ['test.near'] });
 });
 
-testRequestImpl('load data including only lands.near',
+testRequest('load data including only lands.near',
     '/account/test.near/view/fibonacci',
     404, 'accountNotFound: Account not found: test.near at 1 block height', Buffer.from([7]), async () => {
     await handleStreamerMessage(STREAMER_MESSAGE, { include: ['lands.near'] });
 });
 
-testRequestImpl('load data including only test.near',
+testRequest('load data including only test.near',
     '/account/test.near/view/fibonacci',
     200, Buffer.from([13, 0, 0, 0, 0, 0, 0, 0,]), Buffer.from([7]), async () => {
     await handleStreamerMessage(STREAMER_MESSAGE, { include: ['test.near'] });
 });
 
-testRequestImpl('include using glob pattern',
+testRequest('include using glob pattern',
     '/account/test.near/view/fibonacci',
     404, 'accountNotFound: Account not found: test.near at 1 block height', Buffer.from([7]), async () => {
     await handleStreamerMessage(STREAMER_MESSAGE, { include: ['no-code.*'] });
 });
 
-testRequestImpl('exclude using glob pattern',
+testRequest('exclude using glob pattern',
     '/account/test.near/view/fibonacci',
     404, 'accountNotFound: Account not found: test.near at 1 block height', Buffer.from([7]), async () => {
     await handleStreamerMessage(STREAMER_MESSAGE, { exclude: ['test.*'] });
