@@ -11,7 +11,7 @@ const roundtrip = customTest((test, fileName) => {
         const tempFileName = `${fileName}.tmp`;
         await writeChangesFile(`${ROOT_DIR}/${tempFileName}`, convertChanges(changes));
         const tempChanges = await readChanges(tempFileName);
-        t.deepEqual(tempChanges, changes);
+        t.ok(changesAreEqual(changes, tempChanges));
         t.ok((await fs.readFile(`${ROOT_DIR}/${tempFileName}`)).equals(await fs.readFile(`${ROOT_DIR}/${fileName}`)));
     });
 });
@@ -98,6 +98,25 @@ async function readChangesStrings(fileName, options) {
 
 function changesAsString({ accountId, key, changes }) {
     return `${accountId} ${key.toString('hex')} ${10_000_000_000 - changes[0]}`;
+}
+
+function changesAreEqual(changes1, changes2) {
+    if (changes1.length !== changes2.length) {
+        return false;
+    }
+    for (let i = 0; i < changes1.length; i++) {
+        const c1 = changes1[i];
+        const c2 = changes2[i];
+        if (c1.accountId !== c2.accountId || !c1.key.equals(c2.key) || c1.changes.length !== c2.changes.length) {
+            return false;
+        }
+        for (let j = 0; j < c1.changes.length; j++) {
+            if (c1.changes[j] !== c2.changes[j]) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 function customTest(fn) {
