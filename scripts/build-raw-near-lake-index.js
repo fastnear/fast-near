@@ -1,11 +1,13 @@
 
-const { mkdir, writeFile } = require('fs/promises');
+const { mkdir, writeFile, access } = require('fs/promises');
 
 const sha256 = require('../utils/sha256');
 const { writeChangesFile, readChangesFile, changeKey, mergeChangesFiles } = require('../storage/lake/changes-index');
 const { readBlocks } = require('../storage/lake/archive');
 
 const BLOCKS_PER_BATCH = 10000;
+
+const MIN_CHANGES_PER_FILE = 1000;
 
 async function main() {
 
@@ -21,6 +23,7 @@ async function main() {
         console.log('Processing shard', shard);
 
         const indexDirs = [];
+        const standaloneAccounts = new Set();
         for (let start = startBlockNumber; start < endBlockNumber; start += BLOCKS_PER_BATCH) {
             const end = Math.min(start + BLOCKS_PER_BATCH, endBlockNumber);
             console.log('Processing batch', start, end);
@@ -37,11 +40,24 @@ async function main() {
             const [allChangesByAccount, ] = await Promise.all([allChangesByAccountPromise, blobsPromise]);
             const indexDir = `${dstDir}/${shard}/index/${start}`;
             indexDirs.push(indexDir);
+            Object.keys(allChangesByAccount)
+                .filter(accountId => allChangesByAccount[accountId]
+                    .reduce((sum, { changes }) => sum + changes.length, 0) > MIN_CHANGES_PER_FILE)
+                .forEach(accountId => standaloneAccounts.add(accountId));
             await writeChanges(indexDir, allChangesByAccount);
         }
 
-        // TODO: Merge separate account index files as well
+        // TODO: Filter out standalone accounts from changes.dat
         await mergeChangesFiles(`${dstDir}/${shard}/index/changes.dat`, indexDirs.map(dir => `${dir}/changes.dat`));
+
+        for (let accountId of standaloneAccounts) {
+            await mergeChangesFiles(
+                `${dstDir}/${shard}/index/${accountId}.dat`,
+                await Promise.all(indexDirs.map(async dir =>
+                    (await fileExists(`${dir}/${accountId}.dat`)
+                    ? `${dir}/${accountId}.dat` : `${dir}/changes.dat`))),
+                { accountId });
+        }
     }
 
     async function extractBlobs(blocksStream) {
@@ -108,7 +124,17 @@ async function main() {
     }
 }
 
-const MIN_CHANGES_PER_FILE = 1000;
+async function fileExists(path) {
+    try {
+        await access(path);
+        return true;
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            return false;
+        }
+        throw error;
+    }
+}
 
 async function writeChanges(outFolder, changesByAccount) {
     await mkdir(outFolder, { recursive: true });
