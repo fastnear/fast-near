@@ -32,11 +32,12 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'yarn'
+    - name: Make sure yarn uses Bash
+      run: yarn config set script-shell /bin/bash
     - name: Install Redis
       uses: pustovitDmytro/redis-github-action@v1.0.1
     - run: yarn
     - name: Unit tests coverage
-      shell: bash
       run: FAST_NEAR_CONTRACT_TIMEOUT_MS=5000 NODE_TAPE_NO_ONLY_TEST=true npx nyc --reporter=lcov yarn test:ci
     - name: Report code coverage
       uses: coverallsapp/github-action@master
