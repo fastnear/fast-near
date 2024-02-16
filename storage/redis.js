@@ -153,6 +153,8 @@ class RedisStorage {
         do {
             const [newIterator, keys] = await this.redisClient.hscan(Buffer.from(`k:${DATA_SCOPE}:${contractId}`), iterator, 'MATCH', keyPattern, 'COUNT', SCAN_COUNT);
             console.log('keys', keys.map(k => k.toString('utf8')), newIterator.toString('utf8'))
+            // TODO: Need to dedup keys?
+            // NOTE: See SCAN command guarantees: https://redis.io/commands/scan/
             const newData = await Promise.all(keys.map(async storageKey => {
                 const compKey = Buffer.concat([Buffer.from(`${DATA_SCOPE}:${contractId}:`), storageKey]);
                 const dataBlockHeight = await this.getLatestDataBlockHeight(compKey, blockHeight);

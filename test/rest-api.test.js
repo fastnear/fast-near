@@ -389,10 +389,9 @@ test('view contract data with iterator', async t => {
     t.is(res.status, 200);
 
     const { data, iterator } = res.body;
-    t.equal(data.length, 1000);
-
     const { data: data2, iterator: iterator2 } = (await request.get(`/account/test.near/data/*?iterator=${iterator}`)).body;
-    t.equal(data2.length, 7);
+    // NOTE: There is no guarantee on how the data is cut into chunks, so we just check that all data is there
+    // See https://redis.io/commands/scan/ for more details
 
     t.deepEqual([...data, ...data2].sort((a, b) => a[0].localeCompare(b[0])), BIG_DATA.concat([
         [ '8charkey', 'test-value-updated' ],
