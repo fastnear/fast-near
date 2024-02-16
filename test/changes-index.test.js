@@ -9,7 +9,7 @@ const roundtrip = customTest((test, fileName) => {
     test(`roundtrip ${fileName}`, async t => {
         const changes = await readChanges(fileName);
         const tempFileName = `${fileName}.tmp`;
-        await writeChangesFile(tempFileName, convertChanges(changes));
+        await writeChangesFile(`${ROOT_DIR}/${tempFileName}`, convertChanges(changes));
         const tempChanges = await readChanges(tempFileName);
         t.deepEqual(tempChanges, changes);
         t.ok((await fs.readFile(`${ROOT_DIR}/${tempFileName}`)).equals(await fs.readFile(`${ROOT_DIR}/${fileName}`)));
