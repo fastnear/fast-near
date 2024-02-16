@@ -8,6 +8,7 @@ test.onFinish(async () => {
     await redis.shutdown();
 });
 
+const { customTest } = require('./utils/custom-test');
 const { dumpChangesToStorage: handleStreamerMessage } = require('../scripts/load-from-near-lake');
 const storage = require('../storage');
 const app = require('../app');
@@ -229,7 +230,7 @@ test('/healthz (synced)', async t => {
     t.isEqual(response.status, 204);
 });
 
-function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, initFn) {
+function testRequestImpl(test, testName, url, expectedStatus, expectedOutput, input, initFn) {
     test(testName, async t => {
         t.teardown(() => storage.clearDatabase());
 
@@ -258,30 +259,32 @@ function testRequestImpl(testName, url, expectedStatus, expectedOutput, input, i
     });
 }
 
-function testRequest(testName, url, expectedStatus, expectedOutput, input = null) {
-    testRequestImpl(testName, url, expectedStatus, expectedOutput, input, async () => {
+const testRequest = customTest((test, testName, url, expectedStatus, expectedOutput, input = null) => {
+    testRequestImpl(test, testName, url, expectedStatus, expectedOutput, input, async () => {
         await handleStreamerMessage(STREAMER_MESSAGE);
     });
-}
+});
 
-function testRequestAfterDeletion(testName, url, expectedStatus, expectedOutput, input = null) {
-    testRequestImpl(`after deletion: ${testName}`, url, expectedStatus, expectedOutput, input, async () => {
+const testRequestAfterDeletion = customTest((test, testName, url, expectedStatus, expectedOutput, input = null) => {
+    testRequestImpl(test, `after deletion: ${testName}`, url, expectedStatus, expectedOutput, input, async () => {
         await handleStreamerMessage(STREAMER_MESSAGE);
         await handleStreamerMessage(TEST_DELETION_STREAMER_MESSAGE);
     });
-}
+});
 
-function testRequestWithCompressHistory(testName, url, expectedStatus, expectedOutput, input = null) {
-    testRequestImpl(`after compression: ${testName}`, url, expectedStatus, expectedOutput, input, async () => {
+const testRequestWithCompressHistory = customTest((test, testName, url, expectedStatus, expectedOutput, input = null) => {
+    testRequestImpl(test, `after compression: ${testName}`, url, expectedStatus, expectedOutput, input, async () => {
         await handleStreamerMessage(STREAMER_MESSAGE, { historyLength: 1 });
         await handleStreamerMessage(TEST_DELETION_STREAMER_MESSAGE, { historyLength: 1 });
     });
-}
+});
 
-function testViewMethod(methodName, expectedStatus, expectedOutput, input = null) {
+const testViewMethod = customTest((test, methodName, expectedStatus, expectedOutput, input = null) => {
     const url = `/account/test.near/view/${methodName}`;
-    testRequest(`call view method ${methodName}`, url, expectedStatus, expectedOutput, input);
-}
+    testRequestImpl(test, `call view method ${methodName}`, url, expectedStatus, expectedOutput, input, async () => {
+        await handleStreamerMessage(STREAMER_MESSAGE);
+    });
+});
 
 testViewMethod('no-such-method', 404, 'method no-such-method not found');
 testViewMethod('fibonacci', 200, Buffer.from([13, 0, 0, 0, 0, 0, 0, 0,]), Buffer.from([7]));

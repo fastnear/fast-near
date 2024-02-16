@@ -1,5 +1,6 @@
 const test = require('tape');
 const fs = require('fs/promises');
+const { customTest } = require('./utils/custom-test');
 
 const { writeChangesFile, readChangesFile, mergeChangesFiles } = require('../storage/lake/changes-index');
 
@@ -117,16 +118,6 @@ function changesAreEqual(changes1, changes2) {
         }
     }
     return true;
-}
-
-function customTest(fn) {
-    const result = function(...args) {
-        fn(test, ...args);
-    }
-    result.only = function(...args) {
-        fn(test.only, ...args);
-    }
-    return result;
 }
 
 async function readStream(stream) {
