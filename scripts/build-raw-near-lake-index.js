@@ -5,7 +5,7 @@ const sha256 = require('../utils/sha256');
 const { writeChangesFile, readChangesFile, changeKey, mergeChangesFiles } = require('../storage/lake/changes-index');
 const { readBlocks } = require('../storage/lake/archive');
 
-const BLOCKS_PER_BATCH = 10000;
+const BLOCKS_PER_BATCH = 100000;
 
 const MIN_CHANGES_PER_FILE = 1000;
 
