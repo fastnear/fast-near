@@ -22,7 +22,13 @@ async function writeChangesFile(outPath, changesByAccount) {
         }
     }
 
-    await writeChangesStream(outStream, changesStream());
+    try {
+        await writeChangesStream(outStream, changesStream());
+    } finally {
+        await new Promise((resolve, reject) => {
+            outStream.end(e => e ? reject(e) : resolve());
+        });
+    }
 }
 
 async function writeChangesStream(outStream, changesStream) {
@@ -291,8 +297,21 @@ function filterByBlockHeight(item, blockHeight) {
 async function mergeChangesFiles(outPath, inPaths, filter) {
     const streams = inPaths.map(inPath => readChangesFile(inPath, filter));
     const mergedStream = mergeChangesStreams(streams);
-    // TODO: When to close the stream?
-    await writeChangesStream(fs.createWriteStream(outPath), mergedStream);
+    // TODO: Do I need to close the streams above?
+    const outStream = fs.createWriteStream(outPath);
+    try {
+        await writeChangesStream(outStream, mergedStream);
+    } finally {
+        await new Promise((resolve, reject) => {
+            outStream.close(e => e ? reject(e) : resolve());
+        });
+        // TODO: Is this needed?
+        for (let stream of streams) {
+            for await (const _ of stream) {
+                // Do nothing
+            }
+        }
+    }
 }
 
 async function *mergeChangesStreams(streams) {
