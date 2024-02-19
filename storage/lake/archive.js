@@ -24,6 +24,7 @@ async function *readBlocks(dataDir, shard, startBlockNumber, endBlockNumber) {
         const extract = tar.extract();
         const gunzip = zlib.createGunzip();
         const readStream = fs.createReadStream(inFile);
+        const results = [];
         const pipelinePromise = pipeline(readStream, gunzip, extract, async function *(extract, { signal }) {
             for await (const entry of extract) {
                 if (signal.aborted) {
@@ -38,11 +39,11 @@ async function *readBlocks(dataDir, shard, startBlockNumber, endBlockNumber) {
                 });
 
                 const blockHeight = parseInt(entry.header.name.replace('.json', ''), 10);
-                yield { data, blockHeight };
+                results.push({ data, blockHeight });
             }
         });
-
         await pipelinePromise;
+        yield *results;
     }
 }
 
