@@ -75,7 +75,9 @@ async function main() {
                     const hash = sha256(code).toString('hex');
                     console.log('contract', chunk.header.height_included, change.account_id, hash);
                     const blobPath = `${blobDir}/${hash}.wasm`;
-                    await writeFile(blobPath, code);
+                    if (!await fileExists(blobPath)) {
+                        await writeFile(blobPath, code);
+                    }
                 }
             }
         }
