@@ -306,11 +306,7 @@ async function mergeChangesFiles(outPath, inPaths, filter) {
             outStream.close(e => e ? reject(e) : resolve());
         });
         // TODO: Is this needed?
-        for (let stream of streams) {
-            for await (const _ of stream) {
-                // Do nothing
-            }
-        }
+        await Promise.all(streams.map(consumeStream));
     }
 }
 
@@ -348,6 +344,9 @@ async function *mergeChangesStreams(streams) {
         readers[minIndex] = streams[minIndex].next();
         results[minIndex] = (await readers[minIndex]).value;
     }
+
+    // TODO: Is this needed?
+    await Promise.all(streams.map(consumeStream));
 }
 
 
@@ -407,6 +406,12 @@ function changeValue(type, data) {
         }
         default:
             throw new Error(`Unknown type ${type}`);
+    }
+}
+
+async function consumeStream(stream) {
+    for await (const _ of stream) {
+        // Do nothing
     }
 }
 

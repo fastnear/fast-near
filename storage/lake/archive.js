@@ -1,6 +1,7 @@
 const fs = require('fs');
 const zlib = require('zlib');
 const tar = require('tar-stream');
+const { pipeline } = require('node:stream/promises')
 
 const FILES_PER_ARCHIVE = 5;
 const BLOCKS_PER_LOG = 1000;
@@ -23,7 +24,7 @@ async function *readBlocks(dataDir, shard, startBlockNumber, endBlockNumber) {
         const extract = tar.extract();
         const gunzip = zlib.createGunzip();
         const readStream = fs.createReadStream(inFile);
-        readStream.pipe(gunzip).pipe(extract);
+        const pipelinePromise = pipeline(readStream, gunzip, extract);
 
         for await (const entry of extract) {
             // Convert entry stream into data buffer
@@ -37,7 +38,8 @@ async function *readBlocks(dataDir, shard, startBlockNumber, endBlockNumber) {
             const blockHeight = parseInt(entry.header.name.replace('.json', ''), 10);
             yield { data, blockHeight };
         }
-        // TODO: Does readStream need to be closed?
+
+        await pipelinePromise;
     }
 }
 

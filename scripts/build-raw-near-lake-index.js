@@ -208,12 +208,6 @@ async function *mapStream(stream, fn) {
     }
 }
 
-async function consumeStream(stream) {
-    for await (const _ of stream) {
-        // Do nothing
-    }
-}
-
 function mergeObjects(a, b, fn) {
     for (k in b) {
         if (a[k]) {
