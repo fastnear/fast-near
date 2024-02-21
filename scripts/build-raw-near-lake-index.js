@@ -5,6 +5,8 @@ const sha256 = require('../utils/sha256');
 const { writeChangesFile, readChangesFile, changeKey, mergeChangesFiles } = require('../storage/lake/changes-index');
 const { readBlocks } = require('../storage/lake/archive');
 
+const debug = require('debug')('build-index');
+
 const BLOCKS_PER_BATCH = 100000;
 
 const MIN_CHANGES_PER_FILE = 1000;
@@ -68,6 +70,7 @@ async function main() {
                 continue;
             }
 
+            debug('extractBlobs', chunk.header.height_included);
             for (let { type, change } of state_changes) {
                 if (type === 'contract_code_update') {
                     const { code_base64 } = change;
@@ -80,6 +83,7 @@ async function main() {
                     }
                 }
             }
+            debug('extractBlobs done', chunk.header.height_included);
         }
     }
 
@@ -182,11 +186,13 @@ async function reduceStream(stream, fn) {
         chunk.push(item);
 
         if (chunk.length >= chunkSize) {
+            debug('reduceStream', chunk.length, processed);
             if (result === undefined) {
                 result = reduceRecursive(chunk, fn);
             } else {
                 result = fn(result, reduceRecursive(chunk, fn));
             }
+            debug('reduceStream done', chunk.length, processed);
             processed += chunk.length;
             chunkSize = Math.min(MAX_CHUNK_SIZE, processed);
             chunk.length = 0;
@@ -198,10 +204,20 @@ async function reduceStream(stream, fn) {
     }
 
     if (result === undefined) {
-        return reduceRecursive(chunk, fn);
+        debug('reduceStream 2', chunk.length, processed);
+        try {
+            return reduceRecursive(chunk, fn);
+        } finally {
+            debug('reduceStream 2 done', chunk.length, processed);
+        }
     }
 
-    return fn(result, reduceRecursive(chunk, fn));
+    try {
+        debug('reduceStream 3', chunk.length, processed);
+        return fn(result, reduceRecursive(chunk, fn));
+    } finally {
+        debug('reduceStream 3 done', chunk.length, processed);
+    }
 }
 
 async function *mapStream(stream, fn) {
