@@ -30,8 +30,11 @@ async function* stream({ startBlockHeight, redisUrl, streamKey, blocksPreloadPoo
         let blockHeight = startBlockHeight;
         do {
             const result = await redisClient.xread('COUNT', blocksPreloadPoolSize, 'BLOCK', '100', 'STREAMS', streamKey, blockHeight);
-            const items = result[0][1];
+            if (!result) {
+                continue;
+            }
 
+            const items = result[0][1];
             for (let [id, [, block]] of items) {
                 yield JSON.parse(block);
                 blockHeight = parseInt(id.split('-')[0]) + 1;
