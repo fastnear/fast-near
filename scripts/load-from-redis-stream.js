@@ -84,8 +84,8 @@ async function dumpChangesToStorage(streamerMessage, { historyLength, include, e
 
     console.time('dumpChangesToStorage');
     await storage.writeBatch(async batch => {
-        for (let { stateChanges } of streamerMessage.shards) {
-            for (let { type, change } of stateChanges) {
+        for (let { state_changes } of streamerMessage.shards) {
+            for (let { type, change } of state_changes) {
                 await handleChange({ batch, blockHash, blockHeight, type, change, keepFromBlockHeight, include, exclude });
             }
         }
@@ -112,40 +112,40 @@ async function handleChange({ batch, blockHeight, type, change, keepFromBlockHei
         }
     }
 
-    const { accountId } = change;
-    if (include && include.find(pattern => !minimatch(accountId, pattern))) {
+    const { account_id } = change;
+    if (include && include.find(pattern => !minimatch(account_id, pattern))) {
         return;
     }
-    if (exclude && exclude.find(pattern => minimatch(accountId, pattern))) {
+    if (exclude && exclude.find(pattern => minimatch(account_id, pattern))) {
         return;
     }
 
     switch (type) {
         case 'account_update': {
-            const { amount, locked, codeHash, storageUsage } = change;
-            await handleUpdate(ACCOUNT_SCOPE, accountId, null,
-                serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(codeHash), storage_usage: storageUsage })));
+            const { amount, locked, code_hash, storage_usage } = change;
+            await handleUpdate(ACCOUNT_SCOPE, account_id, null,
+                serialize(BORSH_SCHEMA, new Account({ amount, locked, code_hash: bs58.decode(code_hash), storage_usage })));
             break;
         }
         case 'account_deletion': {
             // TODO: Check if account_deletion comes together with contract_code_deletion
-            await handleDeletion(ACCOUNT_SCOPE, accountId, null);
+            await handleDeletion(ACCOUNT_SCOPE, account_id, null);
             break;
         }
         case 'data_update': {
-            const { keyBase64, valueBase64 } = change;
-            const storageKey = Buffer.from(keyBase64, 'base64');
-            await handleUpdate(DATA_SCOPE, accountId, storageKey, Buffer.from(valueBase64, 'base64'));
+            const { key_base64, value_base64 } = change;
+            const storageKey = Buffer.from(key_base64, 'base64');
+            await handleUpdate(DATA_SCOPE, account_id, storageKey, Buffer.from(value_base64, 'base64'));
             break;
         }
         case 'data_deletion': {
-            const { keyBase64 } = change;
-            const storageKey = Buffer.from(keyBase64, 'base64');
-            await handleDeletion(DATA_SCOPE, accountId, storageKey);
+            const { key_base64 } = change;
+            const storageKey = Buffer.from(key_base64, 'base64');
+            await handleDeletion(DATA_SCOPE, account_id, storageKey);
             break;
         }
         case 'access_key_update': {
-            const { publicKey: publicKeyStr, accessKey: {
+            const { public_key: publicKeyStr, access_key: {
                 nonce,
                 permission 
             } } = change;
@@ -153,21 +153,26 @@ async function handleChange({ batch, blockHeight, type, change, keepFromBlockHei
             const accessKey = new AccessKey({ nonce: nonce.toString(), permission: new AccessKeyPermission(
                 permission == 'FullAccess'
                     ? { fullAccess: new FullAccessPermission() }
-                    : { functionCall: new FunctionCallPermission(permission.FunctionCall) }
+                    : { functionCall: new FunctionCallPermission({
+                        // TODO: Normalize field names in data-model
+                        receiverId: permission.FunctionCall.receiver_id,
+                        methodNames: permission.FunctionCall.method_names,
+                        allowance: permission.FunctionCall.allowance,
+                    }) }
             )});
             const storageKey = serialize(BORSH_SCHEMA, PublicKey.fromString(publicKeyStr));
-            await handleUpdate(ACCESS_KEY_SCOPE, accountId, storageKey, serialize(BORSH_SCHEMA, accessKey));
+            await handleUpdate(ACCESS_KEY_SCOPE, account_id, storageKey, serialize(BORSH_SCHEMA, accessKey));
             break;
         }
         case 'access_key_deletion': {
-            const { publicKey: publicKeyStr } = change;
+            const { public_key: publicKeyStr } = change;
             const storageKey = serialize(BORSH_SCHEMA, PublicKey.fromString(publicKeyStr));
-            await handleDeletion(ACCESS_KEY_SCOPE, accountId, storageKey);
+            await handleDeletion(ACCESS_KEY_SCOPE, account_id, storageKey);
             break;
         }
         case 'contract_code_update': {
-            const { codeBase64 } = change;
-            await storage.setBlob(batch, Buffer.from(codeBase64, 'base64'));
+            const { code_base64 } = change;
+            await storage.setBlob(batch, Buffer.from(code_base64, 'base64'));
             break;
         }
         case 'contract_code_deletion': {
