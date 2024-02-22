@@ -18,6 +18,8 @@ async function main() {
     const startBlockNumber = startAfter ? parseInt(startAfter, 10) : 0;
     const endBlockNumber = startBlockNumber + parseInt(limit, 10);
     const dstDir = `./lake-data/${bucketName}`;
+    const blobDir = `${dstDir}/blob`;
+    await mkdir(blobDir, { recursive: true });
     // TODO: Should index smth from 'block' as well? (e.g. block.header.timestamp)
     const shards = (process.env.FAST_NEAR_SHARDS || '0,1,2,3').split(',');
 
@@ -32,14 +34,18 @@ async function main() {
 
             const blocksStream = readBlocks(dstDir, shard, start, end);
             const parseBlocksStream = mapStream(blocksStream, ({ data }) => JSON.parse(data.toString('utf-8')));
-            const [stream1, stream2] = ReadableStream.from(parseBlocksStream).tee();
 
-            const allChangesByAccountPromise = reduceStream(
-                changesByAccountStream(stream1),
-                (a, b) => mergeObjects(a, b, mergeChanges));
-            const blobsPromise = extractBlobs(stream2);
+            let changesByAccountList = [];
+            for await (const { chunk, state_changes } of parseBlocksStream) {
+                if (!chunk) {
+                    continue;
+                }
 
-            const [allChangesByAccount, ] = await Promise.all([allChangesByAccountPromise, blobsPromise]);
+                await extractBlobs(chunk, state_changes);
+                changesByAccountList.push(changesByAccount(chunk, state_changes));
+            }
+            const allChangesByAccount = reduceRecursive(changesByAccountList, (a, b) => mergeObjects(a, b, mergeChanges));
+
             const indexDir = `${dstDir}/${shard}/index/${start}`;
             indexDirs.push(indexDir);
             Object.keys(allChangesByAccount)
@@ -62,71 +68,55 @@ async function main() {
         }
     }
 
-    async function extractBlobs(blocksStream) {
-        const blobDir = `${dstDir}/blob`;
-        await mkdir(blobDir, { recursive: true });
-        for await (const { state_changes, chunk } of blocksStream) {
-            if (!chunk) {
-                continue;
-            }
-
-            debug('extractBlobs', chunk.header.height_included);
-            for (let { type, change } of state_changes) {
-                if (type === 'contract_code_update') {
-                    const { code_base64 } = change;
-                    const code = Buffer.from(code_base64, 'base64');
-                    const hash = sha256(code).toString('hex');
-                    console.log('contract', chunk.header.height_included, change.account_id, hash);
-                    const blobPath = `${blobDir}/${hash}.wasm`;
-                    if (!await fileExists(blobPath)) {
-                        await writeFile(blobPath, code);
-                    }
+    async function extractBlobs(chunk, state_changes) {
+        for (let { type, change } of state_changes) {
+            if (type === 'contract_code_update') {
+                const { code_base64 } = change;
+                const code = Buffer.from(code_base64, 'base64');
+                const hash = sha256(code).toString('hex');
+                console.log('contract', chunk.header.height_included, change.account_id, hash);
+                const blobPath = `${blobDir}/${hash}.wasm`;
+                if (!await fileExists(blobPath)) {
+                    await writeFile(blobPath, code);
                 }
             }
-            debug('extractBlobs done', chunk.header.height_included);
         }
     }
 
-    async function *changesByAccountStream(blocksStream) {
-        for await (const { state_changes, chunk } of blocksStream) {
-            if (!chunk) {
+    function changesByAccount(chunk, state_changes) {
+        const blockHeight = chunk.header.height_included;
+        const changesByAccount = {};
+        for (let { type, change } of state_changes) {
+            // NOTE: No need to index as code hash is in account_update and code is extracted as blobs
+            if (type === 'contract_code_update') {
                 continue;
             }
 
-            const blockHeight = chunk.header.height_included;
-            const changesByAccount = {};
-            for (let { type, change } of state_changes) {
-                // NOTE: No need to index as code hash is in account_update and code is extracted as blobs
-                if (type === 'contract_code_update') {
-                    continue;
-                }
+            const { account_id, ...changeData } = change;
+            const accountChanges = changesByAccount[account_id];
+            const key = changeKey(type, changeData);
 
-                const { account_id, ...changeData } = change;
-                const accountChanges = changesByAccount[account_id];
-                const key = changeKey(type, changeData);
-
-                if (!accountChanges) {
-                    changesByAccount[account_id] = [{ key, changes: [blockHeight] }];
-                } else {
-                    const index = accountChanges.findIndex(({ key: k }) => k.equals(key));
-                    if (index !== -1) {
-                        const changes = accountChanges[index].changes;
-                        if (changes.at(-1) !== blockHeight) {
-                            changes.push(blockHeight);
-                        }
-                    } else {
-                        accountChanges.push({ key, changes: [blockHeight] });
+            if (!accountChanges) {
+                changesByAccount[account_id] = [{ key, changes: [blockHeight] }];
+            } else {
+                const index = accountChanges.findIndex(({ key: k }) => k.equals(key));
+                if (index !== -1) {
+                    const changes = accountChanges[index].changes;
+                    if (changes.at(-1) !== blockHeight) {
+                        changes.push(blockHeight);
                     }
+                } else {
+                    accountChanges.push({ key, changes: [blockHeight] });
                 }
             }
-
-            for (let accountChanges of Object.values(changesByAccount)) {
-                accountChanges.sort((a, b) => a.key.compare(b.key));
-                accountChanges.forEach(({ changes }) => changes.reverse());
-            }
-
-            yield changesByAccount;
         }
+
+        for (let accountChanges of Object.values(changesByAccount)) {
+            accountChanges.sort((a, b) => a.key.compare(b.key));
+            accountChanges.forEach(({ changes }) => changes.reverse());
+        }
+
+        return changesByAccount;
     }
 }
 
@@ -157,7 +147,6 @@ async function writeChanges(outFolder, changesByAccount) {
     }
 
     await writeChangesFile(`${outFolder}/changes.dat`, changesByAccount);
-
 }
 
 function reduceRecursive(items, fn) {
@@ -172,52 +161,6 @@ function reduceRecursive(items, fn) {
     return fn(
         reduceRecursive(items.slice(0, items.length / 2), fn),
         reduceRecursive(items.slice(items.length / 2), fn));
-}
-
-async function reduceStream(stream, fn) {
-    // TODO: Adjust / pass as option?
-    const MAX_CHUNK_SIZE = 8 * 1024;
-    let chunkSize = 16
-    let processed = 0;
-
-    const chunk = [];
-    let result;
-    for await (const item of stream) {
-        chunk.push(item);
-
-        if (chunk.length >= chunkSize) {
-            debug('reduceStream', chunk.length, processed);
-            if (result === undefined) {
-                result = reduceRecursive(chunk, fn);
-            } else {
-                result = fn(result, reduceRecursive(chunk, fn));
-            }
-            debug('reduceStream done', chunk.length, processed);
-            processed += chunk.length;
-            chunkSize = Math.min(MAX_CHUNK_SIZE, processed);
-            chunk.length = 0;
-        }
-    }
-
-    if (chunk.length === 0) {
-        return result;
-    }
-
-    if (result === undefined) {
-        debug('reduceStream 2', chunk.length, processed);
-        try {
-            return reduceRecursive(chunk, fn);
-        } finally {
-            debug('reduceStream 2 done', chunk.length, processed);
-        }
-    }
-
-    try {
-        debug('reduceStream 3', chunk.length, processed);
-        return fn(result, reduceRecursive(chunk, fn));
-    } finally {
-        debug('reduceStream 3 done', chunk.length, processed);
-    }
 }
 
 async function *mapStream(stream, fn) {
