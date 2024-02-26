@@ -23,6 +23,8 @@ async function main() {
     // TODO: Should index smth from 'block' as well? (e.g. block.header.timestamp)
     const shards = (process.env.FAST_NEAR_SHARDS || '0,1,2,3').split(',');
 
+    const MAX_BLOCKS_TO_MERGE = 10000;
+
     for (let shard of shards) {
         console.log('Processing shard', shard);
 
@@ -43,6 +45,10 @@ async function main() {
 
                 await extractBlobs(chunk, state_changes);
                 changesByAccountList.push(changesByAccount(chunk, state_changes));
+
+                if (changesByAccountList.length > MAX_BLOCKS_TO_MERGE) {
+                    changesByAccountList = [reduceRecursive(changesByAccountList, mergeChanges)];
+                }
             }
             const allChangesByAccount = reduceRecursive(changesByAccountList, (a, b) => mergeObjects(a, b, mergeChanges));
 
@@ -101,6 +107,7 @@ async function main() {
             } else {
                 const index = accountChanges.findIndex(({ key: k }) => k.equals(key));
                 if (index !== -1) {
+                    // TODO: How can it even happen within same block?
                     const changes = accountChanges[index].changes;
                     if (changes.at(-1) !== blockHeight) {
                         changes.push(blockHeight);
