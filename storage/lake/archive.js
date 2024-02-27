@@ -46,6 +46,8 @@ async function *readBlocks(dataDir, shard, startBlockNumber, endBlockNumber) {
             await pipelinePromise;
             yield *results;
         } finally {
+            // NOTE: After analysis with why-is-node-running looks like at least Gunzip is not properly closed
+            gunzip.close();
             readStream.close();
         }
     }
