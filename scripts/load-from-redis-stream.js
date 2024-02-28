@@ -5,44 +5,9 @@ const storage = require("../storage");
 const { DATA_SCOPE, ACCOUNT_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
 const { Account, BORSH_SCHEMA, AccessKey, PublicKey, FunctionCallPermission, AccessKeyPermission, FullAccessPermission } = require('../data-model');
 
+const { redisBlockStream } = require('../utils/redis-block-stream');
+
 const { withTimeCounter, getCounters, resetCounters} = require('../utils/counters');
-
-const { createClient } = require('redis');
-const { promisify } = require('util');
-
-async function* stream({ startBlockHeight, redisUrl, streamKey, blocksPreloadPoolSize }) {
-    let redisClient = createClient(redisUrl, {
-        detect_buffers: true,
-        no_ready_check: true
-    });
-    // TODO: Does it need to crash as fatal error?
-    redisClient.on('error', (err) => console.error('Redis Client Error', err));
-
-    redisClient = {
-        xread: promisify(redisClient.xread).bind(redisClient),
-        xrange: promisify(redisClient.xrange).bind(redisClient),
-        // TODO: Should use quit at some point? Pass AbortController?
-    };
-
-    // TODO: - suffix for block range?
-
-    if (startBlockHeight) {
-        let blockHeight = startBlockHeight;
-        do {
-            const result = await redisClient.xread('COUNT', blocksPreloadPoolSize, 'BLOCK', '100', 'STREAMS', streamKey, blockHeight);
-            if (!result) {
-                continue;
-            }
-
-            const items = result[0][1];
-            for (let [id, [, block]] of items) {
-                yield JSON.parse(block);
-                blockHeight = parseInt(id.split('-')[0]) + 1;
-            }
-        } while (true);
-    }
-        
-}
 
 
 let totalMessages = 0;
@@ -249,11 +214,11 @@ if (require.main === module) {
 
             let blocksProcessed = 0;
 
-            for await (let streamerMessage of stream({
+            for await (let streamerMessage of redisBlockStream({
                 startBlockHeight: startBlockHeight || await storage.getLatestBlockHeight() || 0,
                 redisUrl,
                 streamKey,
-                blocksPreloadPoolSize: batchSize
+                batchSize
             })) {
                 await withTimeCounter('handleStreamerMessage', async () => {
                     await handleStreamerMessage(streamerMessage, {
