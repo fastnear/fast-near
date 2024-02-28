@@ -1,7 +1,8 @@
 const { createClient } = require('redis');
 const { promisify } = require('util');
 
-async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, streamKey, batchSize, abortController }) {
+async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, streamKey = 'final_blocks', batchSize, abortController }) {
+    console.log('redisBlockStream startBlockHeight:', startBlockHeight);
     let redisClient = createClient(redisUrl, {
         detect_buffers: true,
         no_ready_check: true
