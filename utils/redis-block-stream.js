@@ -11,9 +11,9 @@ async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, s
     redisClient.on('error', (err) => console.error('Redis Client Error', err));
 
     redisClient = {
+        end: redisClient.end.bind(redisClient),
         xread: promisify(redisClient.xread).bind(redisClient),
         xrange: promisify(redisClient.xrange).bind(redisClient),
-        quit: promisify(redisClient.quit).bind(redisClient)
     };
 
     if (!startBlockHeight) {
@@ -43,7 +43,8 @@ async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, s
             }
         } while (!endBlockHeight || blockHeight < endBlockHeight);
     } finally {
-        await redisClient.quit();
+        const flush = true;
+        await redisClient.end(flush);
     }
 }
 
