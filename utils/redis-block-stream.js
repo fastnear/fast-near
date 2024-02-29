@@ -35,7 +35,7 @@ async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, s
             const items = result[0][1];
             for (let [id, [, block]] of items) {
                 yield JSON.parse(block);
-                blockHeight = parseInt(id.split('-')[0]) + 1;
+                blockHeight = parseInt(id.split('-')[0]);
 
                 if (endBlockHeight && blockHeight >= endBlockHeight) {
                     return;
