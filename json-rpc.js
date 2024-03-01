@@ -235,6 +235,8 @@ async function handleQuery({ blockHeight, body }) {
             return await callViewFunction({ blockHeight, accountId, methodName, args });
         }
     }
+
+    throw new FastNEARError('notImplemented', `Not implemented: ${body.params.request_type}`, { body });
 }
 
 const callViewFunction = async ({ blockHeight, accountId, methodName, args }) => {

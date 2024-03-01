@@ -19,6 +19,7 @@ const notImplemented = (name) => (...args) => {
 
 const prohibitedInView = (name) => (...args) => {
     debug('prohibitedInView', name, 'args', args);
+    // TODO: Shouldn't this use unique code which is not resulting in proxyJson?
     throw new FastNEARError('notImplemented', 'method not available for view calls: ' + name, { methodName: name });
 };
 
