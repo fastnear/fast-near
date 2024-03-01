@@ -196,6 +196,7 @@ const handleJsonRpc = async ctx => {
                 ctx.body = rpcResult(id, await handleQuery({ blockHeight, body }));
                 return;
             }
+        }
 
         if (body?.method == 'broadcast_tx_commit') {
             const result = await submitTransaction(Buffer.from(body.params[0], 'base64'));
