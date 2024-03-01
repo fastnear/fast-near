@@ -48,16 +48,26 @@ class PublicKey extends Enum {
 }
 
 class PublicKeyED25519 extends BaseMessage { }
-
 class PublicKeySECP256K1 extends BaseMessage { }
+class Signature extends BaseMessage {}
 
 class AccessKey extends BaseMessage { }
-
 class AccessKeyPermission extends Enum { }
-
 class FunctionCallPermission extends BaseMessage { }
-
 class FullAccessPermission extends BaseMessage { }
+
+class Transaction extends BaseMessage {}
+class SignedTransaction extends BaseMessage {}
+
+class Action extends Enum {}
+class CreateAccount extends BaseMessage {}
+class DeployContract extends BaseMessage {}
+class FunctionCall extends BaseMessage {}
+class Transfer extends BaseMessage {}
+class Stake extends BaseMessage {}
+class AddKey extends BaseMessage {}
+class DeleteKey extends BaseMessage {}
+class DeleteAccount extends BaseMessage {}
 
 const BORSH_SCHEMA = new Map([
     // TODO: Refactor schema with network.js
@@ -80,6 +90,10 @@ const BORSH_SCHEMA = new Map([
     [PublicKeySECP256K1, { kind: 'struct', fields: [
         ['data', [64]]
     ]}],
+    [Signature, { kind: 'struct', fields: [
+        ['keyType', 'u8'],
+        ['data', [64]]
+    ]}],
     [AccessKey, { kind: 'struct', fields: [
         ['nonce', 'u64'],
         ['permission', AccessKeyPermission],
@@ -94,6 +108,56 @@ const BORSH_SCHEMA = new Map([
         ['methodNames', ['string']],
     ]}],
     [FullAccessPermission, {kind: 'struct', fields: []}],
+    [SignedTransaction, {kind: 'struct', fields: [
+        ['transaction', Transaction],
+        ['signature', Signature]
+    ]}],
+    [Transaction, { kind: 'struct', fields: [
+        ['signerId', 'string'],
+        ['publicKey', PublicKey],
+        ['nonce', 'u64'],
+        ['receiverId', 'string'],
+        ['blockHash', [32]],
+        ['actions', [Action]]
+    ]}],
+    [Action, { kind: 'enum', field: 'enum', values: [
+        ['createAccount', CreateAccount],
+        ['deployContract', DeployContract],
+        ['functionCall', FunctionCall],
+        ['transfer', Transfer],
+        ['stake', Stake],
+        ['addKey', AddKey],
+        ['deleteKey', DeleteKey],
+        ['deleteAccount', DeleteAccount],
+    ]}],
+    [CreateAccount, { kind: 'struct', fields: [] }],
+    [DeployContract, { kind: 'struct', fields: [
+        ['code', ['u8']]
+    ]}],
+    [FunctionCall, { kind: 'struct', fields: [
+        ['methodName', 'string'],
+        ['args', ['u8']],
+        ['gas', 'u64'],
+        ['deposit', 'u128']
+    ]}],
+    [Transfer, { kind: 'struct', fields: [
+        ['deposit', 'u128']
+    ]}],
+    [Stake, { kind: 'struct', fields: [
+        ['stake', 'u128'],
+        ['publicKey', PublicKey]
+    ]}],
+    [AddKey, { kind: 'struct', fields: [
+        ['publicKey', PublicKey],
+        ['accessKey', AccessKey]
+    ]}],
+    [DeleteKey, { kind: 'struct', fields: [
+        ['publicKey', PublicKey]
+    ]}],
+    [DeleteAccount, { kind: 'struct', fields: [
+        ['beneficiaryId', 'string']
+    ]}],
+
 ]);
 
 module.exports = {
@@ -101,9 +165,13 @@ module.exports = {
     Enum,
     Account,
     PublicKey,
+    Signature,
     AccessKey,
     AccessKeyPermission,
     FunctionCallPermission,
     FullAccessPermission,
+    Transaction,
+    SignedTransaction,
+
     BORSH_SCHEMA,
 };

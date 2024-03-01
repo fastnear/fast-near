@@ -1,11 +1,10 @@
 const assert = require('assert');
 const { serialize, deserialize } = require('borsh');
-const { BaseMessage, Enum, PublicKey } = require('./data-model');
+const { BaseMessage, Enum, PublicKey, SignedTransaction, Signature } = require('./data-model');
 
 class Handshake extends BaseMessage {}
 class EdgeInfo extends BaseMessage {}
 class EdgeInfoToSign extends BaseMessage {}
-class Signature extends BaseMessage {}
 class PeerChainInfoV2 extends BaseMessage {}
 class GenesisId extends BaseMessage {}
 class SocketAddrV4 extends BaseMessage {}
@@ -50,7 +49,6 @@ class ShardChunkHeaderInnerV2 extends BaseMessage {}
 class ValidatorStake extends Enum {}
 class ValidatorStakeV1 extends BaseMessage {}
 class ValidatorStakeV2 extends BaseMessage {}
-class Transaction extends BaseMessage {}
 class RoutedMessage extends BaseMessage {}
 class Disconnect extends BaseMessage {}
 class Challenge extends BaseMessage {}
@@ -59,7 +57,6 @@ class PeerIdOrHash extends Enum {}
 class RoutedMessageBody extends Enum {}
 class RoutedMessageToSign extends BaseMessage {}
 class Approval extends BaseMessage {}
-class SignedTransaction extends BaseMessage {}
 class StateResponseInfoV1 extends BaseMessage {}
 class PartialEncodedChunkRequestMsg extends BaseMessage {}
 class PartialEncodedChunkResponseMsg extends BaseMessage {}
@@ -86,15 +83,6 @@ class AccessKey extends BaseMessage {}
 class AccessKeyPermission extends BaseMessage {}
 class FunctionCallPermission extends BaseMessage {}
 class FullAccessPermission extends BaseMessage {}
-class Action extends Enum {}
-class CreateAccount extends BaseMessage {}
-class DeployContract extends BaseMessage {}
-class FunctionCall extends BaseMessage {}
-class Transfer extends BaseMessage {}
-class Stake extends BaseMessage {}
-class AddKey extends BaseMessage {}
-class DeleteKey extends BaseMessage {}
-class DeleteAccount extends BaseMessage {}
 class DataReceiver extends BaseMessage {}
 class DataReceipt extends BaseMessage {}
 class ReceiptProof extends BaseMessage {}
@@ -117,10 +105,6 @@ const BORSH_SCHEMA = new Map([
     [PublicKey, { kind: 'struct', fields: [
         ['keyType', 'u8'],
         ['data', [32]]
-    ]}],
-    [Signature, { kind: 'struct', fields: [
-        ['keyType', 'u8'],
-        ['data', [64]]
     ]}],
     [EdgeInfo, { kind: 'struct', fields: [
         ['nonce', 'u64'],
@@ -508,55 +492,6 @@ const BORSH_SCHEMA = new Map([
         ['methodNames', ['string']],
     ]}],
     [FullAccessPermission, {kind: 'struct', fields: []}],
-    [SignedTransaction, {kind: 'struct', fields: [
-        ['transaction', Transaction],
-        ['signature', Signature]
-    ]}],
-    [Transaction, { kind: 'struct', fields: [
-        ['signerId', 'string'],
-        ['publicKey', PublicKey],
-        ['nonce', 'u64'],
-        ['receiverId', 'string'],
-        ['blockHash', [32]],
-        ['actions', [Action]]
-    ]}],
-    [Action, { kind: 'enum', field: 'enum', values: [
-        ['createAccount', CreateAccount],
-        ['deployContract', DeployContract],
-        ['functionCall', FunctionCall],
-        ['transfer', Transfer],
-        ['stake', Stake],
-        ['addKey', AddKey],
-        ['deleteKey', DeleteKey],
-        ['deleteAccount', DeleteAccount],
-    ]}],
-    [CreateAccount, { kind: 'struct', fields: [] }],
-    [DeployContract, { kind: 'struct', fields: [
-        ['code', ['u8']]
-    ]}],
-    [FunctionCall, { kind: 'struct', fields: [
-        ['methodName', 'string'],
-        ['args', ['u8']],
-        ['gas', 'u64'],
-        ['deposit', 'u128']
-    ]}],
-    [Transfer, { kind: 'struct', fields: [
-        ['deposit', 'u128']
-    ]}],
-    [Stake, { kind: 'struct', fields: [
-        ['stake', 'u128'],
-        ['publicKey', PublicKey]
-    ]}],
-    [AddKey, { kind: 'struct', fields: [
-        ['publicKey', PublicKey],
-        ['accessKey', AccessKey]
-    ]}],
-    [DeleteKey, { kind: 'struct', fields: [
-        ['publicKey', PublicKey]
-    ]}],
-    [DeleteAccount, { kind: 'struct', fields: [
-        ['beneficiaryId', 'string']
-    ]}],
     [DataReceipt, { kind: 'struct', fields: [
         ['data_id', [32]],
         ['data', { kind: 'option', type: ['u8'] }],

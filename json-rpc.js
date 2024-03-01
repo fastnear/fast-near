@@ -72,6 +72,15 @@ const handleError = async ({ ctx, blockHeight, error }) => {
         return;
     }
 
+    if (error.jsonRpcError) {
+        ctx.body = {
+            jsonrpc: '2.0',
+            error: error.jsonRpcError,
+            id: body.id
+        };
+        return;
+    }
+
     switch (error.code) {
     case 'notImplemented':
         await proxyJson(ctx);
@@ -110,6 +119,7 @@ const handleError = async ({ ctx, blockHeight, error }) => {
 }
 
 const LRU = require('lru-cache');
+const { submitTransaction } = require('./utils/submit-transaction');
 const cache = new LRU({
     // TODO: Adjust cache size and max age
     max: 1000,
@@ -186,6 +196,10 @@ const handleJsonRpc = async ctx => {
                 ctx.body = rpcResult(id, await handleQuery({ blockHeight, body }));
                 return;
             }
+
+        if (body?.method == 'broadcast_tx_commit') {
+            const result = await submitTransaction(Buffer.from(body.params[0], 'base64'));
+            ctx.body = rpcResult(body.id, result);
         }
 
         await proxyJson(ctx);

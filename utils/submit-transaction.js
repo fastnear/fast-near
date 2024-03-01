@@ -1,12 +1,15 @@
 const { redisBlockStream } = require('./redis-block-stream');
 const { transactionStream } = require('./transaction-stream');
+const { SignedTransaction, BORSH_SCHEMA } = require('../data-model');
+const { deserialize } = require('borsh');
 const LRU = require('lru-cache');
 const EventEmitter = require('events');
+const debug = require('debug')('submit-transaction');
 
 // TODO: Dedupe with json-rpc.js
 const NODE_URL = process.env.FAST_NEAR_NODE_URL || 'https://rpc.mainnet.near.org';
 
-async function submitTransactionAsync(transactionData) {
+async function sendJsonRpc(method, params) {
     const res  = await fetch(`${NODE_URL}`, {
         method: 'POST',
         headers: {
@@ -15,12 +18,27 @@ async function submitTransactionAsync(transactionData) {
         body: JSON.stringify({
             jsonrpc: '2.0',
             id: 'fast-near',
-            method: 'broadcast_tx_async',
-            params: [transactionData.toString('base64')]
+            method,
+            params
         })
     });
     const json = await res.json();
+    if (json.error) {
+        // TODO: Special RPCError?
+        const error = new Error(`RPC Error: ${json.error.message}: ${json.error.data})`);
+        error.jsonRpcError = json.error;
+        throw error;
+    }
     return json.result;
+}
+
+async function submitTransactionAsync(transactionData) {
+    return await sendJsonRpc('broadcast_tx_async', [transactionData.toString('base64')]);
+}
+
+// TODO: Use our own DB instead
+async function txStatus(txHash, accountId) {
+    return await sendJsonRpc('tx', [txHash, accountId]);
 }
 
 let txStream;
@@ -35,9 +53,10 @@ async function submitTransaction(transactionData) {
                 'Content-Type': 'application/json'
             }
         })).json()).sync_info.latest_block_height;
-        console.log('startBlockHeight:', startBlockHeight);
+        debug('startBlockHeight:', startBlockHeight);
 
         const redisUrl = process.env.BLOCKS_REDIS_URL;
+        debug('redisUrl:', redisUrl);
         const blocksStream = redisBlockStream({ startBlockHeight, redisUrl, batchSize: 1 });
 
         txStream = transactionStream(blocksStream);
@@ -59,20 +78,55 @@ async function submitTransaction(transactionData) {
     }
 
     const txHash = await submitTransactionAsync(transactionData);
-    console.log('Transaction posted:', txHash);
+    debug('Transaction posted:', txHash);
     if (txCache.has(txHash)) {
         return txCache.get(txHash);
     }
 
-    // TODO: Need to timeout
-    const { transaction, outcome } = await new Promise((resolve) => {
-        const cb = ({ transaction, outcome }) => {
+    const SUBMIT_TX_STATUS_CHECK_TIMEOUT = 1000 * 10;
+    const SUBMIT_TOTAL_TIMEOUT = 1000 * 45;
+    const { transaction, outcome } = await new Promise((resolve, reject) => {
+        let txCallback;
+        const subscribe = () => txEventEmitter.on('tx', txCallback);
+        const unsubscribe = () => (txEventEmitter.off('tx', txCallback), txCallback = null);
+        setTimeout(() => txCallback && (unsubscribe(), reject(new Error(`Taking more than ${SUBMIT_TOTAL_TIMEOUT}ms to submit transaction`))), SUBMIT_TOTAL_TIMEOUT);
+
+        // NOTE: This is necessary in case transaction already landed before but we don't know
+        setTimeout(async function checkStatus() {
+            if (!txCallback) return;
+
+            const { transaction: { signerId } } = deserialize(BORSH_SCHEMA, SignedTransaction, transactionData);
+            debug('Checking txStatus', txHash, signerId);
+            try {
+                const result = await txStatus(txHash, signerId);
+                const { transaction, transaction_outcome } = result;
+                debug('txStatus result:', result);
+
+                if (txCallback) {
+                    unsubscribe();
+                    resolve({ transaction, outcome: transaction_outcome });
+                }
+            } catch (error) {
+                debug('txStatus error:', error);
+                if (error.jsonRpcError) {
+                    const { name, cause } = error.jsonRpcError;
+                    if (name == 'HANDLER_ERROR' && cause.name ==  'UNKNOWN_TRANSACTION') {
+                        setTimeout(checkStatus, SUBMIT_TX_STATUS_CHECK_TIMEOUT);
+                        return;
+                    }
+                    unsubscribe();
+                    reject(error);
+                }
+            }
+        }, SUBMIT_TX_STATUS_CHECK_TIMEOUT);
+
+        txCallback = ({ transaction, outcome }) => {
             if (transaction.hash == txHash) {
-                txEventEmitter.off('tx', cb);
+                unsubscribe();
                 resolve({ transaction, outcome });
             }
         };
-        txEventEmitter.on('tx', cb);
+        subscribe();
     });
     
     const result = {
