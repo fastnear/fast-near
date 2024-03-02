@@ -10,11 +10,12 @@ const cors = require('@koa/cors');
 const resolveBlockHeightUtil = require('./resolve-block-height');
 const isJSON = require('./utils/is-json');
 const { runContract, getWasmModule } = require('./run-contract');
+const { viewAccessKey } = require('./utils/view-access-key');
 const storage = require('./storage');
-const { accountKey, accessKeyKey } = require('./storage-keys');
+const { accountKey } = require('./storage-keys');
 const { deserialize } = require('borsh');
 const bs58 = require('bs58');
-const { BORSH_SCHEMA, Account, AccessKey, } = require('./data-model');
+const { BORSH_SCHEMA, Account } = require('./data-model');
 
 const parseQueryArgs = async (ctx, next) => {
     // TODO: Refactor/merge with web4?
@@ -147,35 +148,12 @@ router.get('/account/:accountId/contract/methods', resolveBlockHeight, async ctx
 router.get('/account/:accountId/key/:publicKey', resolveBlockHeight, async ctx => {
     const { accountId, publicKey } = ctx.params;
 
-    // TODO: Refactor with JSON-RPC version and other similar methods?
-    const storageKey = accessKeyKey(accountId, publicKey);
-    const data = await storage.getLatestData(storageKey, ctx.blockHeight);
-    if (!data) {
+    const accessKey = await viewAccessKey({ accountId, publicKey, blockHeight: ctx.blockHeight });
+    if (!accessKey) {
         ctx.throw(404);
     }
 
-    const { nonce, permission: { functionCall, fullAccess } } = deserialize(BORSH_SCHEMA, AccessKey, data);
-    let permission;
-    if (functionCall) {
-        const { allowance, receiverId, methodNames } = functionCall;
-        permission = {
-            type: 'FunctionCall',
-            method_names: methodNames,
-            receiver_id: receiverId,
-            allowance: allowance.toString(10)
-        }
-    } else if (fullAccess) {
-        permission = {
-            type: 'FullAccess'
-        }
-    } else {
-        ctx.throw(500, 'unexpected permission type');
-    }
-    ctx.body = {
-        public_key: publicKey,
-        nonce: nonce.toString(),
-        ...permission
-    };
+    ctx.body = accessKey;
 });
 
 const MAX_BLOCK_LAG_TIME_MS = 60_000;
