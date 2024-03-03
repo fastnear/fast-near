@@ -10,6 +10,7 @@ const { Account, BORSH_SCHEMA } = require('./data-model');
 const { deserialize } = require('borsh');
 const bs58 = require('bs58');
 const resolveBlockHeight = require('./resolve-block-height');
+const { viewAccessKey } = require('./utils/view-access-key');
 const { accountKey } = require('./storage-keys');
 const debug = require('debug')('json-rpc');
 
@@ -96,6 +97,12 @@ const handleError = async ({ ctx, blockHeight, error }) => {
         ctx.body = viewCallError({
             id: body.id,
             message: `wasm execution failed with error: FunctionCallError(CompilationError(CodeDoesNotExist { account_id: AccountId("${accountId}") }))`
+        });
+        return;
+    case 'keyNotFound':
+        ctx.body = viewCallError({
+            id: body.id,
+            message: `access key ${error.data.public_key} does not exist while viewing`,
         });
         return;
     case 'blockHeightTooLow':
@@ -220,6 +227,14 @@ async function handleQuery({ blockHeight, body }) {
     if (body?.params?.request_type == 'view_account') {
         const { account_id } = body.params;
         return await viewAccount({ blockHeight, accountId: account_id });
+    }
+
+    if (body?.params?.request_type == 'view_access_key') {
+        const { account_id, public_key } = body.params;
+        const accessKey = await viewAccessKey({ blockHeight, accountId: account_id, publicKey: public_key });
+        if (!accessKey) {
+            throw new FastNEARError('keyNotFound', `Access key not found: ${public_key} for ${account_id}`, { account_id, public_key });
+        }
     }
 
     if (body?.params?.length) {
