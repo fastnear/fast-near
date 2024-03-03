@@ -31,7 +31,7 @@ async function viewAccessKey({ accountId, publicKey, blockHeight }) {
 
     return {
         public_key: publicKey,
-        nonce: nonce.toString(),
+        nonce: nonce.toNumber(),
         ...permission
     };
 }
