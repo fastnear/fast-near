@@ -235,6 +235,7 @@ async function handleQuery({ blockHeight, body }) {
         if (!accessKey) {
             throw new FastNEARError('keyNotFound', `Access key not found: ${public_key} for ${account_id}`, { account_id, public_key });
         }
+        return accessKey;
     }
 
     if (body?.params?.length) {
