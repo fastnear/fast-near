@@ -1,6 +1,7 @@
 const { createClient } = require('redis');
 const { promisify } = require('util');
 
+const RETRY_TIMEOUT = 1000;
 async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, streamKey = 'final_blocks', batchSize, abortController }) {
     console.log('redisBlockStream startBlockHeight:', startBlockHeight);
     let redisClient = createClient(redisUrl, {
@@ -27,7 +28,18 @@ async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, s
                 break;
             }
 
-            const result = await redisClient.xread('COUNT', batchSize, 'BLOCK', '100', 'STREAMS', streamKey, blockHeight);
+            let result;
+            try {
+                result = await redisClient.xread('COUNT', batchSize, 'BLOCK', '100', 'STREAMS', streamKey, blockHeight);
+            } catch (error) {
+                console.error('Error reading from Redis', error);
+                if (error.code === 'UNCERTAIN_STATE') {
+                    console.log('Retrying after timeout');
+                    await new Promise((resolve) => setTimeout(resolve, RETRY_TIMEOUT));
+                    continue;
+                }
+                throw error;
+            }
             if (!result) {
                 continue;
             }
