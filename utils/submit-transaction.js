@@ -90,7 +90,7 @@ async function submitTransaction(transactionData) {
         return txCache.get(txHash);
     }
 
-    const SUBMIT_TX_STATUS_CHECK_TIMEOUT = 1000 * 1;
+    const SUBMIT_TX_STATUS_CHECK_TIMEOUT = 1000 * 10;
     const SUBMIT_TOTAL_TIMEOUT = 1000 * 45;
     const { transaction, outcome } = await new Promise((resolve, reject) => {
         let blockCallback;
