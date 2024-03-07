@@ -46,6 +46,7 @@ const txCache = new LRU({ max: 10000, maxAge: 1000 * 60 * 60 });
 
 async function submitTransaction(transactionData) {
     if (!blockStream) {
+        blockStream = true; // NOTE: Prevent reentrancy
         const startBlockHeight = (await (await fetch(`${NODE_URL}/status`, {
             method: 'GET',
             headers: {
