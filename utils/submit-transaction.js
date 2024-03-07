@@ -95,8 +95,8 @@ async function submitTransaction(transactionData) {
     const { transaction, outcome } = await new Promise((resolve, reject) => {
         let blockCallback;
         const subscribe = () => txEventEmitter.on('block', blockCallback);
-        const unsubscribe = () => (txEventEmitter.off('block', blockCallback), blockCallback = null);
-        setTimeout(() => blockCallback && (unsubscribe(), reject(new Error(`Taking more than ${SUBMIT_TOTAL_TIMEOUT}ms to submit transaction`))), SUBMIT_TOTAL_TIMEOUT);
+        const unsubscribe = () => blockCallback && (txEventEmitter.off('block', blockCallback), blockCallback = null);
+        setTimeout(() => (unsubscribe(), reject(new Error(`Taking more than ${SUBMIT_TOTAL_TIMEOUT}ms to submit transaction`))), SUBMIT_TOTAL_TIMEOUT);
 
         // NOTE: This is necessary in case transaction already landed before but we don't know
         setTimeout(async function checkStatus() {
