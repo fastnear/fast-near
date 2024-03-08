@@ -8,8 +8,6 @@ async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, s
         detect_buffers: true,
         no_ready_check: true
     });
-    // TODO: Does it need to crash as fatal error?
-    redisClient.on('error', (err) => console.error('Redis Client Error', err));
 
     redisClient = {
         end: redisClient.end.bind(redisClient),
