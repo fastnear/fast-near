@@ -1,9 +1,11 @@
 const { createClient } = require('redis');
 const { promisify } = require('util');
 
+const debug = require('debug')('source:redis-blocks');
+
 const RETRY_TIMEOUT = 1000;
-async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, streamKey = 'final_blocks', batchSize, abortController }) {
-    console.log('redisBlockStream startBlockHeight:', startBlockHeight);
+async function* readBlocks({ startBlockHeight, endBlockHeight, redisUrl, streamKey = 'final_blocks', batchSize, abortController }) {
+    debug('startBlockHeight:', startBlockHeight, 'endBlockHeight:', endBlockHeight, 'redisUrl:', redisUrl, 'streamKey:', streamKey, 'batchSize:', batchSize);
     let redisClient = createClient(redisUrl, {
         detect_buffers: true,
         no_ready_check: true
@@ -59,5 +61,5 @@ async function* redisBlockStream({ startBlockHeight, endBlockHeight, redisUrl, s
 }
 
 module.exports = {
-    redisBlockStream
+    readBlocks
 };

@@ -1,4 +1,4 @@
-const { redisBlockStream } = require('./redis-block-stream');
+const { readBlocks} = require('../source/redis-blocks');
 const { SignedTransaction, BORSH_SCHEMA } = require('../data-model');
 const { deserialize } = require('borsh');
 const LRU = require('lru-cache');
@@ -57,7 +57,7 @@ async function submitTransaction(transactionData) {
 
         const redisUrl = process.env.BLOCKS_REDIS_URL;
         debug('redisUrl:', redisUrl);
-        blockStream = redisBlockStream({ startBlockHeight, redisUrl, batchSize: 1 });
+        blockStream = readBlocks({ startBlockHeight, redisUrl, batchSize: 1 });
         await new Promise(async (resolve, reject) => {
             (async () => {
                 let streamStarted = false;

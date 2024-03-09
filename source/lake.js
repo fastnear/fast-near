@@ -3,23 +3,58 @@ const zlib = require('zlib');
 const tar = require('tar-stream');
 const { pipeline } = require('node:stream/promises')
 
+const debug = require('debug')('source:lake');
+
 const FILES_PER_ARCHIVE = 5;
 const BLOCKS_PER_LOG = 1000;
 
-async function *readBlocks(dataDir, shard, startBlockNumber, endBlockNumber) {
+async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }) {
+    if (!shards.includes('block')) {
+        shards = [...shards, 'block'];
+    }
+    for (let baseBlockHeight = startBlockHeight; baseBlockHeight < endBlockHeight; baseBlockHeight += FILES_PER_ARCHIVE) {
+        const blocks = [...Array(FILES_PER_ARCHIVE)].map(() => ({ shards: shards.slice(0, -1).map(() => ({}))}));
+        for (let i = 0; i < shards.length; i++) {
+            const shard = shards[i];
+            const batch = await readShardBlocksBatch({ blockNumber: baseBlockHeight, dataDir, shard });
+            for (const { data, blockHeight } of batch) {
+                const block = blocks[blockHeight - baseBlockHeight];
+                if (shard === 'block') {
+                    block.block = JSON.parse(data.toString('utf8'));
+                } else {
+                    block.shards[i] = JSON.parse(data.toString('utf8'));
+                }
+            }
+        }
+
+        yield *blocks.filter(block => block.block);
+    }
+}
+
+// TODO: Update the build index script / lake storage accordingly
+
+async function *readShardBlocks({ dataDir, shard, startBlockHeight: startBlockNumber, endBlockHeight: endBlockNumber }) {
     startBlockNumber = startBlockNumber ? Math.floor(startBlockNumber / FILES_PER_ARCHIVE) * FILES_PER_ARCHIVE : 0;
+    debug('startBlockHeight:', startBlockNumber, 'endBlockHeight:', endBlockNumber, 'dataDir:', dataDir, 'shard:', shard);
 
     const startTime = Date.now();
+    debug('startTime:', startTime);
     for (let blockNumber = startBlockNumber; blockNumber < endBlockNumber; blockNumber += FILES_PER_ARCHIVE) {
-        const blockHeight = normalizeBlockHeight(blockNumber);
-        const [prefix1, prefix2] = blockHeight.match(/^(.{6})(.{3})/).slice(1);
-        const inFolder = `${dataDir}/${shard}/${prefix1}/${prefix2}`;
-        const inFile = `${inFolder}/${blockHeight}.tgz`;
-
         if (blockNumber > startBlockNumber && blockNumber % BLOCKS_PER_LOG === 0) {
             const blocksPerSecond = (blockNumber - startBlockNumber) / ((Date.now() - startTime) / 1000);
             console.log(`Reading block ${blockNumber}. Speed: ${blocksPerSecond.toFixed(2)} blocks/s. ETA: ${(endBlockNumber - blockNumber) / blocksPerSecond} s`);
         }
+
+        const batch = await readShardBlocksBatch({ blockNumber, dataDir, shard });
+        yield *batch;
+    }
+}
+
+async function readShardBlocksBatch({ blockNumber, dataDir, shard }) {
+        const blockHeight = normalizeBlockHeight(blockNumber);
+        const [prefix1, prefix2] = blockHeight.match(/^(.{6})(.{3})/).slice(1);
+        const inFolder = `${dataDir}/${shard}/${prefix1}/${prefix2}`;
+        const inFile = `${inFolder}/${blockHeight}.tgz`;
 
         const extract = tar.extract();
         const gunzip = zlib.createGunzip();
@@ -44,17 +79,16 @@ async function *readBlocks(dataDir, shard, startBlockNumber, endBlockNumber) {
                 }
             });
             await pipelinePromise;
-            yield *results;
+            return results;
         } finally {
             // NOTE: After analysis with why-is-node-running looks like at least Gunzip is not properly closed
             gunzip.close();
             readStream.close();
         }
-    }
 }
 
 function normalizeBlockHeight(number) {
     return number.toString().padStart(12, '0');
 }
 
-module.exports = { readBlocks };
+module.exports = { readBlocks, readShardBlocks };

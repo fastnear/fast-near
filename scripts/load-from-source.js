@@ -5,7 +5,6 @@ const storage = require("../storage");
 const { DATA_SCOPE, ACCOUNT_SCOPE, compositeKey, ACCESS_KEY_SCOPE } = require('../storage-keys');
 const { Account, BORSH_SCHEMA, AccessKey, PublicKey, FunctionCallPermission, AccessKeyPermission, FullAccessPermission } = require('../data-model');
 
-const { redisBlockStream } = require('../utils/redis-block-stream');
 
 const { withTimeCounter, getCounters, resetCounters} = require('../utils/counters');
 
@@ -30,7 +29,7 @@ async function handleStreamerMessage(streamerMessage, options = {}) {
     console.log(new Date(), `Block #${blockHeight} Shards: ${streamerMessage.shards.length}`,
         `Speed: ${totalMessages * 1000 / (Date.now() - timeStarted)} blocks/second`,
         `Lag: ${formatDuration(Date.now() - (timestamp / 1000000))}`);
-    
+
     const pipeline = [
         dumpChanges && dumpChangesToStorage,
     ].filter(Boolean);
@@ -115,7 +114,7 @@ async function handleChange({ batch, blockHeight, type, change, keepFromBlockHei
         case 'access_key_update': {
             const { public_key: publicKeyStr, access_key: {
                 nonce,
-                permission 
+                permission
             } } = change;
             // NOTE: nonce.toString() is a hack to make stuff work, near-lake shouldn't use number for u64 values as it results in data loss
             const accessKey = new AccessKey({ nonce: nonce.toString(), permission: new AccessKeyPermission(
@@ -160,17 +159,26 @@ if (require.main === module) {
 
     const yargs = require('yargs/yargs');
     yargs(process.argv.slice(2))
-        .command(['load-from-redis-stream <redis-url> [stream-key]', '$0'],
-                'loads data from NEAR Lake S3 into other datastores',
+        .command(['load-from-source', '$0'],
+                'loads data from given source into fast-near compatible storage',
                 yargs => yargs
                     .option('start-block-height', {
                         describe: 'block height to start loading from. By default starts from latest known block height or genesis.',
                         number: true
                     })
-                    .describe('redis-url', 'URL of the Redis server to stream data from')
+                    .option('redis-url', {
+                        describe: 'URL of the Redis server to stream data from',
+                        // TODO: Require only when source specified
+                        // required: true
+                    })
                     .option('stream-key', {
                         describe: 'Redis stream key to stream data from',
                         default: 'final_blocks',
+                    })
+                    .option('shards', {
+                        describe: 'Shards to process. Defaults to 0..3',
+                        default: ['0', '1', '2', '3'],
+                        array: true,
                     })
                     .option('include', {
                         describe: 'include only accounts matching this glob pattern. Can be specified multiple times.',
@@ -197,28 +205,36 @@ if (require.main === module) {
                     .option('dump-changes', {
                         describe: 'Dump state changes into storage. Use FAST_NEAR_STORAGE_TYPE to specify storage type. Defaults to `redis`.',
                         boolean: true
+                    })
+                    .option('source', {
+                        describe: 'Source of the data. Defaults to `redis-blocks`.',
+                        choices: ['redis-blocks', 'lake'],
+                        default: 'redis-blocks'
                     }),
                 async argv => {
 
             const {
                 startBlockHeight,
-                redisUrl,
-                streamKey,
                 batchSize,
                 historyLength,
                 limit,
                 include,
                 exclude,
                 dumpChanges,
+                source,
+                ...otherOptions
             } = argv;
+            console.log('otherOptions', otherOptions);
 
             let blocksProcessed = 0;
 
-            for await (let streamerMessage of redisBlockStream({
+            const { readBlocks } = require(`../source/${source}`);
+
+            for await (let streamerMessage of readBlocks({
                 startBlockHeight: startBlockHeight || await storage.getLatestBlockHeight() || 0,
-                redisUrl,
-                streamKey,
-                batchSize
+                endBlockHeight: limit ? startBlockHeight + limit : undefined,
+                batchSize,
+                ...otherOptions
             })) {
                 await withTimeCounter('handleStreamerMessage', async () => {
                     await handleStreamerMessage(streamerMessage, {
