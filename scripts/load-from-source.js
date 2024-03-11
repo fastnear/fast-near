@@ -234,9 +234,10 @@ if (require.main === module) {
 
             const { readBlocks } = require(`../source/${source}`);
 
+            const start = startBlockHeight || await storage.getLatestBlockHeight() || 0;
             for await (let streamerMessage of readBlocks({
-                startBlockHeight: startBlockHeight || await storage.getLatestBlockHeight() || 0,
-                endBlockHeight: limit ? startBlockHeight + limit : undefined,
+                startBlockHeight: start,
+                endBlockHeight: limit ? start + limit : undefined,
                 batchSize,
                 ...otherOptions
             })) {
