@@ -9,10 +9,11 @@ const FILES_PER_ARCHIVE = 5;
 const BLOCKS_PER_LOG = 1000;
 
 async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }) {
+    debug('readBlocks', dataDir, shards, startBlockHeight, endBlockHeight);
     if (!shards.includes('block')) {
         shards = [...shards, 'block'];
     }
-    for (let baseBlockHeight = startBlockHeight; baseBlockHeight < endBlockHeight; baseBlockHeight += FILES_PER_ARCHIVE) {
+    for (let baseBlockHeight = Math.floor(startBlockHeight / FILES_PER_ARCHIVE) * FILES_PER_ARCHIVE; baseBlockHeight < endBlockHeight; baseBlockHeight += FILES_PER_ARCHIVE) {
         const blocks = [...Array(FILES_PER_ARCHIVE)].map(() => ({ shards: shards.slice(0, -1).map(() => ({}))}));
         for (let i = 0; i < shards.length; i++) {
             const shard = shards[i];
@@ -35,10 +36,11 @@ async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }
 
 async function *readShardBlocks({ dataDir, shard, startBlockHeight: startBlockNumber, endBlockHeight: endBlockNumber }) {
     startBlockNumber = startBlockNumber ? Math.floor(startBlockNumber / FILES_PER_ARCHIVE) * FILES_PER_ARCHIVE : 0;
-    debug('startBlockHeight:', startBlockNumber, 'endBlockHeight:', endBlockNumber, 'dataDir:', dataDir, 'shard:', shard);
+    debug('readShardBlocks', dataDir, shard, startBlockNumber, endBlockNumber);
 
     const startTime = Date.now();
     debug('startTime:', startTime);
+    // TODO: Convert start number to base block number?
     for (let blockNumber = startBlockNumber; blockNumber < endBlockNumber; blockNumber += FILES_PER_ARCHIVE) {
         if (blockNumber > startBlockNumber && blockNumber % BLOCKS_PER_LOG === 0) {
             const blocksPerSecond = (blockNumber - startBlockNumber) / ((Date.now() - startTime) / 1000);
