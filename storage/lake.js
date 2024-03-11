@@ -46,7 +46,7 @@ class LakeStorage {
         const { accountId, key } = parseCompKey(compKey);
         const shard = shardForAccount(accountId);
 
-        for await (const { data, blockHeight: currentHeight } of readShardBlocks({ dataDir: this.dataDir, shard, startBlockNumber: blockHeight, endBlockNumber: blockHeight + 1 })) {
+        for await (const { data, blockHeight: currentHeight } of readShardBlocks({ dataDir: this.dataDir, shard, startBlockHeight: blockHeight, endBlockHeight: blockHeight + 1 })) {
             if (currentHeight !== blockHeight) {
                 continue;
             }
