@@ -175,6 +175,10 @@ if (require.main === module) {
                         describe: 'Redis stream key to stream data from',
                         default: 'final_blocks',
                     })
+                    .option('data-dir', {
+                        describe: 'Directory use as source of lake data. Defaults to `./lake-data/mainnet`.',
+                        default: './lake-data/mainnet',
+                    })
                     .option('shards', {
                         describe: 'Shards to process. Defaults to 0..3',
                         default: ['0', '1', '2', '3'],
