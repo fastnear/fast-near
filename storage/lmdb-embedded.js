@@ -96,6 +96,36 @@ class LMDBStorage {
         return this.db.put(`t:${blockHeight}`, timestamp);
     }
 
+    async findSkippedBlockHeights(startBlockHeight, endBlockHeight) {
+        console.log('Finding skipped block heights', startBlockHeight, endBlockHeight);
+        let offset = 0;
+        let keys
+        let lastKey
+        do {
+            // TODO: Is this guaranteed to be sorted?
+            // TODO: Won't range get messed up if different number of digits?
+            keys = this.db.getKeys({
+                start: `t:${startBlockHeight}`,
+                end: `t:${endBlockHeight}`,
+                offset,
+                limit: 1000,
+            }).flatMap(key => parseInt(key.slice(2))).asArray;
+
+            for (let key of keys) {
+                if (lastKey && lastKey + 1 < key) {
+                    for (let i = lastKey + 1; i < key; i++) {
+                        console.log('Skipped block height', i);
+                        // yield i;
+                    }
+                }
+                lastKey = key;
+            }
+
+            offset += keys.length;
+        } while (keys.length > 0);
+    }
+
+
     async getLatestDataBlockHeight(compKey, blockHeight) {
         const key = truncatedKey(compKey);
         const [latest] = this.db.getKeys({
