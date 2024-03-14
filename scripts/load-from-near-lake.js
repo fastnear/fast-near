@@ -194,6 +194,11 @@ if (require.main === module) {
                     .option('dump-changes', {
                         describe: 'Dump state changes into storage. Use FAST_NEAR_STORAGE_TYPE to specify storage type. Defaults to `redis`.',
                         boolean: true
+                    })
+                    .option('print-skipped', {
+                        describe: 'Print skipped blocks',
+                        boolean: true,
+                        default: false
                     }),
                 async argv => {
 
@@ -209,7 +214,13 @@ if (require.main === module) {
                 include,
                 exclude,
                 dumpChanges,
+                printSkipped
             } = argv;
+
+            if (printSkipped) {
+                await storage.cachedStorage._storage.findSkippedBlockHeights(startBlockHeight, startBlockHeight + limit);
+                return;
+            }
 
             let blocksProcessed = 0;
 
