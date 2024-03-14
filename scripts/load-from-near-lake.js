@@ -42,7 +42,7 @@ async function handleStreamerMessage(streamerMessage, options = {}) {
     }
 }
 
-async function dumpChangesToStorage(streamerMessage, { historyLength, include, exclude } = {}) {
+async function dumpChangesToStorage(streamerMessage, { historyLength, updateBlockHeight, include, exclude } = {}) {
     // TODO: Use timestampNanoSec?
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
@@ -58,7 +58,9 @@ async function dumpChangesToStorage(streamerMessage, { historyLength, include, e
     });
 
     await storage.setBlockTimestamp(blockHeight, timestamp);
-    await storage.setLatestBlockHeight(blockHeight);
+    if (updateBlockHeight) {
+        await storage.setLatestBlockHeight(blockHeight);
+    }
     console.timeEnd('dumpChangesToStorage');
     // TODO: Record block hash to block height mapping?
 }
@@ -163,6 +165,11 @@ if (require.main === module) {
                     .describe('bucket-name', 'S3 bucket name')
                     .describe('region-name', 'S3 region name')
                     .describe('endpoint', 'S3-compatible storage URL')
+                    .option('update-block-height', {
+                        describe: 'update block height in storage',
+                        boolean: true,
+                        default: true
+                    })
                     .option('include', {
                         describe: 'include only accounts matching this glob pattern. Can be specified multiple times.',
                         array: true
@@ -198,6 +205,7 @@ if (require.main === module) {
                 batchSize,
                 historyLength,
                 limit,
+                updateBlockHeight,
                 include,
                 exclude,
                 dumpChanges,
@@ -216,6 +224,7 @@ if (require.main === module) {
                     await handleStreamerMessage(streamerMessage, {
                         batchSize,
                         historyLength,
+                        updateBlockHeight,
                         include,
                         exclude,
                         dumpChanges,
