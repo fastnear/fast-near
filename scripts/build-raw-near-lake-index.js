@@ -17,7 +17,8 @@ async function main() {
 
     const startBlockNumber = startAfter ? parseInt(startAfter, 10) : 0;
     const endBlockNumber = startBlockNumber + parseInt(limit, 10);
-    const dstDir = `./lake-data/${bucketName}`;
+    const lakeDir = process.env.FAST_NEAR_LAKE_DIR || './lake-data';
+    const dstDir = `${lakeDir}/${bucketName}`;
     const blobDir = `${dstDir}/blob`;
     await mkdir(blobDir, { recursive: true });
     // TODO: Should index smth from 'block' as well? (e.g. block.header.timestamp)
