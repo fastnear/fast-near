@@ -18,7 +18,9 @@ async function main() {
     const startBlockNumber = startAfter ? parseInt(startAfter, 10) : 0;
     const endBlockNumber = startBlockNumber + parseInt(limit, 10);
     const lakeDir = process.env.FAST_NEAR_LAKE_DIR || './lake-data';
-    const dstDir = `${lakeDir}/${bucketName}`;
+    const indexDir = process.env.FAST_NEAR_INDEX_DIR || './lake-data';
+    const dataDir = `${lakeDir}/${bucketName}`;
+    const dstDir = `${indexDir}/${bucketName}`;
     const blobDir = `${dstDir}/blob`;
     await mkdir(blobDir, { recursive: true });
     // TODO: Should index smth from 'block' as well? (e.g. block.header.timestamp)
@@ -35,7 +37,7 @@ async function main() {
             const end = Math.min(start + BLOCKS_PER_BATCH, endBlockNumber);
             console.log('Processing batch', start, end);
 
-            const blocksStream = readShardBlocks({ dataDir: dstDir, shard, startBlockHeight: start, endBlockHeight: end });
+            const blocksStream = readShardBlocks({ dataDir, shard, startBlockHeight: start, endBlockHeight: end });
             const parseBlocksStream = mapStream(blocksStream, ({ data }) => JSON.parse(data.toString('utf-8')));
 
             let changesByAccountList = [];
