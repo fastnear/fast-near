@@ -217,7 +217,7 @@ const handleJsonRpc = async ctx => {
 };
 
 async function handleQuery({ blockHeight, body }) {
-    debug('handleQuery', blockHeight, body);
+    debug('handleQuery', body.params);
 
     if (body?.params?.request_type == 'call_function') {
         const { account_id, method_name: methodName, args_base64 } = body.params;
