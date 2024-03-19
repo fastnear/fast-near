@@ -109,7 +109,8 @@ class LMDBStorage {
                 end: `t:${endBlockHeight}`,
                 offset,
                 limit: 1000,
-            }).flatMap(key => parseInt(key.slice(2))).asArray;
+            }).flatMap(key => parseInt(key.slice(2)))
+                .asArray.filter(key => key >= startBlockHeight && key <= endBlockHeight)
 
             for (let key of keys) {
                 if (lastKey && lastKey + 1 < key) {
