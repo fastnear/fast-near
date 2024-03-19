@@ -179,6 +179,15 @@ if (require.main === module) {
                         describe: 'Directory use as source of lake data. Defaults to `./lake-data/mainnet`.',
                         default: './lake-data/mainnet',
                     })
+                    .option('bucket', {
+                        describe: 'S3 bucket name',
+                        default: 'near-lake-data-mainnet',
+                    })
+                    .option('region', {
+                        describe: 'S3 region name',
+                        default: 'eu-central-1',
+                    })
+                    .describe('endpoint', 'S3-compatible storage URL')
                     .option('shards', {
                         describe: 'Shards to process. Defaults to 0..3',
                         default: ['0', '1', '2', '3'],
@@ -210,9 +219,14 @@ if (require.main === module) {
                         describe: 'Dump state changes into storage. Use FAST_NEAR_STORAGE_TYPE to specify storage type. Defaults to `redis`.',
                         boolean: true
                     })
+                    .option('update-block-height', {
+                        describe: 'update block height in storage',
+                        boolean: true,
+                        default: true
+                    })
                     .option('source', {
                         describe: 'Source of the data. Defaults to `redis-blocks`.',
-                        choices: ['redis-blocks', 'lake'],
+                        choices: ['redis-blocks', 'lake', 's3-lake'],
                         default: 'redis-blocks'
                     }),
                 async argv => {
