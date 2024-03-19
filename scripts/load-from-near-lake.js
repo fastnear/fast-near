@@ -42,7 +42,7 @@ async function handleStreamerMessage(streamerMessage, options = {}) {
     }
 }
 
-async function dumpChangesToStorage(streamerMessage, { historyLength, updateBlockHeight, include, exclude } = {}) {
+async function dumpChangesToStorage(streamerMessage, { historyLength, updateBlockHeight = true, include, exclude } = {}) {
     // TODO: Use timestampNanoSec?
     const { height: blockHeight, hash: blockHashB58, timestamp } = streamerMessage.block.header;
     const blockHash = bs58.decode(blockHashB58);
