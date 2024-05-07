@@ -78,11 +78,28 @@ async function* readBlocks({ bucket, region, endpoint, startBlockHeight, endBloc
         maxAttempts: 3,
     });
 
+    const maxRetries = 3;
+    const retryTimeout = 1000;
+
     async function getJson(fileName, blockNumber) {
         const blockHeight = normalizeBlockHeight(blockNumber);
-        const blockResponse = await getObject(client, { bucketName: bucket, key: `${blockHeight}/${fileName}` });
-        const data = await asBuffer(blockResponse.Body);
-        return JSON.parse(data.toString());
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                const blockResponse = await getObject(client, { bucketName: bucket, key: `${blockHeight}/${fileName}` });
+                const data = await asBuffer(blockResponse.Body);
+                return JSON.parse(data.toString());
+            } catch (error) {
+                console.error(`Error reading ${fileName} for block ${blockNumber}`, error);
+                if (['ECONNRESET', 'ENOTFOUND', 'ETIMEDOUT'].includes(error.code)) {
+                    // Retry on connection reset
+                    console.log(`Retrying block ${blockNumber}, file ${fileName} after timeout. Attempt ${i + 1}`);
+                    await sleep(retryTimeout);
+                    continue;
+                }
+                throw error;
+            }
+        }
+        throw new Error(`Retries exceeded for block ${blockNumber}, file ${fileName}`);
     }
 
     try {
@@ -108,6 +125,10 @@ async function* readBlocks({ bucket, region, endpoint, startBlockHeight, endBloc
     } finally {
         client.destroy();
     }
+}
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 module.exports = { readBlocks };
