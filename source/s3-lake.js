@@ -60,7 +60,7 @@ async function* blockNumbersStream(client, bucketName, startBlockHeight, endBloc
             yield blockNumber;
         }
 
-        startAfter = blockNumbers[blockNumbers.length - 1] + 1;
+        startBlockHeight = parseInt(blockNumbers[blockNumbers.length - 1], 10) + 1;
     } while (listObjectsResult.IsTruncated);
 }
 
