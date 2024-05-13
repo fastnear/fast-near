@@ -233,7 +233,7 @@ if (require.main === module) {
                     })
                     .option('source', {
                         describe: 'Source of the data. Defaults to `redis-blocks`.',
-                        choices: ['redis-blocks', 'lake', 's3-lake'],
+                        choices: ['redis-blocks', 'lake', 's3-lake', 'neardata'],
                         default: 'redis-blocks'
                     }),
                 async argv => {
