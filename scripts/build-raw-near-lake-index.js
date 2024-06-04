@@ -3,7 +3,7 @@ const { mkdir, writeFile, access } = require('fs/promises');
 
 const sha256 = require('../utils/sha256');
 const { writeChangesFile, readChangesFile, changeKey, mergeChangesFiles } = require('../storage/lake/changes-index');
-const { readShardBlocks } = require('../source/lake');
+const { readBlocks } = require('../source/lake');
 
 const debug = require('debug')('build-index');
 
@@ -37,11 +37,10 @@ async function main() {
             const end = Math.min(start + BLOCKS_PER_BATCH, endBlockNumber);
             console.log('Processing batch', start, end);
 
-            const blocksStream = readShardBlocks({ dataDir, shard, startBlockHeight: start, endBlockHeight: end });
-            const parseBlocksStream = mapStream(blocksStream, ({ data }) => JSON.parse(data.toString('utf-8')));
+            const blocksStream = readBlocks({ dataDir, shards: [shard], startBlockHeight: start, endBlockHeight: end });
 
             let changesByAccountList = [];
-            for await (const { chunk, state_changes } of parseBlocksStream) {
+            for await (const { shards: [{ chunk, state_changes }] } of blocksStream) {
                 if (!chunk) {
                     continue;
                 }
