@@ -13,6 +13,8 @@ async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }
     if (!shards.includes('block')) {
         shards = [...shards, 'block'];
     }
+    // TODO: Check genesis block hash?
+    let lastBlockHash
     for (let baseBlockHeight = Math.floor(startBlockHeight / FILES_PER_ARCHIVE) * FILES_PER_ARCHIVE; baseBlockHeight < endBlockHeight; baseBlockHeight += FILES_PER_ARCHIVE) {
         const blocks = [...Array(FILES_PER_ARCHIVE)].map(() => ({ shards: shards.slice(0, -1).map(() => ({}))}));
         for (let i = 0; i < shards.length; i++) {
@@ -28,7 +30,16 @@ async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }
             }
         }
 
-        yield *blocks.filter(block => block.block);
+        // TODO: Check where else to validate / refactor
+        for (let block of blocks) {
+            if (block.block) {
+                if (lastBlockHash && block.block.header.prev_hash !== lastBlockHash) {
+                    throw new Error(`Block hash chain is broken at block ${block.block.header.height}`);
+                }
+                lastBlockHash = block.block.header.hash;
+                yield block;
+            }
+        }
     }
 }
 
@@ -82,6 +93,13 @@ async function readShardBlocksBatch({ blockNumber, dataDir, shard }) {
             });
             await pipelinePromise;
             return results;
+        } catch (e) {
+            // NOTE: It's expected that some block numbers are missing
+            // However block hash chain needs to be checked for consistency
+            // TODO: Figure out where best to check block hash chain besides readBlocks
+            if (e.code === 'ENOENT') {
+                return [];
+            }
         } finally {
             // NOTE: After analysis with why-is-node-running looks like at least Gunzip is not properly closed
             gunzip.close();
