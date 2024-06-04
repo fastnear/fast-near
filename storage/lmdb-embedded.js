@@ -320,7 +320,7 @@ class LMDBStorage {
         try {
             return await this.db.close();
         } catch (e) {
-            if (/The environment is already closed/.test(e.message)) {
+            if (/is already closed/.test(e.message)) {
                 return;
             }
             throw e;
