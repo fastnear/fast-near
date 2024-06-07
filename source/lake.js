@@ -8,6 +8,8 @@ const debug = require('debug')('source:lake');
 const FILES_PER_ARCHIVE = 5;
 const BLOCKS_PER_LOG = 1000;
 
+const MAX_BLOCKS_SKIPPED = parseInt(process.env.FAST_NEAR_MAX_BLOCKS_SKIPPED || '100');
+
 async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }) {
     debug('readBlocks', dataDir, shards, startBlockHeight, endBlockHeight);
     if (!shards.includes('block')) {
@@ -15,6 +17,7 @@ async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }
     }
     // TODO: Check genesis block hash?
     let lastBlockHash
+    let blocksSkipped = 0;
     for (let baseBlockHeight = Math.floor(startBlockHeight / FILES_PER_ARCHIVE) * FILES_PER_ARCHIVE; baseBlockHeight < endBlockHeight; baseBlockHeight += FILES_PER_ARCHIVE) {
         const blocks = [...Array(FILES_PER_ARCHIVE)].map(() => ({ shards: shards.slice(0, -1).map(() => ({}))}));
         for (let i = 0; i < shards.length; i++) {
@@ -36,8 +39,14 @@ async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }
                 if (lastBlockHash && block.block.header.prev_hash !== lastBlockHash) {
                     throw new Error(`Block hash chain is broken at block ${block.block.header.height}`);
                 }
+                blocksSkipped = 0;
                 lastBlockHash = block.block.header.hash;
                 yield block;
+            } else {
+                blocksSkipped++;
+                if (blocksSkipped > MAX_BLOCKS_SKIPPED) {
+                    throw new Error(`Skipped ${blocksSkipped} blocks in a row. Some of lake data is likely missing`);
+                }
             }
         }
     }
@@ -69,6 +78,7 @@ async function readShardBlocksBatch({ blockNumber, dataDir, shard }) {
         const inFolder = `${dataDir}/${shard}/${prefix1}/${prefix2}`;
         const inFile = `${inFolder}/${blockHeight}.tgz`;
 
+        debug('reading block data', inFile);
         const extract = tar.extract();
         const gunzip = zlib.createGunzip();
         const readStream = fs.createReadStream(inFile);
@@ -98,8 +108,12 @@ async function readShardBlocksBatch({ blockNumber, dataDir, shard }) {
             // However block hash chain needs to be checked for consistency
             // TODO: Figure out where best to check block hash chain besides readBlocks
             if (e.code === 'ENOENT') {
+                debug('file not found', inFile);
                 return [];
             }
+
+            debug('error reading block data from', inFile, e);
+            throw e;
         } finally {
             // NOTE: After analysis with why-is-node-running looks like at least Gunzip is not properly closed
             gunzip.close();
