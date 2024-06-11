@@ -36,7 +36,7 @@ async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }
 
         // TODO: Check where else to validate / refactor
         for (let block of blocks) {
-            if (block.block) {
+            if (block.block && shards.every(shard => shard == 'block' || block.shards.find(({ shard_id }) => shard_id == shard))) {
                 if (lastBlockHash && block.block.header.prev_hash !== lastBlockHash) {
                     throw new Error(`Block hash chain is broken at block ${block.block.header.height}`);
                 }
