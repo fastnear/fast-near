@@ -19,6 +19,7 @@ async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }
     let lastBlockHash
     let blocksSkipped = 0;
     for (let baseBlockHeight = Math.floor(startBlockHeight / FILES_PER_ARCHIVE) * FILES_PER_ARCHIVE; baseBlockHeight < endBlockHeight; baseBlockHeight += FILES_PER_ARCHIVE) {
+        blocksSkipped += FILES_PER_ARCHIVE;
         const blocks = [...Array(FILES_PER_ARCHIVE)].map(() => ({ shards: shards.slice(0, -1).map(() => ({}))}));
         for (let i = 0; i < shards.length; i++) {
             const shard = shards[i];
@@ -44,10 +45,11 @@ async function *readBlocks({ dataDir, shards, startBlockHeight, endBlockHeight }
                 yield block;
             } else {
                 blocksSkipped++;
-                if (blocksSkipped > MAX_BLOCKS_SKIPPED) {
-                    throw new Error(`Skipped ${blocksSkipped} blocks in a row. Some of lake data is likely missing`);
-                }
             }
+        }
+
+        if (blocksSkipped > MAX_BLOCKS_SKIPPED) {
+            throw new Error(`Skipped ${blocksSkipped} blocks in a row. Some of lake data is likely missing`);
         }
     }
 }
