@@ -242,7 +242,7 @@ async function *readChangesFile(inPath, { accountId, keyPrefix, blockHeight } = 
                 yield *readPage(buffer);
             } else {
                 const items = readPage(buffer);
-                console.log('readPage', position.toString(16),  items[0].accountId);
+                console.log('readPage', position.toString(16), items[0]?.accountId);
                 for (let item of items) {
                     if (item.accountId === accountId) {
                         // TODO: Binary search for the key as well? Note that we already take it into account when searching for the page
