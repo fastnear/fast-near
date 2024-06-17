@@ -41,7 +41,7 @@ const imports = (ctx) => {
         let arr = [];
         const mem = new Uint8Array(ctx.memory.buffer);
         ptr = Number(ptr);
-        for (let i = 0; i < len && mem[ptr] != 0; i++){
+        for (let i = 0; i < len && mem[ptr] != 0; i++) {
             arr.push(mem[ptr]);
             ptr++;
         }
@@ -112,6 +112,7 @@ const imports = (ctx) => {
         },
         keccak256: notImplemented('keccak256'),
         keccak512: notImplemented('keccak512'),
+        ed25519_verify: notImplemented('ed25519_verify'),
 
         value_return: (value_len, value_ptr) => {
             debug('value_return', value_len, value_ptr);
