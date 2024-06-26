@@ -36,6 +36,13 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
         return block;
     };
 
+    // TODO: Special API just to fetch one block?
+    if (endBlockHeight === startBlockHeight + 1) {
+        debug('fetching single block', startBlockHeight);
+        yield await fetchBlock(startBlockHeight);
+        return;
+    }
+
     const workPool = [];
     let blockHeight = startBlockHeight;
     let finalBlockHeight = await fetchBlockNumber('last_block/final');
