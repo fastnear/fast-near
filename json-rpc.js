@@ -204,7 +204,6 @@ const handleJsonRpc = async ctx => {
     }
 
     const { body } = ctx.request;
-    debug('handleJsonRpc', body?.method);
     try {
         switch (body?.method) {
             case 'query': {
@@ -225,6 +224,7 @@ const handleJsonRpc = async ctx => {
             case 'chunk': {
                 const { block_id, shard_id } = body.params;
                 if (shard_id !== undefined && typeof block_id === 'number') {
+                    debug('get chunk', block_id, shard_id);
                     const blocks = await readBlocks({
                         baseUrl: FAST_NEAR_BLOCK_DATA_URL,
                         startBlockHeight: block_id,
@@ -233,6 +233,7 @@ const handleJsonRpc = async ctx => {
                     for await (const block of blocks) {
                         const shard = block.shards?.find(({ shard_id: s }) => s == shard_id);
                         if (shard?.chunk) {
+                            debug('chunk found', block_id, shard_id);
                             ctx.body = rpcResult(body.id, shard?.chunk);
                             return;
                         }
