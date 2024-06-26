@@ -240,7 +240,7 @@ const handleJsonRpc = async ctx => {
                     }
 
                     // TODO: Proper error
-                    throw new Error('Chunk not found');
+                    throw new Error(`Chunk not found: ${block_id} ${shard_id}`);
                 }
                 break;
             }
