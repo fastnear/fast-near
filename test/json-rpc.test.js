@@ -51,5 +51,15 @@ test('chunk not found', async t => {
             id: 'whatever',
             params: { block_id: 999999, shard_id: 0 }
     });
-    console.log('res', res.body);
+
+    t.isEqual(res.status, 200);
+    t.isEqual(res.body.id, 'whatever');
+    t.deepEqual(res.body.error, {
+        name: 'HANDLER_ERROR',
+        cause: { info: {}, name: 'UNKNOWN_BLOCK' },
+        code: -32000,
+        data: 'DB Not Found Error: BLOCK HEIGHT: 999999 \n Cause: Unknown',
+        message: 'Server error'
+    });
+
 });
