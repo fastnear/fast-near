@@ -188,29 +188,31 @@ const handleJsonRpc = async ctx => {
 
     const { body } = ctx.request;
     try {
-        if (body?.method == 'query') {
-            const { finality, block_id } = body.params;
-            // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
+        switch (body?.method) {
+            case 'query': {
+                const { finality, block_id } = body.params;
+                // TODO: Determine proper way to handle finality. Depending on what indexer can do maybe just redirect to nearcore if not final
 
-            if (typeof block_id == 'string') {
-                // TODO: Maintain block hash -> block height mapping
-                await proxyJson(ctx);
-            } else {
-                const blockHeight = await resolveBlockHeight(block_id);
-                debug('blockHeight', blockHeight);
+                if (typeof block_id == 'string') {
+                    // TODO: Maintain block hash -> block height mapping
+                    await proxyJson(ctx);
+                } else {
+                    const blockHeight = await resolveBlockHeight(block_id);
+                    debug('blockHeight', blockHeight);
 
-                const id = ctx.request.body.id;
-                ctx.body = rpcResult(id, await handleQuery({ blockHeight, body }));
-                return;
+                    const id = ctx.request.body.id;
+                    ctx.body = rpcResult(id, await handleQuery({ blockHeight, body }));
+                }
+                break;
             }
+            case 'broadcast_tx_commit': {
+                const result = await submitTransaction(Buffer.from(body.params[0], 'base64'));
+                ctx.body = rpcResult(body.id, result);
+                break;
+            }
+            default:
+                await proxyJson(ctx);
         }
-
-        if (body?.method == 'broadcast_tx_commit') {
-            const result = await submitTransaction(Buffer.from(body.params[0], 'base64'));
-            ctx.body = rpcResult(body.id, result);
-        }
-
-        await proxyJson(ctx);
     } catch (error) {
         await handleError({ ctx, blockHeight: null, error });
     }
@@ -219,40 +221,41 @@ const handleJsonRpc = async ctx => {
 async function handleQuery({ blockHeight, body }) {
     debug('handleQuery', body.params);
 
-    if (body?.params?.request_type == 'call_function') {
-        const { account_id, method_name: methodName, args_base64 } = body.params;
-        return await callViewFunction({ blockHeight, accountId: account_id, methodName, args: Buffer.from(args_base64, 'base64') });
-    }
-
-    if (body?.params?.request_type == 'view_account') {
-        const { account_id } = body.params;
-        return await viewAccount({ blockHeight, accountId: account_id });
-    }
-
-    if (body?.params?.request_type == 'view_access_key') {
-        const { account_id, public_key } = body.params;
-        const accessKey = await viewAccessKey({ blockHeight, accountId: account_id, publicKey: public_key });
-        if (!accessKey) {
-            throw new FastNEARError('keyNotFound', `Access key not found: ${public_key} for ${account_id}`, { account_id, public_key });
+    switch (body?.params?.request_type) {
+        case 'call_function': {
+            const { account_id, method_name: methodName, args_base64 } = body.params;
+            return await callViewFunction({ blockHeight, accountId: account_id, methodName, args: Buffer.from(args_base64, 'base64') });
         }
-        return accessKey;
-    }
-
-    if (body?.params?.length) {
-        const query = body.params[0];
-        if (query?.startsWith('account/')) {
-            const [, accountId] = query.split('/');
-            return await viewAccount({ blockHeight, accountId });
+        case 'view_account': {
+            const { account_id } = body.params;
+            return await viewAccount({ blockHeight, accountId: account_id });
         }
+        case 'view_access_key': {
+            const { account_id, public_key } = body.params;
+            const accessKey = await viewAccessKey({ blockHeight, accountId: account_id, publicKey: public_key });
+            if (!accessKey) {
+                throw new FastNEARError('keyNotFound', `Access key not found: ${public_key} for ${account_id}`, { account_id, public_key });
+            }
+            return accessKey;
+        }
+        default: {
+            // NOTE: Legacy way to query
+            if (body?.params?.length) {
+                const query = body.params[0];
+                if (query?.startsWith('account/')) {
+                    const [, accountId] = query.split('/');
+                    return await viewAccount({ blockHeight, accountId });
+                }
 
-        if (query?.startsWith('call/')) {
-            const [, accountId, methodName] = query.split('/');
-            const args = bs58.decode(body.params[1], 'base64');
-            return await callViewFunction({ blockHeight, accountId, methodName, args });
+                if (query?.startsWith('call/')) {
+                    const [, accountId, methodName] = query.split('/');
+                    const args = bs58.decode(body.params[1], 'base64');
+                    return await callViewFunction({ blockHeight, accountId, methodName, args });
+                }
+            }
+            throw new FastNEARError('notImplemented', `Not implemented: ${body.params.request_type}`, { body });
         }
     }
-
-    throw new FastNEARError('notImplemented', `Not implemented: ${body.params.request_type}`, { body });
 }
 
 const callViewFunction = async ({ blockHeight, accountId, methodName, args }) => {
