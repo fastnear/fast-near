@@ -1,7 +1,13 @@
+const { FastNEARError } = require('../error');
+
+const debug = require('debug')('source:neardata');
 
 // TODO: Allow to break the loop if the user wants to stop reading blocks. Use an AbortController signal?
-async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startBlockHeight, endBlockHeight, batchSize }) {
+async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startBlockHeight, endBlockHeight, batchSize = 10 }) {
+    debug('readBlocks', baseUrl, startBlockHeight, endBlockHeight, batchSize);
+
     async function fetchBlockNumber(path) {
+        debug('fetchBlockNumber', path);
         const res = await fetch(`${baseUrl}/${path}`, { redirect: 'manual' });
         // TODO: Should handle 404, etc?
         // Parse location header looking like `location: /v0/block/9820210`
@@ -12,10 +18,20 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
         // TODO: Change to use limit parameter as otherwise endBlockHeight is not correct here?
         // Fetch the first block height from the API.
         startBlockHeight = await fetchBlockNumber('first_block');
+        debug('startBlockHeight', startBlockHeight);
     }
 
     const fetchBlock = async (blockHeight) => {
+        debug('fetchBlock', blockHeight);
         const res = await fetch(`${baseUrl}/block/${blockHeight}`);
+        if (!res.ok) {
+            const data = { ...await res.json(), blockHeight };
+            if (res.status == 404) {
+                throw new FastNEARError('blockNotFound', `Block ${blockHeight} not found`, data);
+            }
+            throw new FastNEARError('fetchError', `Error fetching block ${blockHeight}`, data);
+        }
+
         const block = await res.json();
         return block;
     };
@@ -23,11 +39,16 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
     const workPool = [];
     let blockHeight = startBlockHeight;
     let finalBlockHeight = await fetchBlockNumber('last_block/final');
+    debug('finalBlockHeight', finalBlockHeight);
+    debug('blockHeight', Math.min(finalBlockHeight, endBlockHeight));
     for (; !endBlockHeight || blockHeight < Math.min(finalBlockHeight, endBlockHeight); blockHeight++) {
         while (workPool.length >= batchSize) {
             const block = await workPool.shift();
             if (block) {
+                debug('fetched block', block.header.height);
                 yield block;
+            } else {
+                debug('skipped block');
             }
         }
 
@@ -35,10 +56,11 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
 
         if (blockHeight % batchSize === 0) {
             finalBlockHeight = await fetchBlockNumber('last_block/final');
+            debug('finalBlockHeight', finalBlockHeight);
         }
     }
 
-    console.log('finishing work');
+    debug('finishing work', workPool.length);
     while (workPool.length > 0) {
         const block = await workPool.shift();
         if (block) {
@@ -46,7 +68,7 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
         }
     }
 
-    console.log('fetching more');
+    debug('fetching more');
     for (; !endBlockHeight || blockHeight < endBlockHeight; blockHeight++) {
         const block = await fetchBlock(blockHeight);
         yield block;

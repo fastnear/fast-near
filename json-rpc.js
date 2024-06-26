@@ -18,6 +18,11 @@ const debug = require('debug')('json-rpc');
 const NODE_URL = process.env.FAST_NEAR_NODE_URL || 'https://rpc.mainnet.near.org';
 const ARCHIVAL_NODE_URL = process.env.FAST_NEAR_ARCHIVAL_NODE_URL || 'https://rpc.mainnet.internal.near.org';
 
+const FAST_NEAR_BLOCK_DATA_URL = process.env.FAST_NEAR_BLOCK_DATA_URL || 'https://mainnet.neardata.xyz/v0';
+const FAST_NEAR_BLOCK_SOURCE = process.env.FAST_NEAR_BLOCK_SOURCE || 'neardata';
+
+const { readBlocks } = require(`./source/${FAST_NEAR_BLOCK_SOURCE}`);
+
 const proxyJson = async (ctx, { archival = false } = {}) => {
     const nodeUrl = archival ? ARCHIVAL_NODE_URL : NODE_URL;
     const rawBody = ctx.request.body ? JSON.stringify(ctx.request.body) : await getRawBody(ctx.req);
@@ -43,11 +48,12 @@ const viewCallError = ({ id, message }) => {
     };
 }
 
-const legacyError = ({ id, message }) => {
+const legacyError = ({ id, message, name, cause }) => {
     return {
         jsonrpc: '2.0',
-        // TODO: Structured error in addition to legacy?
         error: {
+            name,
+            cause,
             code: -32000,
             data: message,
             message: "Server error",
@@ -61,13 +67,14 @@ const ALWAYS_PROXY = ['yes', 'true'].includes((process.env.FAST_NEAR_ALWAYS_PROX
 const handleError = async ({ ctx, blockHeight, error }) => {
     debug('handleError', error);
     const { body } = ctx.request;
+    const { id }  = body;
     const accountId = error.data?.accountId;
 
     // TODO: Match error handling? Structured errors? https://docs.near.org/docs/api/rpc/contracts#what-could-go-wrong-6
     const message = error.toString();
     if (/TypeError.* is not a function/.test(message)) {
         ctx.body = viewCallError({
-            id: body.id,
+            id,
             message: "wasm execution failed with error: FunctionCallError(MethodResolveError(MethodNotFound))"
         });
         return;
@@ -77,7 +84,7 @@ const handleError = async ({ ctx, blockHeight, error }) => {
         ctx.body = {
             jsonrpc: '2.0',
             error: error.jsonRpcError,
-            id: body.id
+            id
         };
         return;
     }
@@ -89,32 +96,42 @@ const handleError = async ({ ctx, blockHeight, error }) => {
     case 'panic':
     case 'abort':
         ctx.body = viewCallError({
-            id: body.id,
+            id,
             message: `wasm execution failed with error: FunctionCallError(HostError(GuestPanic { panic_msg: ${JSON.stringify(error.message)}}))`
         });
         return;
     case 'codeNotFound':
         ctx.body = viewCallError({
-            id: body.id,
+            id,
             message: `wasm execution failed with error: FunctionCallError(CompilationError(CodeDoesNotExist { account_id: AccountId("${accountId}") }))`
         });
         return;
     case 'keyNotFound':
         ctx.body = viewCallError({
-            id: body.id,
+            id,
             message: `access key ${error.data.public_key} does not exist while viewing`,
+        });
+        return;
+    case 'blockNotFound':
+        ctx.body = legacyError({
+            id,
+            name: 'HANDLER_ERROR',
+            cause: { info: {}, name: 'UNKNOWN_BLOCK' },
+            message: `DB Not Found Error: BLOCK HEIGHT: ${error.data.blockHeight} \n Cause: Unknown`
         });
         return;
     case 'blockHeightTooLow':
         await proxyJson(ctx, { archival: true });
         return;
     case 'blockHeightTooHigh':
+        // TODO: Structured error in addition to legacy?
         ctx.body = legacyError({
             id: body.id,
             message: `DB Not Found Error: BLOCK HEIGHT: ${blockHeight} \n Cause: Unknown`
         });
         return;
     case 'accountNotFound':
+        // TODO: Structured error in addition to legacy?
         ctx.body = legacyError({
             id: body.id,
             message: `account ${accountId} does not exist while viewing`
@@ -200,8 +217,28 @@ const handleJsonRpc = async ctx => {
                     const blockHeight = await resolveBlockHeight(block_id);
                     debug('blockHeight', blockHeight);
 
-                    const id = ctx.request.body.id;
-                    ctx.body = rpcResult(id, await handleQuery({ blockHeight, body }));
+                    ctx.body = rpcResult(body.id, await handleQuery({ blockHeight, body }));
+                }
+                break;
+            }
+            case 'chunk': {
+                const { block_id, shard_id } = body.params;
+                if (shard_id !== undefined && typeof block_id === 'number') {
+                    const blocks = await readBlocks({
+                        baseUrl: FAST_NEAR_BLOCK_DATA_URL,
+                        startBlockHeight: block_id,
+                        endBlockHeight: block_id + 1
+                    });
+                    for await (const block of blocks) {
+                        const shard = block.shards?.find(({ shard_id: s }) => s == shard_id);
+                        if (shard?.chunk) {
+                            ctx.body = rpcResult(body.id, shard?.chunk);
+                            return;
+                        }
+                    }
+
+                    // TODO: Proper error
+                    throw new Error('Chunk not found');
                 }
                 break;
             }
@@ -211,11 +248,15 @@ const handleJsonRpc = async ctx => {
                 break;
             }
             default:
-                await proxyJson(ctx);
+                // Fall back to proxying
+                break;
         }
     } catch (error) {
         await handleError({ ctx, blockHeight: null, error });
+        return;
     }
+
+    await proxyJson(ctx);
 };
 
 async function handleQuery({ blockHeight, body }) {
