@@ -204,6 +204,7 @@ const handleJsonRpc = async ctx => {
     }
 
     const { body } = ctx.request;
+    debug('handleJsonRpc', body?.method);
     try {
         switch (body?.method) {
             case 'query': {
