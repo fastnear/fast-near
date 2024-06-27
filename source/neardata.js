@@ -33,13 +33,21 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
         }
 
         const block = await res.json();
+        // NOTE: Some blocks are null because they are skipped in chain,
+        // e.g. https://a0.mainnet.neardata.xyz/v0/block/121967871
         return block;
     };
 
     // TODO: Special API just to fetch one block?
     if (endBlockHeight === startBlockHeight + 1) {
         debug('fetching single block', startBlockHeight);
-        yield await fetchBlock(startBlockHeight);
+        const block = await fetchBlock(startBlockHeight);
+        if (block) {
+            debug('fetched block', block.block.header.height);
+            yield block;
+        } else {
+            debug('skipped block');
+        }
         return;
     }
 
@@ -52,7 +60,7 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
         while (workPool.length >= batchSize) {
             const block = await workPool.shift();
             if (block) {
-                debug('fetched block', block.header.height);
+                debug('fetched block', block.block.header.height);
                 yield block;
             } else {
                 debug('skipped block');
@@ -71,14 +79,23 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
     while (workPool.length > 0) {
         const block = await workPool.shift();
         if (block) {
+            debug('fetched block', block.block.header.height);
             yield block;
+        } else {
+            debug('skipped block');
         }
     }
 
     debug('fetching more');
     for (; !endBlockHeight || blockHeight < endBlockHeight; blockHeight++) {
         const block = await fetchBlock(blockHeight);
-        yield block;
+        // TODO: Refactor null block handling
+        if (block) {
+            debug('fetched block', block.block.header.height);
+            yield block;
+        } else {
+            debug('skipped block');
+        }
     }
 }
 

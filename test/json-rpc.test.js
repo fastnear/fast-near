@@ -10,7 +10,7 @@ test.onFinish(async () => {
 
 test('can retrieve block chunk', async t => {
     const res = await request.post('/')
-        .send({ 
+        .send({
             jsonrpc: '2.0',
             method: 'chunk',
             id: 'whatever',
@@ -45,7 +45,7 @@ test('can retrieve block chunk', async t => {
 
 test('chunk not found', async t => {
     const res = await request.post('/')
-        .send({ 
+        .send({
             jsonrpc: '2.0',
             method: 'chunk',
             id: 'whatever',
@@ -61,5 +61,24 @@ test('chunk not found', async t => {
         data: 'DB Not Found Error: BLOCK HEIGHT: 999999 \n Cause: Unknown',
         message: 'Server error'
     });
+});
 
+test('chunk shard not found (empty block)', async t => {
+    const res = await request.post('/')
+        .send({
+            jsonrpc: '2.0',
+            method: 'chunk',
+            id: 'whatever',
+            params: { block_id: 121967871, shard_id: 0 }
+    });
+
+    t.isEqual(res.status, 200);
+    t.isEqual(res.body.id, 'whatever');
+    t.deepEqual(res.body.error, {
+        name: 'HANDLER_ERROR',
+        cause: { info: { shard_id: 0 }, name: 'INVALID_SHARD_ID' },
+        code: -32000,
+        data: 'Shard id 0 does not exist',
+        message: 'Server error'
+    });
 });

@@ -120,6 +120,14 @@ const handleError = async ({ ctx, blockHeight, error }) => {
             message: `DB Not Found Error: BLOCK HEIGHT: ${error.data.blockHeight} \n Cause: Unknown`
         });
         return;
+    case 'chunkNotFound':
+        ctx.body = legacyError({
+            id,
+            name: 'HANDLER_ERROR',
+            cause: { info: { shard_id: error.data.shard_id }, name: 'INVALID_SHARD_ID' },
+            message: `Shard id ${error.data.shard_id} does not exist`
+        });
+        return;
     case 'blockHeightTooLow':
         await proxyJson(ctx, { archival: true });
         return;
@@ -239,8 +247,7 @@ const handleJsonRpc = async ctx => {
                         }
                     }
 
-                    // TODO: Proper error
-                    throw new Error(`Chunk not found: ${block_id} ${shard_id}`);
+                    throw new FastNEARError('chunkNotFound', `Chunk not found: ${block_id} ${shard_id}`, { block_id, shard_id });
                 }
                 break;
             }
