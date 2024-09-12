@@ -11,6 +11,7 @@
   "files": [
     "bin",
     "scripts",
+    "source",
     "storage",
     "utils",
     "*.js"
