@@ -3,8 +3,8 @@ const { FastNEARError } = require('../error');
 const debug = require('debug')('source:neardata');
 
 // TODO: Allow to break the loop if the user wants to stop reading blocks. Use an AbortController signal?
-async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startBlockHeight, endBlockHeight, batchSize = 10 }) {
-    debug('readBlocks', baseUrl, startBlockHeight, endBlockHeight, batchSize);
+async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startBlockHeight, endBlockHeight, batchSize = 10, retryDelay = 1000 }) {
+    debug('readBlocks', baseUrl, startBlockHeight, endBlockHeight, batchSize, retryDelay);
 
     async function fetchBlockNumber(path) {
         debug('fetchBlockNumber', path);
@@ -18,8 +18,8 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
         // TODO: Change to use limit parameter as otherwise endBlockHeight is not correct here?
         // Fetch the first block height from the API.
         startBlockHeight = await fetchBlockNumber('first_block');
-        debug('startBlockHeight', startBlockHeight);
     }
+    debug('startBlockHeight', startBlockHeight);
 
     const fetchBlock = async (blockHeight) => {
         debug('fetchBlock', blockHeight);
@@ -55,8 +55,7 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
     let blockHeight = startBlockHeight;
     let finalBlockHeight = await fetchBlockNumber('last_block/final');
     debug('finalBlockHeight', finalBlockHeight);
-    debug('blockHeight', Math.min(finalBlockHeight, endBlockHeight));
-    for (; !endBlockHeight || blockHeight < Math.min(finalBlockHeight, endBlockHeight); blockHeight++) {
+    for (; blockHeight < Math.min(finalBlockHeight, endBlockHeight || Infinity); blockHeight++) {
         while (workPool.length >= batchSize) {
             const block = await workPool.shift();
             if (block) {
@@ -88,7 +87,20 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
 
     debug('fetching more');
     for (; !endBlockHeight || blockHeight < endBlockHeight; blockHeight++) {
-        const block = await fetchBlock(blockHeight);
+        let block;
+        while (true) {
+            try {
+                block = await fetchBlock(blockHeight);
+                break;
+            } catch (error) {
+                if (error.code === 'blockNotFound' && error.data.type === 'BLOCK_DOES_NOT_EXIST') {
+                    debug(`Block ${blockHeight} does not exist yet. Retrying in ${retryDelay}ms`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                } else {
+                    throw error; // Don't retry for other errors
+                }
+            }
+        }
         // TODO: Refactor null block handling
         if (block) {
             debug('fetched block', block.block.header.height);
