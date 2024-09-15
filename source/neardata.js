@@ -23,19 +23,47 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
 
     const fetchBlock = async (blockHeight) => {
         debug('fetchBlock', blockHeight);
-        const res = await fetch(`${baseUrl}/block/${blockHeight}`);
-        if (!res.ok) {
-            const data = { ...await res.json(), blockHeight };
-            if (res.status == 404) {
-                throw new FastNEARError('blockNotFound', `Block ${blockHeight} not found`, data);
-            }
-            throw new FastNEARError('fetchError', `Error fetching block ${blockHeight}`, data);
-        }
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY = 5000;
 
-        const block = await res.json();
-        // NOTE: Some blocks are null because they are skipped in chain,
-        // e.g. https://a0.mainnet.neardata.xyz/v0/block/121967871
-        return block;
+        let retries = 0;
+        while (true) {
+            try {
+                const res = await fetch(`${baseUrl}/block/${blockHeight}`);
+                if (!res.ok) {
+                    if (!res.headers.get('content-type')?.includes('application/json')) {
+                        const text = await res.text();
+                        console.error(`Unexpected response format for block ${blockHeight}:`, text);
+                        throw new FastNEARError('unexpectedResponseFormat', `Unexpected response format for block ${blockHeight}`, { text, status: res.status });
+                    }
+
+                    const data = { ...await res.json(), blockHeight };
+                    if (res.status == 404) {
+                        throw new FastNEARError('blockNotFound', `Block ${blockHeight} not found`, data);
+                    }
+                    throw new FastNEARError('fetchError', `Error fetching block ${blockHeight}`, data);
+                }
+
+                const block = await res.json();
+                // NOTE: Some blocks are null because they are skipped in chain,
+                // e.g. https://a0.mainnet.neardata.xyz/v0/block/121967871
+                return block;
+            } catch (error) {
+                // NOTE: Should't retry on some errors
+                // TODO: Check other errors
+                if (error.code === 'blockNotFound' && error.data?.type === 'BLOCK_HEIGHT_TOO_LOW') {
+                    throw error;
+                }
+
+                if (retries < MAX_RETRIES) {
+                    console.error(`Error fetching block ${blockHeight}. Retrying (${retries + 1}/${MAX_RETRIES}):`, error);
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    retries++;
+                } else {
+                    throw error;
+                }
+            }
+        }
     };
 
     // TODO: Special API just to fetch one block?
@@ -87,21 +115,7 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
 
     debug('fetching more');
     for (; !endBlockHeight || blockHeight < endBlockHeight; blockHeight++) {
-        let block;
-        while (true) {
-            try {
-                block = await fetchBlock(blockHeight);
-                break;
-            } catch (error) {
-                if (error.code === 'blockNotFound' && error.data.type === 'BLOCK_DOES_NOT_EXIST') {
-                    debug(`Block ${blockHeight} does not exist yet. Retrying in ${retryDelay}ms`);
-                    await new Promise(resolve => setTimeout(resolve, retryDelay));
-                } else {
-                    throw error; // Don't retry for other errors
-                }
-            }
-        }
-        // TODO: Refactor null block handling
+        const block = await fetchBlock(blockHeight);
         if (block) {
             debug('fetched block', block.block.header.height);
             yield block;
