@@ -93,6 +93,12 @@ const handleError = async ({ ctx, blockHeight, error }) => {
     case 'notImplemented':
         await proxyJson(ctx);
         return;
+    case 'prohibitedInView':
+        ctx.body = viewCallError({
+            id,
+            message: `wasm execution failed with error: HostError(ProhibitedInView { method_name: "${error.data.methodName}" })`,
+        });
+        return;
     case 'panic':
     case 'abort':
         ctx.body = viewCallError({
