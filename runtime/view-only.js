@@ -6,19 +6,20 @@ const { FastNEARError } = require('../error');
 
 const MAX_U64 = 18446744073709551615n;
 
-const notImplemented = (name) => (...args) => {
-    debug('notImplemented', name, 'args', args);
-    throw new FastNEARError('notImplemented', 'method not implemented: ' + name, { methodName: name });
-};
-
-const prohibitedInView = (name) => (...args) => {
-    debug('prohibitedInView', name, 'args', args);
-    // TODO: Shouldn't this use unique code which is not resulting in proxyJson?
-    throw new FastNEARError('notImplemented', 'method not available for view calls: ' + name, { methodName: name });
-};
-
 const imports = (ctx) => {
     const debug = require('debug')(`worker:runtime:${ctx.threadId}`);
+
+    const notImplemented = (name) => (...args) => {
+        debug('notImplemented', name, 'args', args);
+        throw new FastNEARError('notImplemented', 'method not implemented: ' + name, { methodName: name });
+    };
+
+    const prohibitedInView = (name) => (...args) => {
+        debug('prohibitedInView', name, 'args', args);
+        // TODO: Shouldn't this use unique code which is not resulting in proxyJson?
+        throw new FastNEARError('notImplemented', 'method not available for view calls: ' + name, { methodName: name });
+    };
+
     const registers = {};
 
     function readUTF16CStr(ptr) {
@@ -65,8 +66,13 @@ const imports = (ctx) => {
         // NOTE: See https://github.com/near/nearcore/blob/master/runtime/near-vm-runner/src/logic/logic.rs
         register_len: (register_id) => {
             debug('register_len', register_id);
-            debug('registers[register_id].length', registers[register_id].length);
-            return BigInt(registers[register_id] ? registers[register_id].length : MAX_U64);
+            if (registers[register_id]) {
+                debug('registers[register_id].length', registers[register_id].length);
+                return BigInt(registers[register_id].length);
+            } else {
+                debug('register not found, returning MAX_U64');
+                return BigInt(MAX_U64);
+            }
         },
         read_register: (register_id, ptr) => {
             debug('read_register', register_id, ptr);
