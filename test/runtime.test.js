@@ -123,17 +123,35 @@ test('storage_read calls parentPort and returns correct value', async t => {
 test('prohibited methods throw FastNEARError', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
-    t.throws(() => importFunctions.signer_account_id(), FastNEARError);
-    t.throws(() => importFunctions.attached_deposit(), FastNEARError);
-    t.throws(() => importFunctions.promise_create(), FastNEARError);
+    const prohibitedMethods = [
+        'signer_account_id', 'signer_account_pk', 'predecessor_account_id',
+        'attached_deposit', 'prepaid_gas', 'used_gas',
+        'promise_create', 'promise_then', 'promise_and', 'promise_batch_create',
+        'promise_batch_then', 'promise_batch_action_create_account',
+        'promise_batch_action_deploy_contract', 'promise_batch_action_function_call',
+        'promise_batch_action_function_call_weight', 'promise_batch_action_transfer',
+        'promise_batch_action_stake', 'promise_batch_action_add_key_with_full_access',
+        'promise_batch_action_add_key_with_function_call', 'promise_batch_action_delete_key',
+        'promise_batch_action_delete_account', 'promise_results_count',
+        'promise_result', 'promise_return', 'storage_write', 'storage_remove'
+    ];
+    prohibitedMethods.forEach(method => {
+        t.throws(() => importFunctions[method](), FastNEARError, `${method} should throw FastNEARError`);
+    });
 });
 
 test('not implemented methods throw FastNEARError', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
-    t.throws(() => importFunctions.epoch_height(), FastNEARError);
-    t.throws(() => importFunctions.storage_usage(), FastNEARError);
-    t.throws(() => importFunctions.validator_stake(), FastNEARError);
+    const notImplementedMethods = [
+        'epoch_height', 'storage_usage', 'account_balance', 'account_locked_balance',
+        'random_seed', 'keccak256', 'keccak512', 'ripemd160', 'ecrecover', 'ed25519_verify',
+        'validator_stake', 'validator_total_stake', 'alt_bn128_g1_multiexp',
+        'alt_bn128_g1_sum', 'alt_bn128_pairing_check'
+    ];
+    notImplementedMethods.forEach(method => {
+        t.throws(() => importFunctions[method](), FastNEARError, `${method} should throw FastNEARError`);
+    });
 });
 
 test('panic throws FastNEARError', async t => {
