@@ -58,25 +58,8 @@ const imports = (ctx) => {
         return resultMessage.message;
     }
 
-
     return {
-        // NOTE: See https://github.com/near/nearcore/blob/master/runtime/near-vm-runner/src/logic/logic.rs
-        register_len: (register_id) => {
-            debug('register_len', register_id);
-            if (registers[register_id]) {
-                debug('registers[register_id].length', registers[register_id].length);
-                return BigInt(registers[register_id].length);
-            } else {
-                debug('register not found, returning MAX_U64');
-                return BigInt(MAX_U64);
-            }
-        },
-        read_register: (register_id, ptr) => {
-            debug('read_register', register_id, ptr);
-            debug('registers[register_id]', registers[register_id]);
-            const mem = new Uint8Array(ctx.memory.buffer)
-            mem.set(registers[register_id] || Buffer.from([]), Number(ptr));
-        },
+        // Environment
         current_account_id: (register_id) => {
             registers[register_id] = Buffer.from(ctx.contractId);
         },
@@ -96,12 +79,14 @@ const imports = (ctx) => {
         epoch_height: notImplemented('epoch_height'),
         storage_usage: notImplemented('storage_usage'),
 
-        account_balance: notImplemented('account_balance'), // TODO: Implement as needed for IDO usage
+        // Economics
+        account_balance: notImplemented('account_balance'),
         account_locked_balance: notImplemented('account_locked_balance'),
         attached_deposit: prohibitedInView('attached_deposit'),
         prepaid_gas: prohibitedInView('prepaid_gas'),
         used_gas: prohibitedInView('used_gas'),
 
+        // Cryptography
         random_seed: notImplemented('random_seed'),
         sha256: (value_len, value_ptr, register_id) => {
             const value = new Uint8Array(ctx.memory.buffer, Number(value_ptr), Number(value_len));
@@ -115,6 +100,7 @@ const imports = (ctx) => {
         ecrecover: notImplemented('ecrecover'),
         ed25519_verify: notImplemented('ed25519_verify'),
 
+        // Miscellaneous
         value_return: (value_len, value_ptr) => {
             debug('value_return', value_len, value_ptr);
             ctx.result = Buffer.from(new Uint8Array(ctx.memory.buffer, Number(value_ptr), Number(value_len)));
@@ -163,6 +149,7 @@ const imports = (ctx) => {
             ctx.logs.push(message);
         },
 
+        // Promises
         promise_create: prohibitedInView('promise_create'),
         promise_then: prohibitedInView('promise_then'),
         promise_and: prohibitedInView('promise_and'),
@@ -182,6 +169,7 @@ const imports = (ctx) => {
         promise_result: prohibitedInView('promise_result'),
         promise_return: prohibitedInView('promise_return'),
 
+        // Storage
         storage_write: prohibitedInView('storage_write'),
         storage_read: (key_len, key_ptr, register_id) => {
             const result = storageRead(key_len, key_ptr);
@@ -207,8 +195,33 @@ const imports = (ctx) => {
             debug('storage_has_key: true');
             return 1n;
         },
+
+        // Validator
         validator_stake: notImplemented('validator_stake'),
         validator_total_stake: notImplemented('validator_total_stake'),
+
+        // Registers
+        read_register: (register_id, ptr) => {
+            debug('read_register', register_id, ptr);
+            debug('registers[register_id]', registers[register_id]);
+            const mem = new Uint8Array(ctx.memory.buffer)
+            mem.set(registers[register_id] || Buffer.from([]), Number(ptr));
+        },
+        register_len: (register_id) => {
+            debug('register_len', register_id);
+            if (registers[register_id]) {
+                debug('registers[register_id].length', registers[register_id].length);
+                return BigInt(registers[register_id].length);
+            } else {
+                debug('register not found, returning MAX_U64');
+                return BigInt(MAX_U64);
+            }
+        },
+
+        // Alt BN128
+        alt_bn128_g1_multiexp: notImplemented('alt_bn128_g1_multiexp'),
+        alt_bn128_g1_sum: notImplemented('alt_bn128_g1_sum'),
+        alt_bn128_pairing_check: notImplemented('alt_bn128_pairing_check'),
     }
 };
 
