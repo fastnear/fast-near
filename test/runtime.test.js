@@ -7,7 +7,7 @@ function createContext() {
     return {
         threadId: 'test-thread',
         memory: {
-            buffer: new ArrayBuffer(1024),
+            buffer: new ArrayBuffer(8 * 1024),
         },
         contractId: 'test.near',
         blockHeight: 12345,
@@ -69,7 +69,7 @@ test('sha256 calculates correct hash', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
     const testData = 'test data';
-    const dataArray = new TextEncoder().encode(testData);
+    const dataArray = Buffer.from(testData);
     const ptr = 0;
     new Uint8Array(ctx.memory.buffer).set(dataArray, ptr);
 
@@ -83,7 +83,7 @@ test('value_return sets result correctly', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
     const testData = 'return value';
-    const dataArray = new TextEncoder().encode(testData);
+    const dataArray = Buffer.from(testData);
     const ptr = 0;
     new Uint8Array(ctx.memory.buffer).set(dataArray, ptr);
 
@@ -96,7 +96,7 @@ test('log_utf8 adds log message', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
     const testMessage = 'Test log message';
-    const dataArray = new TextEncoder().encode(testMessage);
+    const dataArray = Buffer.from(testMessage);
     const ptr = 0;
     new Uint8Array(ctx.memory.buffer).set(dataArray, ptr);
 
@@ -110,7 +110,7 @@ test('storage_read calls parentPort and returns correct value', async t => {
     ctx.receiveMessageOnPort = () => ({ message: Buffer.from('testValue') });
     const importFunctions = imports(ctx);
     const testKey = 'testKey';
-    const dataArray = new TextEncoder().encode(testKey);
+    const dataArray = Buffer.from(testKey);
     const ptr = 0;
     new Uint8Array(ctx.memory.buffer).set(dataArray, ptr);
 
@@ -134,4 +134,90 @@ test('not implemented methods throw FastNEARError', async t => {
     t.throws(() => importFunctions.epoch_height(), FastNEARError);
     t.throws(() => importFunctions.storage_usage(), FastNEARError);
     t.throws(() => importFunctions.validator_stake(), FastNEARError);
+});
+
+test('panic throws FastNEARError', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    t.throws(() => importFunctions.panic(), FastNEARError);
+});
+
+test('panic_utf8 throws FastNEARError with correct message', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    const testMessage = 'Test panic message';
+    const dataArray = Buffer.from(testMessage);
+    const ptr = 0;
+    new Uint8Array(ctx.memory.buffer).set(dataArray, ptr);
+
+    try {
+        importFunctions.panic_utf8(testMessage.length, ptr);
+    } catch (error) {
+        t.ok(error instanceof FastNEARError);
+        t.equal(error.message, testMessage);
+    }
+});
+
+test('abort throws FastNEARError with correct message', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    const testMessage = 'Test abort message';
+    const testFilename = 'test.js';
+    const msgPtr = 4;
+    const filenamePtr = 100;
+    const line = 42;
+    const col = 10;
+
+    // Set message length (4 bytes before the actual message)
+    new Uint32Array(ctx.memory.buffer, 0, 1)[0] = testMessage.length;
+    // Set filename length (4 bytes before the actual filename)
+    new Uint32Array(ctx.memory.buffer, 96, 1)[0] = testFilename.length;
+
+    // Set message and filename in UTF-16
+    const msgBuffer = Buffer.from(testMessage, 'utf16le');
+    const filenameBuffer = Buffer.from(testFilename, 'utf16le');
+    new Uint8Array(ctx.memory.buffer).set(msgBuffer, msgPtr);
+    new Uint8Array(ctx.memory.buffer).set(filenameBuffer, filenamePtr);
+
+    try {
+        importFunctions.abort(msgPtr, filenamePtr, line, col);
+        t.fail('abort should throw an error');
+    } catch (error) {
+        t.ok(error instanceof FastNEARError);
+        t.equal(error.message, `${testMessage}, filename: "${testFilename}" line: ${line} col: ${col}`);
+    }
+
+    t.ok(ctx.logs.includes(`ABORT: ${testMessage}, filename: "${testFilename}" line: ${line} col: ${col}`));
+});
+
+test('log_utf16 adds log message', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    const testMessage = 'Test log message';
+    const dataArray = Buffer.from(testMessage, 'utf16le');
+    const ptr = 0;
+    new Uint8Array(ctx.memory.buffer).set(dataArray, ptr);
+
+    importFunctions.log_utf16(testMessage.length, ptr);
+
+    t.ok(ctx.logs.includes(testMessage));
+});
+
+test('storage_has_key returns correct value', async t => {
+    const ctx = createContext();
+    ctx.receiveMessageOnPort = () => ({ message: Buffer.from('testValue') });
+    const importFunctions = imports(ctx);
+    const testKey = 'testKey';
+    const dataArray = Buffer.from(testKey);
+    const ptr = 0;
+    new Uint8Array(ctx.memory.buffer).set(dataArray, ptr);
+
+    const result = importFunctions.storage_has_key(testKey.length, ptr);
+
+    t.equal(Number(result), 1);
+
+    ctx.receiveMessageOnPort = () => ({ message: null });
+    const resultNotFound = importFunctions.storage_has_key(testKey.length, ptr);
+
+    t.equal(Number(resultNotFound), 0);
 });

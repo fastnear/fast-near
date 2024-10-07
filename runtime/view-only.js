@@ -22,24 +22,21 @@ const imports = (ctx) => {
 
     const registers = {};
 
-    function readUTF16CStr(ptr) {
+    // TODO: Need to handle strings with unknown length?
+    function readUTF16CStr(len, ptr) {
         let arr = [];
-        const mem = new Uint16Array(ctx.memory.buffer);
-        ptr = Number(ptr) / 2;
-        while (mem[ptr] != 0) {
-            arr.push(mem[ptr]);
-            ptr++;
+        const mem = new Uint16Array(ctx.memory.buffer, Number(ptr));
+        for (let i = 0; i < len && mem[i] != 0; i++) {
+            arr.push(mem[i]);
         }
-        return Buffer.from(Uint16Array.from(arr).buffer).toString('ucs2');
+        return Buffer.from(Uint16Array.from(arr).buffer).toString('utf16le');
     }
 
     function readUTF8CStr(len, ptr) {
         let arr = [];
-        const mem = new Uint8Array(ctx.memory.buffer);
-        ptr = Number(ptr);
-        for (let i = 0; i < len && mem[ptr] != 0; i++) {
-            arr.push(mem[ptr]);
-            ptr++;
+        const mem = new Uint8Array(ctx.memory.buffer, Number(ptr));
+        for (let i = 0; i < len && mem[i] != 0; i++) {
+            arr.push(mem[i]);
         }
         return Buffer.from(arr).toString('utf8');
     }
@@ -133,15 +130,26 @@ const imports = (ctx) => {
             throw new FastNEARError('panic', message);
         },
         abort: (msg_ptr, filename_ptr, line, col) => {
-            const msg = readUTF16CStr(msg_ptr);
-            const filename = readUTF16CStr(filename_ptr);
-            const message = `${msg} ${filename}:${line}:${col}`
-            debug('abort', msg_ptr, filename_ptr, line, col, message);
-            if (!msg || !filename) {
-                // TODO: Check when exactly this gets thrown in nearcore, as it's weird choice for empty C string
-                // TODO: Check what happens with actual invalid UTF-16
+            debug('abort', msg_ptr, filename_ptr, line, col);
+            if (msg_ptr < 4 || filename_ptr < 4) {
                 throw new FastNEARError('abort', 'String encoding is bad UTF-16 sequence.');
             }
+
+            const msg_len = new Uint32Array(ctx.memory.buffer, msg_ptr - 4, 1)[0];
+            const filename_len = new Uint32Array(ctx.memory.buffer, filename_ptr - 4, 1)[0];
+
+            const msg = readUTF16CStr(msg_len, msg_ptr);
+            const filename = readUTF16CStr(filename_len, filename_ptr);
+
+            if (!msg || !filename) {
+                throw new FastNEARError('abort', 'String encoding is bad UTF-16 sequence.');
+            }
+
+            const message = `${msg}, filename: "${filename}" line: ${line} col: ${col}`;
+            debug('abort message', message);
+
+            ctx.logs.push(`ABORT: ${message}`);
+
             throw new FastNEARError('abort', message);
         },
         log_utf8: (len, ptr) => {
@@ -150,7 +158,7 @@ const imports = (ctx) => {
             ctx.logs.push(message);
         },
         log_utf16: (len, ptr) => {
-            const message = readUTF8CStr(len, ptr);
+            const message = readUTF16CStr(len, ptr);
             debug(`log: ${message}`);
             ctx.logs.push(message);
         },
