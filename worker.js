@@ -67,6 +67,7 @@ const imports = (ctx) => {
 
 
     return {
+        // NOTE: See https://github.com/near/nearcore/blob/master/runtime/near-vm-runner/src/logic/logic.rs
         register_len: (register_id) => {
             debug('register_len', register_id);
             debug('registers[register_id].length', registers[register_id].length);
@@ -112,6 +113,8 @@ const imports = (ctx) => {
         },
         keccak256: notImplemented('keccak256'),
         keccak512: notImplemented('keccak512'),
+        ripemd160: notImplemented('ripemd160'),
+        ecrecover: notImplemented('ecrecover'),
         ed25519_verify: notImplemented('ed25519_verify'),
 
         value_return: (value_len, value_ptr) => {
