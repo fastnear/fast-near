@@ -1,4 +1,10 @@
 const { createHash } = require('crypto');
+const { keccak_256, keccak_512 } = require('@noble/hashes/sha3');
+const { sha512 } = require('@noble/hashes/sha512');
+const { ripemd160 } = require('@noble/hashes/ripemd160');
+const ed25519 = require('@noble/ed25519');
+ed25519.utils.sha512Sync = (...m) => sha512(ed25519.utils.concatBytes(...m));
+const secp256k1 = require('@noble/secp256k1');
 
 const { dataKey } = require('../storage-keys');
 const prettyBuffer = require('../utils/pretty-buffer');
@@ -19,7 +25,7 @@ const imports = (ctx) => {
         throw new FastNEARError('prohibitedInView', 'method not available for view calls: ' + name, { methodName: name });
     };
 
-    const registers = {};
+    const registers = ctx.registers;
 
     // TODO: Need to handle strings with unknown length?
     function readUTF16CStr(len, ptr) {
@@ -57,6 +63,8 @@ const imports = (ctx) => {
         return resultMessage.message;
     }
 
+    // NOTE: See https://github.com/near/nearcore/blob/master/runtime/near-vm-runner/src/logic/logic.rs
+    // for the original implementation of these methods.
     return {
         // Environment
         current_account_id: (register_id) => {
@@ -92,12 +100,95 @@ const imports = (ctx) => {
             const hash = createHash('sha256');
             hash.update(value);
             registers[register_id] = hash.digest();
+            debug('sha256', registers[register_id].toString('hex'));
         },
-        keccak256: notImplemented('keccak256'),
-        keccak512: notImplemented('keccak512'),
-        ripemd160: notImplemented('ripemd160'),
-        ecrecover: notImplemented('ecrecover'),
-        ed25519_verify: notImplemented('ed25519_verify'),
+        keccak256: (value_len, value_ptr, register_id) => {
+            const value = new Uint8Array(ctx.memory.buffer, Number(value_ptr), Number(value_len));
+            const hash = keccak_256(value);
+            registers[register_id] = Buffer.from(hash);
+            debug('keccak256', registers[register_id].toString('hex'));
+        },
+        keccak512: (value_len, value_ptr, register_id) => {
+            const value = new Uint8Array(ctx.memory.buffer, Number(value_ptr), Number(value_len));
+            const hash = keccak_512(value);
+            registers[register_id] = Buffer.from(hash);
+            debug('keccak512', registers[register_id].toString('hex'));
+        },
+        ripemd160: (value_len, value_ptr, register_id) => {
+            const value = new Uint8Array(ctx.memory.buffer, Number(value_ptr), Number(value_len));
+            const hash = ripemd160(value);
+            registers[register_id] = Buffer.from(hash);
+            debug('ripemd160', registers[register_id].toString('hex'));
+        },
+        ecrecover: (hash_len, hash_ptr, sig_len, sig_ptr, v, malleability_flag, register_id) => {
+            debug('ecrecover', hash_len, hash_ptr, sig_len, sig_ptr, v, malleability_flag, register_id);
+
+            if (hash_len !== 32 || sig_len !== 64) {
+                debug('ecrecover invalid input lengths');
+                return 0n;
+            }
+
+            if (v > 3) {
+                debug('ecrecover invalid v value');
+                return 0n;
+            }
+
+            if (malleability_flag !== 0 && malleability_flag !== 1) {
+                debug('ecrecover invalid malleability flag');
+                return 0n;
+            }
+
+            const hash = new Uint8Array(ctx.memory.buffer, Number(hash_ptr), 32);
+            const signature = new Uint8Array(ctx.memory.buffer, Number(sig_ptr), 64);
+
+            try {
+                if (malleability_flag === 1) {
+                    // Check signature values for ECDSA malleability
+                    const r = BigInt(`0x${Buffer.from(signature.slice(0, 32)).toString('hex')}`);
+                    const s = BigInt(`0x${Buffer.from(signature.slice(32, 64)).toString('hex')}`);
+
+                    // SECP256K1_N and SECP256K1_N_HALF_ONE values
+                    const SECP256K1_N = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
+                    const SECP256K1_N_HALF_ONE = SECP256K1_N / BigInt(2) + BigInt(1);
+
+                    if (r >= SECP256K1_N || s >= SECP256K1_N_HALF_ONE) {
+                        debug('ecrecover signature values out of range');
+                        return 0n;
+                    }
+                }
+
+                const publicKey = secp256k1.recoverPublicKey(hash, signature, v);
+                if (!publicKey) {
+                    return 0n;
+                }
+
+                registers[register_id] = Buffer.from(publicKey.buffer, 1, 64);
+                debug('ecrecover', registers[register_id].toString('hex'));
+                return 1n;
+            } catch (error) {
+                debug('ecrecover failed', error);
+                return 0n;
+            }
+        },
+        ed25519_verify: (signature_len, signature_ptr, message_len, message_ptr, public_key_len, public_key_ptr) => {
+            const signature = new Uint8Array(ctx.memory.buffer, Number(signature_ptr), Number(signature_len));
+            const message = new Uint8Array(ctx.memory.buffer, Number(message_ptr), Number(message_len));
+            const publicKey = new Uint8Array(ctx.memory.buffer, Number(public_key_ptr), Number(public_key_len));
+
+            if (signature.length !== 64 || publicKey.length !== 32) {
+                debug('ed25519_verify invalid input lengths');
+                return 0n;
+            }
+
+            try {
+                const isValid = ed25519.sync.verify(signature, message, publicKey);
+                debug('ed25519_verify', isValid);
+                return BigInt(isValid);
+            } catch (error) {
+                debug('ed25519_verify failed', error);
+                return 0n;
+            }
+        },
 
         // Miscellaneous
         value_return: (value_len, value_ptr) => {

@@ -12,6 +12,7 @@ async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, me
     // TODO: Take memory size from config
     const memory = new WebAssembly.Memory({ initial: 1024, maximum: 2048 });
     const ctx = {
+        registers: {},
         blockHeight,
         blockTimestamp,
         contractId,

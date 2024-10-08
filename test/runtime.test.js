@@ -1,10 +1,13 @@
 const test = require('tape');
+const { readFileSync } = require('fs');
+
 const imports = require('../runtime/view-only');
 const { FastNEARError } = require('../error');
 
 // Helper function to create a context
 function createContext() {
     return {
+        registers: {},
         threadId: 'test-thread',
         memory: {
             buffer: new ArrayBuffer(8 * 1024),
@@ -24,33 +27,33 @@ function createContext() {
 test('register_len returns correct length', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
-    importFunctions.input(0);
-    t.equal(Number(importFunctions.register_len(0)), ctx.methodArgs.length);
+    ctx.registers[0] = Buffer.from(ctx.methodArgs);
+    t.equal(Number(importFunctions.register_len(0)), ctx.registers[0].length);
     t.equal(Number(importFunctions.register_len(1)), 18446744073709551615);
 });
 
 test('read_register copies data to memory', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
-    importFunctions.input(0);
+    ctx.registers[0] = Buffer.from(ctx.methodArgs);
     const ptr = 0;
     importFunctions.read_register(0, ptr);
-    const result = new Uint8Array(ctx.memory.buffer, ptr, ctx.methodArgs.length);
-    t.equal(Buffer.from(result).toString(), ctx.methodArgs);
+    const result = new Uint8Array(ctx.memory.buffer, ptr, ctx.registers[0].length);
+    t.equal(Buffer.from(result).toString(), ctx.registers[0].toString());
 });
 
 test('current_account_id sets correct value', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
     importFunctions.current_account_id(0);
-    t.equal(Number(importFunctions.register_len(0)), ctx.contractId.length);
+    t.equal(ctx.registers[0].toString(), ctx.contractId);
 });
 
 test('input sets correct value', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
     importFunctions.input(0);
-    t.equal(Number(importFunctions.register_len(0)), ctx.methodArgs.length);
+    t.equal(ctx.registers[0].toString(), ctx.methodArgs);
 });
 
 test('block_index returns correct value', async t => {
@@ -76,7 +79,7 @@ test('sha256 calculates correct hash', async t => {
     importFunctions.sha256(testData.length, ptr, 0);
 
     const expectedHash = Buffer.from('916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9', 'hex');
-    t.equal(Number(importFunctions.register_len(0)), expectedHash.length);
+    t.equal(ctx.registers[0].toString('hex'), expectedHash.toString('hex'));
 });
 
 test('value_return sets result correctly', async t => {
@@ -117,7 +120,7 @@ test('storage_read calls parentPort and returns correct value', async t => {
     const result = importFunctions.storage_read(testKey.length, ptr, 0);
 
     t.equal(Number(result), 1);
-    t.equal(Number(importFunctions.register_len(0)), 9); // 'testValue'.length
+    t.equal(ctx.registers[0].toString(), 'testValue');
 });
 
 test('prohibited methods throw FastNEARError', async t => {
@@ -142,10 +145,10 @@ test('prohibited methods throw FastNEARError', async t => {
 
 test('not implemented methods throw FastNEARError', async t => {
     const ctx = createContext();
-    const importFunctions = imports(ctx);
+    const importFunctions = imports(ctx)
     const notImplementedMethods = [
         'epoch_height', 'storage_usage', 'account_balance', 'account_locked_balance',
-        'random_seed', 'keccak256', 'keccak512', 'ripemd160', 'ecrecover', 'ed25519_verify',
+        'random_seed', 
         'validator_stake', 'validator_total_stake', 'alt_bn128_g1_multiexp',
         'alt_bn128_g1_sum', 'alt_bn128_pairing_check'
     ];
@@ -238,4 +241,112 @@ test('storage_has_key returns correct value', async t => {
     const resultNotFound = importFunctions.storage_has_key(testKey.length, ptr);
 
     t.equal(Number(resultNotFound), 0);
+});
+
+test('keccak256 calculates correct hash', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    const testData = 'test data';
+    const dataArray = Buffer.from(testData);
+    const inputPtr = 0;
+    new Uint8Array(ctx.memory.buffer).set(dataArray, inputPtr);
+
+    importFunctions.keccak256(testData.length, inputPtr, 0);
+
+    const expectedHash = '7d92c840d5f0ac4f83543201db6005d78414059c778169efa3760f67a451e7ef';
+    t.equal(ctx.registers[0].toString('hex'), expectedHash);
+});
+
+test('keccak512 calculates correct hash', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    const testData = 'test data';
+    const dataArray = Buffer.from(testData);
+    const inputPtr = 0;
+    new Uint8Array(ctx.memory.buffer).set(dataArray, inputPtr);
+
+    importFunctions.keccak512(testData.length, inputPtr, 0);
+
+    const expectedHash = '8ec47653f62877c90050f315b0526b778d90e81cef33d12c18fea17a97bf614f9d06789819a7583a4d3e9d831d331a6340b443158156c0bf52b8d85a6b2462dc';
+    t.equal(ctx.registers[0].toString('hex'), expectedHash);
+});
+
+test('ripemd160 calculates correct hash', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    const testData = 'test data';
+    const dataArray = Buffer.from(testData);
+    const inputPtr = 0;
+    new Uint8Array(ctx.memory.buffer).set(dataArray, inputPtr);
+
+    importFunctions.ripemd160(testData.length, inputPtr, 0);
+
+    const expectedHash = 'feaf1fb8e0a8cd67d52ac4b437cd0660addd947b';
+    t.equal(ctx.registers[0].toString('hex'), expectedHash);
+});
+
+test('ecrecover returns correct public key and result', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    
+    const testsPath = './test/data/ecrecover-tests.json';
+    const tests = JSON.parse(readFileSync(testsPath, 'utf8'));
+
+    for (let i = 1; i <= tests.length; i++) {
+        // if (i !== 120) continue;
+
+        const { m, v, sig, mc, res } = tests[i - 1];
+        const hash = Buffer.from(m, 'hex');
+        const signature = Buffer.from(sig, 'hex');
+        
+        const hashPtr = 0;
+        const signaturePtr = hashPtr + hash.length;
+        const registerID = 1;
+
+        new Uint8Array(ctx.memory.buffer).set(hash, hashPtr);
+        new Uint8Array(ctx.memory.buffer).set(signature, signaturePtr);
+
+        const result = importFunctions.ecrecover(hash.length, hashPtr, signature.length, signaturePtr, v, mc ? 1 : 0, registerID);
+        
+        if (res) {
+            t.equal(result, 1n, `Test ${i}: ecrecover should return 1 for valid input`);
+            t.equal(ctx.registers[registerID]?.length, 64, `Test ${i}: Recovered public key should be 64 bytes`);
+            t.deepEqual(ctx.registers[registerID], Buffer.from(res, 'hex'), `Test ${i}: Recovered public key should match expected result`);
+        } else {
+            t.equal(result, 0n, `Test ${i}: ecrecover should return 0 for invalid input`);
+        }
+    }
+});
+
+test('ed25519_verify returns correct value', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    const message = Buffer.from('test message');
+    const publicKey = Buffer.from('38e69cc61ca9f9d1554c0be0c14856e1ba26ea47ce8b1e4f76a0a4822301cc9b', 'hex');
+    const signature = Buffer.from('e14e0c6fd9a703da54fa09ef882559d4376e8827f1224aa675af344290cfa7fdee24a3960d7cfaf23de3be8ee12b1d909331e50375d36763d9a531b7d5091d07', 'hex');
+
+    const messagePtr = 0;
+    const publicKeyPtr = 64;
+    const signaturePtr = 128;
+
+    new Uint8Array(ctx.memory.buffer).set(message, messagePtr);
+    new Uint8Array(ctx.memory.buffer).set(publicKey, publicKeyPtr);
+    new Uint8Array(ctx.memory.buffer).set(signature, signaturePtr);
+
+    const result = importFunctions.ed25519_verify(signature.length, signaturePtr, message.length, messagePtr, publicKey.length, publicKeyPtr);
+    t.equal(result, 1n, 'ed25519_verify should return 1 for valid signature');
+
+    // Test with invalid message
+    const invalidMessage = Buffer.from(message);
+    invalidMessage[0] ^= 1; // Flip one bit to make it invalid
+    new Uint8Array(ctx.memory.buffer).set(invalidMessage, messagePtr);
+    const invalidMessageResult = importFunctions.ed25519_verify(signature.length, signaturePtr, invalidMessage.length, messagePtr, publicKey.length, publicKeyPtr);
+    t.equal(invalidMessageResult, 0n, 'ed25519_verify should return 0 for invalid message');
+
+    // Test with invalid signature
+    const invalidSignature = Buffer.from(signature);
+    invalidSignature[0] ^= 1; // Flip one bit to make it invalid
+    new Uint8Array(ctx.memory.buffer).set(invalidSignature, signaturePtr);
+    const invalidSignatureResult = importFunctions.ed25519_verify(invalidSignature.length, signaturePtr, message.length, messagePtr, publicKey.length, publicKeyPtr);
+    t.equal(invalidSignatureResult, 0n, 'ed25519_verify should return 0 for invalid signature');
 });
