@@ -84,11 +84,21 @@ const imports = (ctx) => {
             return BigInt(ctx.blockTimestamp);
         },
         epoch_height: notImplemented('epoch_height'),
-        storage_usage: notImplemented('storage_usage'),
+        storage_usage: () => {
+            // ctx.storageUsage is in bytes, but the return type is u64
+            return new BigUint64Array(ctx.storageUsage.buffer).at(0);
+        },
 
         // Economics
-        account_balance: notImplemented('account_balance'),
-        account_locked_balance: notImplemented('account_locked_balance'),
+        account_balance: (balance_ptr) => {
+            const mem = new Uint8Array(ctx.memory.buffer);
+            mem.set(ctx.accountBalance, Number(balance_ptr));
+        },
+        account_locked_balance: (balance_ptr) => {
+            const mem = new Uint8Array(ctx.memory.buffer);
+            mem.set(ctx.accountLockedBalance, Number(balance_ptr));
+        },
+
         attached_deposit: prohibitedInView('attached_deposit'),
         prepaid_gas: prohibitedInView('prepaid_gas'),
         used_gas: prohibitedInView('used_gas'),

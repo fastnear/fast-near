@@ -5,13 +5,16 @@ const imports = require('../runtime/view-only');
 const { FastNEARError } = require('../error');
 
 // Helper function to create a context
-function createContext() {
+function createContext(options = {}) {
     return {
         registers: {},
         threadId: 'test-thread',
         memory: {
             buffer: new ArrayBuffer(8 * 1024),
         },
+        accountBalance: new Uint8Array(16),
+        accountLockedBalance: new Uint8Array(16),
+        storageUsage: new Uint8Array(8),
         contractId: 'test.near',
         blockHeight: 12345,
         blockTimestamp: 1234567890,
@@ -21,6 +24,7 @@ function createContext() {
             postMessage: () => { },
         },
         receiveMessageOnPort: () => { },
+        ...options,
     };
 }
 
@@ -147,8 +151,7 @@ test('not implemented methods throw FastNEARError', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx)
     const notImplementedMethods = [
-        'epoch_height', 'storage_usage', 'account_balance', 'account_locked_balance',
-        'random_seed', 
+        'epoch_height', 'random_seed', 
         'validator_stake', 'validator_total_stake', 'alt_bn128_g1_multiexp',
         'alt_bn128_g1_sum', 'alt_bn128_pairing_check'
     ];
@@ -209,6 +212,42 @@ test('abort throws FastNEARError with correct message', async t => {
     }
 
     t.ok(ctx.logs.includes(`ABORT: ${testMessage}, filename: "${testFilename}" line: ${line} col: ${col}`));
+});
+
+test('account_balance returns 0 when not set', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    const ptr = 0;
+
+    importFunctions.account_balance(ptr);
+
+    // Read the result from memory (128-bit unsigned integer)
+    const result = new BigUint64Array(ctx.memory.buffer, ptr, 2);
+    const fullResult = (BigInt(result[1]) << 64n) | BigInt(result[0]);
+
+    t.equal(fullResult, 0n);
+});
+
+test('account_locked_balance returns 0 when not set', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+    const ptr = 0;
+
+    importFunctions.account_locked_balance(ptr);
+
+    const result = new BigUint64Array(ctx.memory.buffer, ptr, 2);
+    const fullResult = (BigInt(result[1]) << 64n) | BigInt(result[0]);
+
+    t.equal(fullResult, 0n);
+});
+
+test('storage_usage returns 0 when not set', async t => {
+    const ctx = createContext();
+    const importFunctions = imports(ctx);
+
+    const result = importFunctions.storage_usage();
+
+    t.equal(Number(result), 0);
 });
 
 test('log_utf16 adds log message', async t => {

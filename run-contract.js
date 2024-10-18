@@ -30,7 +30,9 @@ async function getWasmModule(accountId, blockHeight) {
         throw new FastNEARError('accountNotFound', `Account not found: ${accountId} at ${blockHeight} block height`, { accountId, blockHeight });
     }
 
-    const { code_hash } = deserialize(BORSH_SCHEMA, Account, accountData);
+    const account = deserialize(BORSH_SCHEMA, Account, accountData);
+    const { code_hash } = account;
+
     const codeHash = Buffer.from(code_hash);
     const codeHashStr = bs58.encode(codeHash);
 
@@ -61,7 +63,7 @@ async function getWasmModule(accountId, blockHeight) {
         debug('wasm compile done');
     }
 
-    return wasmModule;
+    return { wasmModule, account };
 }
 
 async function runContract(contractId, methodName, methodArgs, blockHeight) {
@@ -81,10 +83,10 @@ async function runContract(contractId, methodName, methodArgs, blockHeight) {
     const blockTimestamp = await storage.getBlockTimestamp(blockHeight);
     debug('blockTimestamp', blockTimestamp);
 
-    const wasmModule = await getWasmModule(contractId, blockHeight);
+    const { wasmModule, account } = await getWasmModule(contractId, blockHeight);
 
     debug('worker start');
-    const { result, logs } = await workerPool.runContract(blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs);
+    const { result, logs } = await workerPool.runContract(blockHeight, blockTimestamp, wasmModule, account, contractId, methodName, methodArgs);
     debug('worker done');
     return { result, logs, blockHeight, blockTimestamp };
 }

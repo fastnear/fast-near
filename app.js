@@ -141,7 +141,7 @@ router.get('/account/:accountId/contract', resolveBlockHeight, async ctx => {
 router.get('/account/:accountId/contract/methods', resolveBlockHeight, async ctx => {
     const { accountId } = ctx.params;
 
-    const wasmModule = await getWasmModule(accountId, ctx.blockHeight);
+    const { wasmModule } = await getWasmModule(accountId, ctx.blockHeight);
     ctx.body = WebAssembly.Module.exports(wasmModule).filter(({ kind }) => kind === 'function').map(({ name }) => name).sort();
 });
 

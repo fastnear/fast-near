@@ -7,7 +7,7 @@ const debug = require('debug')(`worker:${threadId}`);
 const prettyBuffer = require('./utils/pretty-buffer');
 const imports = require('./runtime/view-only');
 
-async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, methodName, methodArgs }) {
+async function runWASM({ blockHeight, blockTimestamp, accountBalance, accountLockedBalance, storageUsage, wasmModule, contractId, methodName, methodArgs }) {
     debug('runWASM', contractId, methodName, prettyBuffer(Buffer.from(methodArgs)));
     // TODO: Take memory size from config
     const memory = new WebAssembly.Memory({ initial: 1024, maximum: 2048 });
@@ -15,6 +15,9 @@ async function runWASM({ blockHeight, blockTimestamp, wasmModule, contractId, me
         registers: {},
         blockHeight,
         blockTimestamp,
+        accountBalance,
+        accountLockedBalance,
+        storageUsage,
         contractId,
         methodArgs,
         logs: [],
