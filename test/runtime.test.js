@@ -250,6 +250,43 @@ test('storage_usage returns 0 when not set', async t => {
     t.equal(Number(result), 0);
 });
 
+test('storage_usage returns non-zero value', async t => {
+    const ctx = createContext({
+        storageUsage: new Uint8Array([0xf1, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef])
+    });
+    const importFunctions = imports(ctx);
+
+    const result = importFunctions.storage_usage();
+
+    t.equal(result, 0xefcdab89674523f1n);
+});
+
+test('account_balance returns non-zero value', async t => {
+    const ctx = createContext({
+        accountBalance: new Uint8Array([0xf1, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe])
+    });
+    const importFunctions = imports(ctx);
+
+    importFunctions.account_balance(0);
+
+    const [low, high] = new BigUint64Array(ctx.memory.buffer, 0, 2);
+    t.equal(low, 0xefcdab89674523f1n);
+    t.equal(high, 0xfedcba9876543210n);
+});
+
+test('account_locked_balance returns non-zero value', async t => {
+    const ctx = createContext({
+        accountLockedBalance: new Uint8Array([0xf1, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe])
+    });
+    const importFunctions = imports(ctx);
+
+    importFunctions.account_locked_balance(0);
+
+    const [low, high] = new BigUint64Array(ctx.memory.buffer, 0, 2);
+    t.equal(low, 0xefcdab89674523f1n);
+    t.equal(high, 0xfedcba9876543210n);
+});
+
 test('log_utf16 adds log message', async t => {
     const ctx = createContext();
     const importFunctions = imports(ctx);
