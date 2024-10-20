@@ -12,18 +12,15 @@ async function getEpochValidators(blockHeight) {
         })
     };
 
-    try {
-        const response = await fetch(NEAR_PROVIDER_URL, requestOptions);
-        const data = await response.json();
-        if (data.error) {
-            console.error('JSON-RPC error:', data.error);
-            throw new Error(`JSON-RPC error: ${data.error.message || 'Unknown error'}`);
-        }
-        return data.result;
-    } catch (error) {
-        console.error('Error fetching validators:', error);
-        return null;
+    const response = await fetch(NEAR_PROVIDER_URL, requestOptions);
+    const data = await response.json();
+    if (data.error) {
+        console.error('JSON-RPC error:', data.error);
+        const error = new Error(`JSON-RPC error: ${data.error.message || 'Unknown error'}`);
+        error.data = data.error;
+        throw error;
     }
+    return data.result;
 }
 const fs = require('fs').promises;
 const path = require('path');
@@ -58,9 +55,21 @@ async function fetchAndSaveEpochData() {
     }
 
     while (true) {
-        const validatorsInfo = await getEpochValidators(currentBlockHeight);
+        let validatorsInfo;
+        try {
+            validatorsInfo = await getEpochValidators(currentBlockHeight);
+        } catch (error) {
+            if (error?.data?.cause?.name === 'UNKNOWN_EPOCH') {
+                console.log('Trying to skip block', currentBlockHeight);
+                currentBlockHeight -= 1;
+                continue;
+            }
+
+            throw error;
+        }
+
         if (!validatorsInfo) {
-            break; 
+            break;
         }
 
         const epochHeight = validatorsInfo.epoch_height;
