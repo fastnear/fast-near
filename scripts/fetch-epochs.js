@@ -30,28 +30,45 @@ const util = require('util');
 const gzip = util.promisify(zlib.gzip);
 const gunzip = util.promisify(zlib.gunzip);
 
-async function fetchAndSaveEpochData() {
-    let currentBlockHeight = null; // Start by fetching the latest block
-    let epochSummaries = [];
-    let lastWrittenSummary = Infinity;
-    const epochDataDir = './epoch-data';
-    const indexFilePath = path.join(epochDataDir, 'index.json.gz');
+const epochDataDir = './epoch-data';
+const indexFilePath = path.join(epochDataDir, 'index.json.gz');
 
-    // Check if index.json.gz exists and load existing data
+async function readEpochSummaries() {
     try {
         const compressedIndexData = await fs.readFile(indexFilePath);
         const indexData = await gunzip(compressedIndexData);
-        epochSummaries = JSON.parse(indexData.toString());
-        if (epochSummaries.length > 0) {
-            currentBlockHeight = epochSummaries[0].epochStartHeight - 1;
-            lastWrittenSummary = epochSummaries[0].epochHeight;
-            console.log(`Resuming from epoch ${lastWrittenSummary}`);
-        }
+        return JSON.parse(indexData.toString());
     } catch (error) {
         if (error.code !== 'ENOENT') {
             console.error('Error reading index.json.gz:', error);
         }
-        // If file doesn't exist or there's an error, start from the beginning
+        return [];
+    }
+}
+
+async function writeEpochSummaries(summaries) {
+    const compressedSummaries = await gzip(JSON.stringify(summaries));
+    await fs.writeFile(indexFilePath, compressedSummaries);
+}
+
+async function writeEpochData(epochHeight, data) {
+    await fs.mkdir(epochDataDir, { recursive: true });
+    const compressedData = await gzip(JSON.stringify(data));
+    await fs.writeFile(
+        path.join(epochDataDir, `${epochHeight}.json.gz`),
+        compressedData
+    );
+}
+
+async function fetchAndSaveEpochData() {
+    let currentBlockHeight = null; // Start by fetching the latest block
+    let epochSummaries = await readEpochSummaries();
+    let lastWrittenSummary = Infinity;
+
+    if (epochSummaries.length > 0) {
+        currentBlockHeight = epochSummaries[0].epochStartHeight - 1;
+        lastWrittenSummary = epochSummaries[0].epochHeight;
+        console.log(`Resuming from epoch ${lastWrittenSummary}`);
     }
 
     while (true) {
@@ -85,13 +102,8 @@ async function fetchAndSaveEpochData() {
         console.log(`  Number of Validators Kicked Out: ${numKickedOut}`);
         console.log('---');
 
-        // Save full epoch data (compressed)
-        await fs.mkdir(epochDataDir, { recursive: true });
-        const compressedValidatorsInfo = await gzip(JSON.stringify(validatorsInfo));
-        await fs.writeFile(
-            path.join(epochDataDir, `${epochHeight}.json.gz`),
-            compressedValidatorsInfo
-        );
+        // Save full epoch data
+        await writeEpochData(epochHeight, validatorsInfo);
 
         // Add to summaries if it's a new epoch
         if (!epochSummaries.some(summary => summary.epochHeight === epochHeight)) {
@@ -103,8 +115,7 @@ async function fetchAndSaveEpochData() {
 
         // Write summaries every 10 epochs or when we reach epoch 1
         if (lastWrittenSummary - epochHeight >= 10 || epochHeight === 1) {
-            const compressedSummaries = await gzip(JSON.stringify(epochSummaries));
-            await fs.writeFile(indexFilePath, compressedSummaries);
+            await writeEpochSummaries(epochSummaries);
             console.log(`Wrote summaries up to epoch ${epochHeight}`);
             lastWrittenSummary = epochHeight;
         }
