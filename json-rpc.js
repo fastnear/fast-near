@@ -27,14 +27,27 @@ const proxyJson = async (ctx, { archival = false } = {}) => {
     const nodeUrl = archival ? ARCHIVAL_NODE_URL : NODE_URL;
     const rawBody = ctx.request.body ? JSON.stringify(ctx.request.body) : await getRawBody(ctx.req);
     debug('proxyJson', ctx.request.method, ctx.request.path, nodeUrl, rawBody.toString('utf8'));
+
     ctx.type = 'json';
-    ctx.body = Buffer.from(await (await fetch(`${nodeUrl}${ctx.request.path}`, {
+    const response = await fetch(`${nodeUrl}${ctx.request.path}`, {
         method: ctx.request.method,
         headers: {
             'Content-Type': 'application/json'
         },
         body: ctx.request.method != 'GET' ? rawBody : undefined
-    })).arrayBuffer());
+    });
+
+    const contentType = response.headers.get('content-type');
+    debug('response', response.status, response.statusText, contentType);
+    if (!response.ok) {
+        ctx.throw(502, `Backend returned ${response.status} ${response.statusText}`);
+    }
+    if (!contentType || !contentType.includes('application/json')) {
+        ctx.throw(500, 'Invalid content type from backend: expected application/json');
+    }
+
+    ctx.status = response.status;
+    ctx.body = Buffer.from(await response.arrayBuffer());
 }
 
 const viewCallError = ({ id, message }) => {
