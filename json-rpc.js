@@ -246,7 +246,7 @@ const handleJsonRpc = async ctx => {
 
                     ctx.body = rpcResult(body.id, await handleQuery({ blockHeight, body }));
                 }
-                break;
+                return;
             }
             case 'chunk': {
                 const { block_id, shard_id } = body.params;
@@ -268,23 +268,23 @@ const handleJsonRpc = async ctx => {
 
                     throw new FastNEARError('chunkNotFound', `Chunk not found: ${block_id} ${shard_id}`, { block_id, shard_id });
                 }
-                break;
+                return;
             }
             case 'broadcast_tx_commit': {
                 const result = await submitTransaction(Buffer.from(body.params[0], 'base64'));
                 ctx.body = rpcResult(body.id, result);
-                break;
+                return;
             }
             default:
                 // Fall back to proxying
-                break;
+                await proxyJson(ctx);
         }
     } catch (error) {
         await handleError({ ctx, blockHeight: null, error });
         return;
     }
 
-    await proxyJson(ctx);
+    throw new Error('Should not happen');
 };
 
 async function handleQuery({ blockHeight, body }) {
