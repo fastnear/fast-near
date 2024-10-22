@@ -239,7 +239,8 @@ const handleJsonRpc = async ctx => {
 
                 if (typeof block_id == 'string') {
                     // TODO: Maintain block hash -> block height mapping
-                    await proxyJson(ctx);
+                    // Fall back to proxying
+                    break;
                 } else {
                     const blockHeight = await resolveBlockHeight(block_id);
                     debug('blockHeight', blockHeight);
@@ -269,24 +270,21 @@ const handleJsonRpc = async ctx => {
                     throw new FastNEARError('chunkNotFound', `Chunk not found: ${block_id} ${shard_id}`, { block_id, shard_id });
                 }
                 // Fall back to proxying
-                await proxyJson(ctx);
-                return;
+                break;
             }
             case 'broadcast_tx_commit': {
                 const result = await submitTransaction(Buffer.from(body.params[0], 'base64'));
                 ctx.body = rpcResult(body.id, result);
                 return;
             }
-            default:
-                // Fall back to proxying
-                await proxyJson(ctx);
         }
     } catch (error) {
         await handleError({ ctx, blockHeight: null, error });
         return;
     }
 
-    throw new Error('Should not happen');
+    // Fall back to proxying
+    await proxyJson(ctx);
 };
 
 async function handleQuery({ blockHeight, body }) {
