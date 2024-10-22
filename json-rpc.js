@@ -268,7 +268,8 @@ const handleJsonRpc = async ctx => {
 
                     throw new FastNEARError('chunkNotFound', `Chunk not found: ${block_id} ${shard_id}`, { block_id, shard_id });
                 }
-                return;
+                // Fall back to proxying
+                await proxyJson(ctx);
             }
             case 'broadcast_tx_commit': {
                 const result = await submitTransaction(Buffer.from(body.params[0], 'base64'));
