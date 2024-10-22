@@ -270,6 +270,7 @@ const handleJsonRpc = async ctx => {
                 }
                 // Fall back to proxying
                 await proxyJson(ctx);
+                return;
             }
             case 'broadcast_tx_commit': {
                 const result = await submitTransaction(Buffer.from(body.params[0], 'base64'));
