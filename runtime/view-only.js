@@ -301,6 +301,7 @@ const imports = (ctx) => {
         validator_total_stake: notImplemented('validator_total_stake'),
 
         // Registers
+        write_register: prohibitedInView('write_register'),
         read_register: (register_id, ptr) => {
             debug('read_register', register_id, ptr);
             debug('registers[register_id]', registers[register_id]);
