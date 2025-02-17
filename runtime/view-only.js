@@ -296,6 +296,11 @@ const imports = (ctx) => {
             return 1n;
         },
 
+        // Storage iterators (deprecated)
+        storage_iter_prefix: notImplemented('storage_iter_prefix'),
+        storage_iter_range: notImplemented('storage_iter_range'),
+        storage_iter_next: notImplemented('storage_iter_next'),
+
         // Validator
         validator_stake: notImplemented('validator_stake'),
         validator_total_stake: notImplemented('validator_total_stake'),
