@@ -2,13 +2,28 @@ const { FastNEARError } = require('../error');
 
 const debug = require('debug')('source:neardata');
 
+// Default API key from environment variable
+const DEFAULT_API_KEY = process.env.NEARDATA_API_KEY || '';
+
 // TODO: Allow to break the loop if the user wants to stop reading blocks. Use an AbortController signal?
-async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startBlockHeight, endBlockHeight, batchSize = 10, retryDelay = 1000 }) {
+async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startBlockHeight, endBlockHeight, batchSize = 10, retryDelay = 1000, apiKey = DEFAULT_API_KEY }) {
     debug('readBlocks', baseUrl, startBlockHeight, endBlockHeight, batchSize, retryDelay);
+
+    // Helper function to create headers with API key if available
+    const createHeaders = () => {
+        const headers = {};
+        if (apiKey) {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+        return headers;
+    };
 
     async function fetchBlockNumber(path) {
         debug('fetchBlockNumber', path);
-        const res = await fetch(`${baseUrl}/${path}`, { redirect: 'manual' });
+        const res = await fetch(`${baseUrl}/${path}`, { 
+            redirect: 'manual',
+            headers: createHeaders()
+        });
         // TODO: Should handle 404, etc?
         // Parse location header looking like `location: /v0/block/9820210`
         return parseInt(res.headers.get('location').split('/').pop(), 10);
@@ -29,7 +44,9 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
         let retries = 0;
         while (true) {
             try {
-                const res = await fetch(`${baseUrl}/block/${blockHeight}`);
+                const res = await fetch(`${baseUrl}/block/${blockHeight}`, {
+                    headers: createHeaders()
+                });
                 if (!res.ok) {
                     if (!res.headers.get('content-type')?.includes('application/json')) {
                         const text = await res.text();
