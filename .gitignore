@@ -7,3 +7,4 @@ lake-data-compressed
 .env
 data/
 coverage/
+.aider*
