@@ -10,9 +10,11 @@
   "main": "app.js",
   "files": [
     "bin",
+    "runtime",
     "scripts",
     "source",
     "storage",
+    "test",
     "utils",
     "*.js"
   ],
