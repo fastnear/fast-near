@@ -14,7 +14,6 @@
     "scripts",
     "source",
     "storage",
-    "test",
     "utils",
     "*.js"
   ],
