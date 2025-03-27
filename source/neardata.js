@@ -2,6 +2,25 @@ const { FastNEARError } = require('../error');
 
 const debug = require('debug')('source:neardata');
 
+async function fetchWithRedirects(url, options = {}, maxRedirects = 5) {
+    let currentUrl = url;
+    let redirectCount = 0;
+
+    while (redirectCount < maxRedirects) {
+        const response = await fetch(currentUrl, { ...options, redirect: 'manual' });
+        
+        if (response.status >= 300 && response.status < 400) {
+            currentUrl = new URL(response.headers.get('location'), currentUrl).toString();
+            redirectCount++;
+            continue;
+        }
+        
+        return response;
+    }
+    
+    throw new FastNEARError('tooManyRedirects', `Too many redirects (max: ${maxRedirects})`);
+}
+
 // Default API key from environment variable
 const DEFAULT_API_KEY = process.env.NEARDATA_API_KEY || '';
 
@@ -44,7 +63,7 @@ async function* readBlocks({ baseUrl = 'https://mainnet.neardata.xyz/v0', startB
         let retries = 0;
         while (true) {
             try {
-                const res = await fetch(`${baseUrl}/block/${blockHeight}`, {
+                const res = await fetchWithRedirects(`${baseUrl}/block/${blockHeight}`, {
                     headers: createHeaders()
                 });
                 if (!res.ok) {
